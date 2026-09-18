@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Isometric cube: 3 rhombus faces that together tile the hexagon exactly — no gaps -->
+  <!-- Hex vertices: T(50,8) TR(88,29) BR(88,71) B(50,92) BL(12,71) TL(12,29) C(50,50) -->
+
+  <!-- Top face (lightest) -->
+  <polygon points="50,8 88,29 50,50 12,29" fill="#F4743B"/>
+
+  <!-- Left face (mid) -->
+  <polygon points="12,29 50,50 50,92 12,71" fill="#D94F1C"/>
+
+  <!-- Right face (darkest) -->
+  <polygon points="50,50 88,29 88,71 50,92" fill="#A83710"/>
+</svg>

@@ -1,0 +1,463 @@
+<title>PTL Console — Design System</title>
+<style>
+  :root{
+    --navy:#1A2B4A; --navy-light:#243560; --navy-dark:#111D33;
+    --orange:#D94F1C; --orange-light:#F4743B; --orange-dark:#A83710;
+    --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+    --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+    --line:#E3E6ED; --line-soft:#EDEFF3;
+    --success:#0F9D6D; --success-bg:#E7F7F1; --success-ink:#0B7A56;
+    --warning:#B45309; --warning-bg:#FDF3E3;
+    --danger:#C81E4A; --danger-bg:#FBE9EE; --danger-ink:#A3123A;
+    --info:#0369A1; --info-bg:#E6F3FA;
+    --violet:#6D4AAE; --violet-bg:#EFE9F9;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
+    --shadow-soft:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.07);
+    --shadow-md:0 4px 14px rgba(15,23,42,.09);
+    --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+      --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+      --line:#233150; --line-soft:#1A2743;
+      --success-bg:rgba(15,157,109,.16); --success-ink:#4FD9A8;
+      --warning-bg:rgba(180,83,9,.2); --warning:#F0A93E;
+      --danger-bg:rgba(200,30,74,.18); --danger-ink:#F0567F; --danger:#F0567F;
+      --info-bg:rgba(3,105,161,.22); --info:#5EC2F7;
+      --violet-bg:rgba(109,74,174,.24); --violet:#B29AE0;
+      --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+    --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+    --line:#233150; --line-soft:#1A2743;
+    --success-bg:rgba(15,157,109,.16); --success-ink:#4FD9A8;
+    --warning-bg:rgba(180,83,9,.2); --warning:#F0A93E;
+    --danger-bg:rgba(200,30,74,.18); --danger-ink:#F0567F; --danger:#F0567F;
+    --info-bg:rgba(3,105,161,.22); --info:#5EC2F7;
+    --violet-bg:rgba(109,74,174,.24); --violet:#B29AE0;
+  }
+  :root[data-theme="light"]{
+    --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+    --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+    --line:#E3E6ED; --line-soft:#EDEFF3;
+    --success-bg:#E7F7F1; --success-ink:#0B7A56;
+    --warning-bg:#FDF3E3; --warning:#B45309;
+    --danger-bg:#FBE9EE; --danger-ink:#A3123A; --danger:#C81E4A;
+    --info-bg:#E6F3FA; --info:#0369A1;
+    --violet-bg:#EFE9F9; --violet:#6D4AAE;
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--canvas); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+  code, .mono{font-family:var(--font-mono);}
+
+  .shell{display:flex; min-height:100vh;}
+  .docnav{width:252px; flex-shrink:0; background:var(--navy); color:#C7CEDD; position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto; padding:26px 16px 40px;}
+  .docnav .brand{display:flex; align-items:center; gap:10px; padding:2px 8px 22px;}
+  .docnav .brand .mark{width:30px; height:30px; border-radius:8px; background:var(--orange); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; font-size:13px; flex-shrink:0;}
+  .docnav .brand div{line-height:1.25;}
+  .docnav .brand .t1{font-size:13.5px; font-weight:700; color:#fff;}
+  .docnav .brand .t2{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#8FA0C9;}
+  .docnav .kicker{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#6F80A8; padding:16px 10px 6px;}
+  .docnav a{display:block; padding:6.5px 10px; border-radius:8px; font-size:13px; color:#B7C0D6; text-decoration:none; transition:background .12s,color .12s;}
+  .docnav a:hover{background:rgba(255,255,255,.07); color:#fff;}
+  .docnav .back{display:inline-flex; align-items:center; gap:6px; margin:0 0 18px 8px; font-size:12px; color:#8FA0C9; text-decoration:none;}
+  .docnav .back:hover{color:#fff;}
+
+  main.doc{flex:1; min-width:0; padding:52px 60px 140px; max-width:1160px;}
+  .eyebrow{font-size:11.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--orange-dark); font-weight:700; margin:0 0 10px;}
+  h1.title{font-size:34px; line-height:1.15; letter-spacing:-.015em; margin:0 0 12px; text-wrap:balance; font-weight:700;}
+  .lede{font-size:15.5px; color:var(--ink-soft); max-width:680px; line-height:1.6; margin:0 0 6px;}
+  .meta-row{display:flex; gap:18px; flex-wrap:wrap; margin:22px 0 48px; padding:14px 18px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); font-size:12.5px; color:var(--muted);}
+  .meta-row b{color:var(--ink-soft); font-weight:600;}
+
+  section.doc-section{margin-bottom:64px; scroll-margin-top:24px;}
+  section.doc-section > h2{font-size:21px; font-weight:700; letter-spacing:-.01em; margin:0 0 6px; display:flex; align-items:baseline; gap:10px;}
+  section.doc-section > h2 .num{font-family:var(--font-mono); font-size:13px; color:var(--muted-2); font-weight:500;}
+  section.doc-section > .sub{color:var(--ink-soft); font-size:13.5px; max-width:640px; line-height:1.6; margin:0 0 22px;}
+  h3.sub-title{font-size:14px; font-weight:700; margin:30px 0 12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+
+  .specimen{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; margin-bottom:16px;}
+  .specimen .stage{padding:22px 24px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:
+    repeating-conic-gradient(var(--surface-2) 0% 25%, transparent 0% 50%) 0 0/16px 16px, var(--surface);
+  }
+  :root[data-theme="dark"] .specimen .stage, @media (prefers-color-scheme:dark){ .specimen .stage{ background: var(--surface);} }
+  .specimen .code{border-top:1px solid var(--line); background:var(--surface-2); padding:12px 20px; font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); overflow-x:auto; white-space:pre;}
+  .specimen .code .lbl{display:inline-block; color:var(--muted); font-family:var(--font-sans); font-size:11px; text-transform:uppercase; letter-spacing:.05em; margin-right:10px;}
+  .specimen-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px;}
+
+  table.ref{width:100%; border-collapse:collapse; font-size:13px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;}
+  table.ref th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface-2);}
+  table.ref td{padding:11px 16px; border-bottom:1px solid var(--line-soft); color:var(--ink-soft); vertical-align:top;}
+  table.ref tr:last-child td{border-bottom:none;}
+  table.ref td code{background:var(--surface-2); padding:2px 6px; border-radius:5px; font-size:11.5px; color:var(--ink);}
+  table.ref td.strong{color:var(--ink); font-weight:600;}
+
+  .swatch-row{display:flex; align-items:center; gap:14px; padding:12px 16px; border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface); margin-bottom:8px;}
+  .swatch{width:40px; height:40px; border-radius:10px; flex-shrink:0; border:1px solid rgba(0,0,0,.06); box-shadow:var(--shadow-soft);}
+  .swatch-name{font-weight:600; font-size:13.5px;}
+  .swatch-hex{font-family:var(--font-mono); font-size:12px; color:var(--muted); margin-left:auto;}
+  .swatch-use{font-size:12px; color:var(--muted); flex:1 1 220px;}
+
+  /* --- rendered component mimics (visual only, mirrors Tailwind output) --- */
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:12px; font-size:14px; font-weight:500; cursor:default; border:1px solid transparent; white-space:nowrap;}
+  .btn-primary{background:var(--orange); color:#fff; padding:10px 16px; box-shadow:var(--shadow-soft);}
+  .btn-secondary{background:var(--surface); color:var(--ink-soft); border-color:var(--line); padding:9px 16px;}
+  .btn-chip{background:var(--surface); color:var(--ink-soft); border-color:var(--line); padding:6px 12px; border-radius:8px; font-size:12.5px;}
+  .btn-ghost{background:none; color:var(--orange-dark); font-size:13px; font-weight:500; text-decoration:underline; text-underline-offset:2px;}
+  .btn-danger{background:#DC3B60; color:#fff; padding:8px 16px; border-radius:8px; font-size:12.5px;}
+  .btn-danger-text{background:none; color:#E24572; font-size:12.5px; font-weight:500; text-decoration:underline;}
+  .btn-disabled-a{background:var(--line); color:var(--muted); padding:10px 16px; border-radius:12px; font-size:14px;}
+  .btn-disabled-b{background:var(--orange); color:#fff; opacity:.4; padding:10px 16px; border-radius:12px; font-size:14px;}
+
+  .pill{border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600; display:inline-flex; align-items:center;}
+  .pill-success{background:var(--success-bg); color:var(--success-ink);}
+  .pill-warning{background:var(--warning-bg); color:var(--warning);}
+  .pill-danger{background:var(--danger-bg); color:var(--danger-ink);}
+  .pill-info{background:var(--info-bg); color:var(--info);}
+  .pill-neutral{background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--line);}
+  .pill-brand{background:rgba(217,79,28,.12); color:var(--orange-dark);}
+  .pill-violet{background:var(--violet-bg); color:var(--violet);}
+
+  .card-demo{background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow-soft); padding:18px 20px; font-size:13px; color:var(--ink-soft); width:220px;}
+  .card-demo b{display:block; color:var(--ink); font-size:14px; margin-bottom:4px;}
+  .card-demo.xl{border-radius:12px; box-shadow:none;}
+  .card-demo.dashed{border-style:dashed; text-align:center; color:var(--muted); background:var(--surface-2);}
+
+  .mini-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .mini-table th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:10px 18px;}
+  .mini-table td{padding:12px 18px; border-top:1px solid var(--line-soft); color:var(--ink-soft);}
+  .mini-table tr:hover td{background:var(--surface-2);}
+  .mini-table td.strong{color:var(--ink); font-weight:600;}
+
+  .field-demo{display:block; width:220px;}
+  .field-demo .lbl{display:block; font-size:11.5px; font-weight:600; color:var(--muted); margin-bottom:6px;}
+  .field-demo input, .field-demo select{width:100%; border-radius:12px; border:1px solid var(--line); background:var(--surface-2); padding:10px 14px; font-size:13px; color:var(--ink); font-family:var(--font-sans);}
+  .field-demo.compact input{border-radius:8px; padding:7px 12px;}
+
+  .toggle{position:relative; width:36px; height:20px; border-radius:999px; background:var(--line); flex-shrink:0; display:inline-block;}
+  .toggle.on{background:var(--orange);}
+  .toggle i{position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:999px; background:#fff; box-shadow:var(--shadow-soft); transition:transform .15s;}
+  .toggle.on i{transform:translateX(16px);}
+
+  .icon-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:4px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px;}
+  .icon-cell{display:flex; flex-direction:column; align-items:center; gap:7px; padding:10px 4px; border-radius:10px;}
+  .icon-cell:hover{background:var(--surface-2);}
+  .icon-cell svg{color:var(--ink-soft);}
+  .icon-cell span{font-size:10.5px; color:var(--muted); font-family:var(--font-mono);}
+
+  .callout{border-radius:var(--r-md); padding:14px 18px; font-size:13px; line-height:1.6; margin:14px 0;}
+  .callout.warn{background:var(--warning-bg); color:#8A4508;}
+  :root[data-theme="dark"] .callout.warn, @media (prefers-color-scheme:dark){ .callout.warn{color:var(--warning);} }
+  .callout.note{background:var(--info-bg); color:#0A5C87;}
+  :root[data-theme="dark"] .callout.note, @media (prefers-color-scheme:dark){ .callout.note{color:var(--info);} }
+  .callout b{display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;}
+
+  .fix-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .fix-list li{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); padding:14px 18px; font-size:13px; color:var(--ink-soft); line-height:1.55;}
+  .fix-list .head{display:flex; align-items:center; gap:8px; margin-bottom:5px;}
+  .fix-list .sev{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px;}
+  .fix-list .sev.mixed{background:var(--warning-bg); color:var(--warning);}
+  .fix-list .sev.dup{background:var(--info-bg); color:var(--info);}
+  .fix-list .title{font-weight:600; color:var(--ink); font-size:13.5px;}
+  .fix-list code{background:var(--surface-2); padding:1px 6px; border-radius:5px; font-size:12px;}
+
+  .shell-diagram{display:flex; border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; height:280px; font-size:12px;}
+  .shell-diagram .d-sidebar{width:150px; background:var(--navy); color:#8FA0C9; padding:14px 12px; flex-shrink:0;}
+  .shell-diagram .d-sidebar .d-logo{background:rgba(255,255,255,.08); border-radius:6px; padding:6px 8px; color:#fff; font-weight:600; margin-bottom:10px;}
+  .shell-diagram .d-sidebar .d-item{padding:6px 8px; border-radius:6px; margin-bottom:2px;}
+  .shell-diagram .d-sidebar .d-item.active{background:rgba(255,255,255,.1); color:#fff;}
+  .shell-diagram .d-main{flex:1; display:flex; flex-direction:column;}
+  .shell-diagram .d-top{height:44px; background:var(--navy); color:#B7C0D6; display:flex; align-items:center; padding:0 16px; flex-shrink:0; border-bottom:1px solid rgba(255,255,255,.08);}
+  .shell-diagram .d-content{flex:1; background:var(--canvas); padding:20px; color:var(--muted); position:relative;}
+  .shell-diagram .d-content .d-pad{position:absolute; inset:20px; border:1px dashed var(--muted-2); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted-2); font-family:var(--font-mono); font-size:11px;}
+
+  ::selection{background:rgba(217,79,28,.22);}
+  a{color:inherit;}
+  @media (max-width:900px){ .docnav{display:none;} main.doc{padding:32px 20px 100px;} }
+</style>
+
+<div class="shell">
+  <nav class="docnav">
+    <a class="back" href="https://claude.ai/code/artifact/b312c057-4efc-457a-9caa-28c30434b3eb">&larr; All references</a>
+    <div class="brand">
+      <div class="mark">P</div>
+      <div><div class="t1">PTL Console</div><div class="t2">Design System</div></div>
+    </div>
+
+    <div class="kicker">Foundations</div>
+    <a href="#color">Color</a>
+    <a href="#type">Typography</a>
+    <a href="#spacing">Spacing &amp; radius</a>
+
+    <div class="kicker">Components</div>
+    <a href="#buttons">Buttons</a>
+    <a href="#badges">Badges &amp; status</a>
+    <a href="#cards">Cards &amp; containers</a>
+    <a href="#tables">Tables</a>
+    <a href="#forms">Form controls</a>
+    <a href="#overlays">Modals &amp; popovers</a>
+    <a href="#icons">Icons</a>
+
+    <div class="kicker">Structure</div>
+    <a href="#shell">Page shell</a>
+    <a href="#fixes">Standardization notes</a>
+  </nav>
+
+  <main class="doc">
+    <div class="eyebrow">Reference 01 &middot; Foundations</div>
+    <h1 class="title">The PTL Console design system</h1>
+    <p class="lede">Every color, type size, and component pattern already live in the shipped app — this page pulls them out of <code>tailwind.config.js</code>, <code>src/components/ui.js</code>, and the wizard/table code so the team builds new modules with the same hand, not five different hands.</p>
+
+    <div class="meta-row">
+      <span><b>Source of truth:</b> live code, not guesses</span>
+      <span><b>Core token file:</b> <code class="mono">src/components/ui.js</code></span>
+      <span><b>Base font:</b> Inter (Google Fonts) &rarr; system-sans fallback</span>
+      <span><b>Read next:</b> your module's own reference file</span>
+    </div>
+
+    <!-- COLOR -->
+    <section class="doc-section" id="color">
+      <h2><span class="num">01</span> Color</h2>
+      <p class="sub">Brand color lives in <code>tailwind.config.js</code>. Everything else — status, tables, text — is drawn from Tailwind's <code>slate</code> neutral ramp plus five semantic hues. Don't invent new hex values; pick from this list.</p>
+
+      <h3 class="sub-title">Brand</h3>
+      <div class="swatch-row"><div class="swatch" style="background:#1A2B4A"></div><span class="swatch-name">Navy</span><span class="swatch-use">Sidebar, topbar — the app's one dark surface</span><span class="swatch-hex">#1A2B4A &middot; brand-navy</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#243560"></div><span class="swatch-name">Navy light</span><span class="swatch-use">Hover states on navy surfaces</span><span class="swatch-hex">#243560 &middot; brand-navy-light</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#111D33"></div><span class="swatch-name">Navy dark</span><span class="swatch-use">Reserved, rarely used directly</span><span class="swatch-hex">#111D33 &middot; brand-navy-dark</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#D94F1C"></div><span class="swatch-name">Orange</span><span class="swatch-use">The one accent. Primary CTAs, active nav, key numbers only</span><span class="swatch-hex">#D94F1C &middot; brand-orange</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#F4743B"></div><span class="swatch-name">Orange light</span><span class="swatch-use">Active icon tint on navy surfaces</span><span class="swatch-hex">#F4743B &middot; brand-orange-light</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#A83710"></div><span class="swatch-name">Orange dark</span><span class="swatch-use">Hover state for primary buttons, required-field asterisk</span><span class="swatch-hex">#A83710 &middot; brand-orange-dark</span></div>
+
+      <h3 class="sub-title">Semantic (status &amp; feedback)</h3>
+      <div class="swatch-row"><div class="swatch" style="background:#ECFDF5;border:1px solid #A7F3D0"></div><span class="swatch-name">Success</span><span class="swatch-use">Delivered, paid, valid, active — <code>emerald-50 / emerald-700</code></span><span class="swatch-hex">bg #ECFDF5 &middot; text #047857</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#FFFBEB;border:1px solid #FDE68A"></div><span class="swatch-name">Warning</span><span class="swatch-use">Pending, expiring soon, needs attention — <code>amber-50 / amber-700</code></span><span class="swatch-hex">bg #FFFBEB &middot; text #B45309</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#FFF1F2;border:1px solid #FECDD3"></div><span class="swatch-name">Danger</span><span class="swatch-use">Expired, overdue, rejected, destructive actions — <code>rose-50 / rose-700</code></span><span class="swatch-hex">bg #FFF1F2 &middot; text #BE123C</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#F0F9FF;border:1px solid #BAE6FD"></div><span class="swatch-name">Info</span><span class="swatch-use">In transit, dispatched, under review — <code>sky-50 / sky-700</code></span><span class="swatch-hex">bg #F0F9FF &middot; text #0369A1</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#F5F3FF;border:1px solid #DDD6FE"></div><span class="swatch-name">Rule / logic</span><span class="swatch-use">Logic Engine, KYC-pending — <code>violet-50 / violet-700</code></span><span class="swatch-hex">bg #F5F3FF &middot; text #6D28D9</span></div>
+
+      <div class="callout note"><b>Rule of thumb</b>Semantic color answers "what state is this record in." Brand orange answers "what does this page want me to do." Never use orange for a status pill, and never use a status hue for a button.</div>
+
+      <h3 class="sub-title">Neutrals</h3>
+      <div class="swatch-row"><div class="swatch" style="background:#0F172A"></div><span class="swatch-name">slate-900</span><span class="swatch-use">Primary text, page titles</span><span class="swatch-hex">#0F172A</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#475569"></div><span class="swatch-name">slate-600</span><span class="swatch-use">Body / table-cell text</span><span class="swatch-hex">#475569</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#64748B"></div><span class="swatch-name">slate-500</span><span class="swatch-use">Field labels, subtitles</span><span class="swatch-hex">#64748B</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#94A3B8"></div><span class="swatch-name">slate-400</span><span class="swatch-use">Muted / helper / placeholder text</span><span class="swatch-hex">#94A3B8</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#E2E8F0"></div><span class="swatch-name">slate-200</span><span class="swatch-use">Borders, dividers</span><span class="swatch-hex">#E2E8F0</span></div>
+      <div class="swatch-row"><div class="swatch" style="background:#F8FAFC"></div><span class="swatch-name">slate-50</span><span class="swatch-use">Input backgrounds, table-header fill</span><span class="swatch-hex">#F8FAFC</span></div>
+    </section>
+
+    <!-- TYPE -->
+    <section class="doc-section" id="type">
+      <h2><span class="num">02</span> Typography</h2>
+      <p class="sub">One family, Inter, at eight weight/size/color combinations. No page needs a ninth — reach for this table before inventing a new heading size.</p>
+      <table class="ref">
+        <tr><th>Role</th><th>Rendered</th><th>Classes</th></tr>
+        <tr><td class="strong">Page title</td><td style="font-size:22px;font-weight:600;letter-spacing:-.01em;color:var(--ink)">Client Onboarding</td><td><code>text-[26px] font-semibold tracking-tight text-slate-900</code></td></tr>
+        <tr><td class="strong">Page subtitle</td><td style="color:var(--muted)">Create, draft and activate new clients before they can be booked against.</td><td><code>mt-1 text-slate-500</code></td></tr>
+        <tr><td class="strong">Section title</td><td style="font-weight:500;color:var(--ink)">Contract &amp; commercial terms</td><td><code>font-medium text-slate-900</code></td></tr>
+        <tr><td class="strong">Table header</td><td style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Invoice No.</td><td><code>text-[11px] font-medium uppercase tracking-wider text-slate-400</code></td></tr>
+        <tr><td class="strong">Field label</td><td style="font-size:12px;font-weight:600;color:var(--muted)">Billing period</td><td><code>text-xs font-medium text-slate-500</code></td></tr>
+        <tr><td class="strong">Body / cell text</td><td style="font-size:13.5px;color:var(--ink-soft)">₹38.2L pending across 46 invoices</td><td><code>text-sm text-slate-600</code></td></tr>
+        <tr><td class="strong">Muted / helper</td><td style="font-size:12px;color:var(--muted)">Drives the tier suggestion</td><td><code>text-xs text-slate-400</code></td></tr>
+        <tr><td class="strong">Error text</td><td style="font-size:12px;font-weight:600;color:var(--danger-ink)">This field is required</td><td><code>text-xs font-medium text-rose-500</code></td></tr>
+        <tr><td class="strong">KPI value</td><td style="font-size:24px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--ink)">1,284</td><td><code>text-3xl font-semibold tracking-tight tabular-nums</code></td></tr>
+      </table>
+    </section>
+
+    <!-- SPACING -->
+    <section class="doc-section" id="spacing">
+      <h2><span class="num">03</span> Spacing &amp; radius</h2>
+      <p class="sub">Corners scale with a component's weight: small controls are tightest, top-level cards are roundest.</p>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage" style="justify-content:center;height:76px;"><div style="width:64px;height:44px;background:var(--orange);border-radius:8px"></div></div><div class="code"><span class="lbl">8px</span>rounded-lg &middot; chips, compact inputs</div></div>
+        <div class="specimen"><div class="stage" style="justify-content:center;height:76px;"><div style="width:64px;height:44px;background:var(--orange);border-radius:12px"></div></div><div class="code"><span class="lbl">12px</span>rounded-xl &middot; buttons, form fields, nested panels</div></div>
+        <div class="specimen"><div class="stage" style="justify-content:center;height:76px;"><div style="width:64px;height:44px;background:var(--orange);border-radius:16px"></div></div><div class="code"><span class="lbl">16px</span>rounded-2xl &middot; top-level cards, modals</div></div>
+        <div class="specimen"><div class="stage" style="justify-content:center;height:76px;"><div style="width:44px;height:44px;background:var(--orange);border-radius:999px"></div></div><div class="code"><span class="lbl">full</span>rounded-full &middot; pills, avatars, toggles</div></div>
+      </div>
+      <h3 class="sub-title">Content padding</h3>
+      <table class="ref">
+        <tr><th>Context</th><th>Padding</th></tr>
+        <tr><td>Main content area (below topbar)</td><td><code>p-8</code></td></tr>
+        <tr><td>Top-level card / wizard step</td><td><code>p-6</code></td></tr>
+        <tr><td>KPI tile</td><td><code>p-5</code></td></tr>
+        <tr><td>Table header row / row cell</td><td><code>px-6 py-3</code> header &middot; <code>px-6 py-3.5</code> cell</td></tr>
+        <tr><td>Sibling field / section gap</td><td><code>gap-4</code> horizontal &middot; <code>space-y-6</code> vertical between sections</td></tr>
+      </table>
+    </section>
+
+    <!-- BUTTONS -->
+    <section class="doc-section" id="buttons">
+      <h2><span class="num">04</span> Buttons</h2>
+      <p class="sub">Five kinds, each with exactly one job. Import <code>btnPrimary</code> / <code>btnSecondary</code> from <code>ui.js</code> rather than retyping the string — five files currently hand-type the primary button's classes verbatim.</p>
+
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage"><button class="btn btn-primary">Create new client</button></div><div class="code">btnPrimary &middot; one per page, the main action</div></div>
+        <div class="specimen"><div class="stage"><button class="btn btn-secondary">Save as draft</button></div><div class="code">btnSecondary &middot; the alternate action next to primary</div></div>
+        <div class="specimen"><div class="stage"><button class="btn btn-chip">+ Add document</button></div><div class="code">btnChip (proposed) &middot; small inline "add a row" actions</div></div>
+        <div class="specimen"><div class="stage"><a class="btn btn-ghost">View all</a></div><div class="code">ghost link &middot; text-brand-orange-dark hover:underline</div></div>
+        <div class="specimen"><div class="stage"><button class="btn btn-danger">Send back to Sales</button></div><div class="code">filled danger &middot; bg-rose-600, rare — one destructive action per screen</div></div>
+        <div class="specimen"><div class="stage"><a class="btn btn-danger-text">Remove</a></div><div class="code">text danger &middot; row-level delete inside a repeatable list</div></div>
+      </div>
+
+      <h3 class="sub-title">Disabled state — two conventions exist today</h3>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage"><button class="btn btn-disabled-a">Confirm &amp; Create Client</button></div><div class="code">recolor &middot; disabled:bg-slate-200 disabled:text-slate-400</div></div>
+        <div class="specimen"><div class="stage"><button class="btn btn-disabled-b">Send back</button></div><div class="code">opacity &middot; disabled:opacity-40</div></div>
+      </div>
+      <div class="callout warn"><b>Pick one</b>Both exist for the same button type in different files. Recommendation in <a href="#fixes">Standardization notes</a>: recolor for primary buttons (keeps text readable), opacity for outline/ghost buttons.</div>
+    </section>
+
+    <!-- BADGES -->
+    <section class="doc-section" id="badges">
+      <h2><span class="num">05</span> Badges &amp; status pills</h2>
+      <p class="sub">A pill's color is not a design choice per screen — it's looked up from a status map already defined in <code>src/data/*.js</code> (<code>ORDER_STATUS_BADGE</code>, <code>INVOICE_STATUS_BADGE</code>, <code>TRIP_STATUS_BADGE</code>, etc). Add your module's statuses to that pattern rather than inventing inline colors.</p>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage"><span class="pill pill-success">Delivered</span></div><div class="code">emerald &middot; success / paid / valid</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-warning">Pickup scheduled</span></div><div class="code">amber &middot; pending / expiring</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-danger">Overdue &gt; 60d</span></div><div class="code">rose &middot; expired / rejected</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-info">In transit</span></div><div class="code">sky &middot; active / under review</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-neutral">Booked</span></div><div class="code">slate &middot; neutral / generated</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-violet">KYC pending</span></div><div class="code">violet &middot; rule / logic-driven state</div></div>
+      </div>
+
+      <h3 class="sub-title">Client tier badges</h3>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage"><span class="pill pill-violet">Platinum</span></div><div class="code">violet-50/700</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-warning">Gold</span></div><div class="code">amber-50/700</div></div>
+        <div class="specimen"><div class="stage"><span class="pill pill-neutral">Silver</span></div><div class="code">slate-100/600</div></div>
+        <div class="specimen"><div class="stage"><span class="pill" style="background:#FFEDD5;color:#9A3412">Bronze</span></div><div class="code">orange-100/800 &middot; not brand-orange</div></div>
+      </div>
+      <div class="callout warn"><b>Duplicated, not divergent</b><code>TIER_BADGE</code> is defined twice — once in <code>NewClient.jsx</code>, once in <code>data/pricing.js</code> — with identical values. Harmless today, but the next person to add a tier will only find one of the two copies. New module work should import from <code>data/pricing.js</code>.</div>
+    </section>
+
+    <!-- CARDS -->
+    <section class="doc-section" id="cards">
+      <h2><span class="num">06</span> Cards &amp; containers</h2>
+      <p class="sub">One true card, plus a smaller undecorated variant for content nested a level down.</p>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage" style="height:130px;align-items:flex-start"><div class="card-demo"><b>card</b>rounded-2xl, border, shadow-soft — top-level module surface</div></div><div class="code">export const card (ui.js)</div></div>
+        <div class="specimen"><div class="stage" style="height:130px;align-items:flex-start"><div class="card-demo xl" style="border:1px solid var(--line)"><b>nested panel</b>rounded-xl, border, no shadow — one level in</div></div><div class="code">rounded-xl border border-slate-200 bg-white</div></div>
+        <div class="specimen"><div class="stage" style="height:130px;align-items:flex-start"><div class="card-demo dashed">Click to upload<br/>or drag a file</div></div><div class="code">rounded-xl border-dashed border-slate-200 bg-slate-50/60</div></div>
+      </div>
+      <div class="callout note"><b>Use both, on purpose</b><code>card</code> (2xl + shadow) reads as "a section of the page." The flat <code>xl</code> variant reads as "a row inside that section" — e.g. one identification entry inside the KYC card. Reach for shadow only once per nesting level.</div>
+    </section>
+
+    <!-- TABLES -->
+    <section class="doc-section" id="tables">
+      <h2><span class="num">07</span> Tables</h2>
+      <p class="sub">The most consistent pattern in the app already — eleven pages use exactly this shape. Keep it that way: no zebra striping, a top border between rows, a soft hover tint.</p>
+      <div class="card-demo xl" style="width:100%;padding:0;overflow:hidden">
+        <table class="mini-table">
+          <tr><th>Invoice No.</th><th>Client</th><th>Amount</th><th>Status</th></tr>
+          <tr><td class="strong">INV-3391</td><td>Nykaa</td><td style="font-variant-numeric:tabular-nums">₹4,82,000</td><td><span class="pill pill-info" style="padding:3px 10px;font-size:11px">Dispatched</span></td></tr>
+          <tr><td class="strong">INV-3390</td><td>Bewakoof</td><td style="font-variant-numeric:tabular-nums">₹1,10,500</td><td><span class="pill pill-success" style="padding:3px 10px;font-size:11px">Paid</span></td></tr>
+          <tr><td class="strong">INV-3389</td><td>Mamaearth</td><td style="font-variant-numeric:tabular-nums">₹96,200</td><td><span class="pill pill-neutral" style="padding:3px 10px;font-size:11px">Generated</span></td></tr>
+        </table>
+      </div>
+      <div class="code" style="border:1px solid var(--line);border-top:none;border-radius:0 0 16px 16px;margin-top:-2px">thCls &middot; px-6 py-3 text-[11px] uppercase text-slate-400 &nbsp;|&nbsp; tdCls &middot; px-6 py-3.5 text-sm text-slate-600 &nbsp;|&nbsp; rowCls &middot; border-t border-slate-100 hover:bg-slate-50/70</div>
+      <h3 class="sub-title" style="margin-top:24px">Empty state</h3>
+      <div class="card-demo xl" style="width:100%;text-align:center;color:var(--muted);padding:36px 20px">No orders match this search.</div>
+      <div class="code" style="border:1px solid var(--line);border-top:none;margin-top:-2px">&lt;td colSpan={n} className="px-6 py-10 text-center text-sm text-slate-400"&gt;</div>
+    </section>
+
+    <!-- FORMS -->
+    <section class="doc-section" id="forms">
+      <h2><span class="num">08</span> Form controls</h2>
+      <p class="sub">Two intentional scales, not one accidental one: a roomier scale for data-entry forms (onboarding wizards), a denser scale for filter bars on list pages. Name both when you use them.</p>
+
+      <h3 class="sub-title">Form scale — Field, SelectField, Toggle</h3>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage" style="justify-content:flex-start"><label class="field-demo"><span class="lbl">Billing period <span style="color:var(--orange-dark)">*</span></span><select><option>Fortnightly</option></select></label></div><div class="code">rounded-xl bg-slate-50/60 px-3.5 py-2.5</div></div>
+        <div class="specimen"><div class="stage" style="justify-content:flex-start"><label class="field-demo"><span class="lbl">Maximum credit limit (₹)</span><input placeholder="500000"/></label></div><div class="code">Field &middot; same sizing as SelectField</div></div>
+        <div class="specimen"><div class="stage" style="justify-content:flex-start;gap:10px"><span class="toggle on"><i></i></span><span style="font-size:13px;color:var(--ink-soft)">Copy rates from existing client</span></div><div class="code">Toggle &middot; h-5 w-9, bg-brand-orange when on</div></div>
+      </div>
+
+      <h3 class="sub-title">Compact scale — filter bars &amp; toolbars</h3>
+      <div class="specimen"><div class="stage" style="justify-content:flex-start"><label class="field-demo compact" style="width:260px"><span class="lbl">Search</span><input placeholder="Search AWB or hub…"/></label></div><div class="code">rounded-lg px-3 py-1.5 &middot; used in list-page toolbars, not data-entry forms</div></div>
+      <div class="callout warn"><b>Don't mix mid-form</b>Both scales are legitimate — the inconsistency is only when the same screen uses <code>rounded-lg</code> in one field and <code>rounded-xl</code> in the next. Pick by context (form vs. toolbar), not file.</div>
+    </section>
+
+    <!-- OVERLAYS -->
+    <section class="doc-section" id="overlays">
+      <h2><span class="num">09</span> Modals &amp; popovers</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><div class="stage" style="background:rgba(10,15,25,.5);height:150px"><div class="card-demo" style="width:170px;text-align:center">Confirm dialog<br/><span style="font-size:11px;color:var(--muted)">bg-slate-900/40, no blur</span></div></div><div class="code">Confirmation / detail dialogs — centered, rounded-2xl</div></div>
+        <div class="specimen"><div class="stage" style="background:rgba(10,15,25,.6);height:150px;align-items:flex-start;padding-top:24px;backdrop-filter:blur(2px)"><div class="card-demo" style="width:190px">⌘K search<br/><span style="font-size:11px;color:var(--muted)">bg-slate-900/50, blurred, top-anchored</span></div></div><div class="code">Reserved for the global command palette only</div></div>
+        <div class="specimen"><div class="stage" style="justify-content:flex-start"><div class="card-demo xl" style="width:150px;padding:8px"><div style="padding:8px 10px;font-size:12.5px;border-radius:8px;background:var(--surface-2);margin-bottom:2px">Rate Card</div><div style="padding:8px 10px;font-size:12.5px">Contract</div></div></div><div class="code">Inline dropdown &middot; click-catcher div at z-10 closes on outside click</div></div>
+      </div>
+      <div class="callout note"><b>Two overlay types, both intentional</b>Use the plain centered dialog for anything module-specific. The blurred, top-anchored treatment is the signature of the global search (⌘K) — don't reuse it for ordinary confirmations, or the command palette stops feeling distinct.</div>
+    </section>
+
+    <!-- ICONS -->
+    <section class="doc-section" id="icons">
+      <h2><span class="num">10</span> Icons</h2>
+      <p class="sub">One component, <code>&lt;Icon name="…" /&gt;</code>, stroke-based, 24×24 viewBox, <code>currentColor</code> — so an icon always matches its surrounding text color. A sample of the set already defined in <code>Icon.jsx</code>:</p>
+      <div class="icon-grid">
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>dashboard</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10l9-6 9 6v11"/><path d="M9 21v-6h6v6"/></svg><span>building</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg><span>order</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="13" height="8" rx="1.5"/><path d="M15 11h4l3 3v2h-7z"/><circle cx="6" cy="18" r="1.5"/><circle cx="17" cy="18" r="1.5"/></svg><span>trip</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="7" width="12" height="9" rx="1.2"/><path d="M13.5 10h4l4 3.5V16h-8z"/><circle cx="5.5" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg><span>truck</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10.5L12 4l10 6.5V20H2z"/><path d="M7 20v-6h4v6M14 14h3v3h-3z"/></svg><span>warehouse</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19"/><circle cx="17" cy="14.5" r="1.4" fill="currentColor" stroke="none"/></svg><span>finance</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="8" height="8" rx="1.2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M19 5l-2.5 2.5M5 19l2.5-2.5M19 19l-2.5-2.5"/></svg><span>logic</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg><span>shield</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5c0 6 12 3.5 12 9.5"/></svg><span>route</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>tracking</span></div>
+        <div class="icon-cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>plus</span></div>
+      </div>
+      <table class="ref" style="margin-top:16px">
+        <tr><th>Context</th><th>Size</th></tr>
+        <tr><td>Sidebar top-level nav</td><td><code>h-[18px] w-[18px]</code> (default, no override)</td></tr>
+        <tr><td>Sidebar sub-item / topbar</td><td><code>h-4 w-4</code></td></tr>
+        <tr><td>Inline button icon</td><td><code>h-3.5 w-3.5</code></td></tr>
+      </table>
+    </section>
+
+    <!-- SHELL -->
+    <section class="doc-section" id="shell">
+      <h2><span class="num">11</span> Page shell</h2>
+      <p class="sub">Every screen sits inside the same three regions. New modules place content only in the dashed area — sidebar and topbar are shared chrome, never re-implemented per page.</p>
+      <div class="shell-diagram">
+        <div class="d-sidebar">
+          <div class="d-logo">PTL Console</div>
+          <div class="d-item active">Client Module</div>
+          <div class="d-item">Order Module</div>
+          <div class="d-item">Trip Module</div>
+          <div class="d-item">Finance Management</div>
+        </div>
+        <div class="d-main">
+          <div class="d-top">⌘K Search anything…</div>
+          <div class="d-content"><div class="d-pad">&lt;Outlet /&gt; &middot; p-8, max-w-6xl mx-auto</div></div>
+        </div>
+      </div>
+      <table class="ref" style="margin-top:16px">
+        <tr><th>Region</th><th>Spec</th></tr>
+        <tr><td class="strong">Sidebar</td><td>Fixed <code>260px</code>, <code>bg-brand-navy</code>, full viewport height, scrolls independently</td></tr>
+        <tr><td class="strong">Topbar</td><td><code>h-16</code> (64px), also navy — search trigger, notification bell, user avatar, logout</td></tr>
+        <tr><td class="strong">Content</td><td><code>flex-1 overflow-y-auto p-8</code>, canvas is <code>slate-50</code>; inner content typically wrapped <code>max-w-6xl mx-auto space-y-6</code></td></tr>
+      </table>
+    </section>
+
+    <!-- FIXES -->
+    <section class="doc-section" id="fixes">
+      <h2><span class="num">12</span> Standardization notes</h2>
+      <p class="sub">Everything above is already true of the shipped app. These seven spots are where two conventions coexist by accident rather than by design — worth a five-minute team decision before the codebase grows to eight more modules and the drift compounds.</p>
+      <ul class="fix-list">
+        <li><div class="head"><span class="sev mixed">mixed</span><span class="title">Remove-link color</span></div><code>text-rose-500</code> in four places, <code>text-rose-600</code> in three, for the identical "remove this row" action. Pick <code>rose-600</code> — it's already the one used for the one filled danger button.</li>
+        <li><div class="head"><span class="sev mixed">mixed</span><span class="title">Disabled button treatment</span></div>Primary CTAs disable by either recoloring to slate or dropping to 40% opacity, depending on the file. Recolor for filled buttons (keeps text legible), reserve opacity for outline/ghost buttons.</li>
+        <li><div class="head"><span class="sev dup">duplicate</span><span class="title">Small "add a row" chip button</span></div>Hand-typed identically six-plus times (<code>rounded-lg border px-3 py-1.5 text-xs</code>). Worth promoting to <code>btnChip</code> in <code>ui.js</code> alongside <code>btnPrimary</code>/<code>btnSecondary</code> so the next module imports it instead of retyping.</li>
+        <li><div class="head"><span class="sev dup">duplicate</span><span class="title">TIER_BADGE map</span></div>Defined once in <code>NewClient.jsx</code> and once in <code>data/pricing.js</code> with identical values. Import from <code>data/pricing.js</code> going forward — one copy, one place to add a new tier.</li>
+        <li><div class="head"><span class="sev mixed">mixed</span><span class="title">Card radius inside cards</span></div>Nested panels sometimes reuse the full <code>card</code> (2xl + shadow) instead of the flatter <code>xl</code> variant, which visually doubles the "elevation" of a sub-section. Reserve shadow for the outermost card per screen.</li>
+        <li><div class="head"><span class="sev mixed">mixed</span><span class="title">Input density</span></div>Two legitimate scales (form vs. compact toolbar) sometimes mix within one screen's filter bar. Decide per-screen, not per-field.</li>
+        <li><div class="head"><span class="sev mixed">mixed</span><span class="title">Ageing / POD status pills</span></div>Collections.jsx and PastTrips.jsx build their status color with an inline ternary instead of a named map in <code>data/</code>, unlike every other status pill in the app. Fine for now, but the next person extending either screen should promote it to a data-file constant to match the rest.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>

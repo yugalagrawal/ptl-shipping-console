@@ -1,0 +1,203 @@
+<title>PTL Console — Warehouse &amp; Hub Ops</title>
+<style>
+/* PTL Console — shared reference-doc stylesheet. Used by every file in
+   design-docs/ except design-system.html and index.html, which inline this
+   same system so they stay single-file shareable links. Keep the two in sync
+   if you change tokens here. */
+:root{
+  --navy:#1A2B4A; --navy-light:#243560; --navy-dark:#111D33;
+  --orange:#D94F1C; --orange-light:#F4743B; --orange-dark:#A83710;
+  --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+  --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+  --line:#E3E6ED; --line-soft:#EDEFF3;
+  --success:#0F9D6D; --success-bg:#E7F7F1; --success-ink:#0B7A56;
+  --warning:#B45309; --warning-bg:#FDF3E3;
+  --danger:#C81E4A; --danger-bg:#FBE9EE; --danger-ink:#A3123A;
+  --info:#0369A1; --info-bg:#E6F3FA;
+  --violet:#6D4AAE; --violet-bg:#EFE9F9;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
+  --shadow-soft:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.07);
+  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+    --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+    --line:#233150; --line-soft:#1A2743;
+    --success-bg:rgba(15,157,109,.16); --success-ink:#4FD9A8;
+    --warning-bg:rgba(180,83,9,.2); --warning:#F0A93E;
+    --danger-bg:rgba(200,30,74,.18); --danger-ink:#F0567F; --danger:#F0567F;
+    --info-bg:rgba(3,105,161,.22); --info:#5EC2F7;
+    --violet-bg:rgba(109,74,174,.24); --violet:#B29AE0;
+    --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+  --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+  --line:#233150; --line-soft:#1A2743;
+  --success-bg:rgba(15,157,109,.16); --success-ink:#4FD9A8;
+  --warning-bg:rgba(180,83,9,.2); --warning:#F0A93E;
+  --danger-bg:rgba(200,30,74,.18); --danger-ink:#F0567F; --danger:#F0567F;
+  --info-bg:rgba(3,105,161,.22); --info:#5EC2F7;
+  --violet-bg:rgba(109,74,174,.24); --violet:#B29AE0;
+}
+:root[data-theme="light"]{
+  --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+  --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+  --line:#E3E6ED; --line-soft:#EDEFF3;
+  --success-bg:#E7F7F1; --success-ink:#0B7A56;
+  --warning-bg:#FDF3E3; --warning:#B45309;
+  --danger-bg:#FBE9EE; --danger-ink:#A3123A; --danger:#C81E4A;
+  --info-bg:#E6F3FA; --info:#0369A1;
+  --violet-bg:#EFE9F9; --violet:#6D4AAE;
+}
+
+*{box-sizing:border-box;}
+body{margin:0; background:var(--canvas); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+code, .mono{font-family:var(--font-mono);}
+a{color:inherit;}
+::selection{background:rgba(217,79,28,.22);}
+
+.shell{display:flex; min-height:100vh;}
+.docnav{width:252px; flex-shrink:0; background:var(--navy); color:#C7CEDD; position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto; padding:26px 16px 40px;}
+.docnav .brand{display:flex; align-items:center; gap:10px; padding:2px 8px 22px;}
+.docnav .brand .mark{width:30px; height:30px; border-radius:8px; background:var(--orange); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; font-size:13px; flex-shrink:0;}
+.docnav .brand div{line-height:1.25;}
+.docnav .brand .t1{font-size:13.5px; font-weight:700; color:#fff;}
+.docnav .brand .t2{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#8FA0C9;}
+.docnav .kicker{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#6F80A8; padding:16px 10px 6px;}
+.docnav a{display:block; padding:6.5px 10px; border-radius:8px; font-size:13px; color:#B7C0D6; text-decoration:none; transition:background .12s,color .12s;}
+.docnav a:hover{background:rgba(255,255,255,.07); color:#fff;}
+.docnav .back{display:inline-flex; align-items:center; gap:6px; margin:0 0 18px 8px; font-size:12px; color:#8FA0C9; text-decoration:none;}
+.docnav .back:hover{color:#fff;}
+
+main.doc{flex:1; min-width:0; padding:52px 60px 140px; max-width:1160px;}
+.eyebrow{font-size:11.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--orange-dark); font-weight:700; margin:0 0 10px;}
+h1.title{font-size:34px; line-height:1.15; letter-spacing:-.015em; margin:0 0 12px; text-wrap:balance; font-weight:700;}
+.lede{font-size:15.5px; color:var(--ink-soft); max-width:680px; line-height:1.6; margin:0 0 6px;}
+.meta-row{display:flex; gap:18px; flex-wrap:wrap; margin:22px 0 48px; padding:14px 18px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); font-size:12.5px; color:var(--muted);}
+.meta-row b{color:var(--ink-soft); font-weight:600;}
+
+section.doc-section{margin-bottom:60px; scroll-margin-top:24px;}
+section.doc-section > h2{font-size:21px; font-weight:700; letter-spacing:-.01em; margin:0 0 6px; display:flex; align-items:baseline; gap:10px;}
+section.doc-section > h2 .num{font-family:var(--font-mono); font-size:13px; color:var(--muted-2); font-weight:500;}
+section.doc-section > .sub{color:var(--ink-soft); font-size:13.5px; max-width:660px; line-height:1.6; margin:0 0 22px;}
+h3.sub-title{font-size:14px; font-weight:700; margin:28px 0 12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+
+table.ref{width:100%; border-collapse:collapse; font-size:13px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;}
+table.ref th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface-2);}
+table.ref td{padding:11px 16px; border-bottom:1px solid var(--line-soft); color:var(--ink-soft); vertical-align:top;}
+table.ref tr:last-child td{border-bottom:none;}
+table.ref td code{background:var(--surface-2); padding:2px 6px; border-radius:5px; font-size:11.5px; color:var(--ink);}
+table.ref td.strong{color:var(--ink); font-weight:600;}
+
+.pill{border-radius:999px; padding:3px 11px; font-size:11.5px; font-weight:600; display:inline-flex; align-items:center;}
+.pill-success{background:var(--success-bg); color:var(--success-ink);}
+.pill-warning{background:var(--warning-bg); color:var(--warning);}
+.pill-danger{background:var(--danger-bg); color:var(--danger-ink);}
+.pill-info{background:var(--info-bg); color:var(--info);}
+.pill-neutral{background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--line);}
+.pill-brand{background:rgba(217,79,28,.12); color:var(--orange-dark);}
+.pill-violet{background:var(--violet-bg); color:var(--violet);}
+
+.route{font-family:var(--font-mono); font-size:11.5px; background:var(--surface-2); border:1px solid var(--line); padding:2px 8px; border-radius:6px; color:var(--ink-soft); white-space:nowrap;}
+
+.screen-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px 22px; margin-bottom:14px;}
+.screen-card .sc-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;}
+.screen-card .sc-title{font-size:15px; font-weight:700; color:var(--ink);}
+.screen-card .sc-body{font-size:13.5px; color:var(--ink-soft); line-height:1.6;}
+.screen-card .sc-tags{display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;}
+.screen-card .sc-tag{font-size:11px; background:var(--surface-2); border:1px solid var(--line); color:var(--muted); padding:3px 9px; border-radius:999px;}
+
+.flow{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:22px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);}
+.flow .node{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-md); padding:10px 16px; font-size:12.5px; font-weight:600; color:var(--ink); text-align:center; min-width:120px;}
+.flow .node small{display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:2px;}
+.flow .arrow{color:var(--muted-2); font-size:16px; flex-shrink:0;}
+.flow .arrow small{display:block; font-size:10px; color:var(--muted-2); text-align:center; margin-top:2px;}
+
+.callout{border-radius:var(--r-md); padding:14px 18px; font-size:13px; line-height:1.6; margin:14px 0;}
+.callout.warn{background:var(--warning-bg); color:#8A4508;}
+@media (prefers-color-scheme:dark){ .callout.warn{color:var(--warning);} }
+:root[data-theme="dark"] .callout.warn{color:var(--warning);}
+.callout.note{background:var(--info-bg); color:#0A5C87;}
+@media (prefers-color-scheme:dark){ .callout.note{color:var(--info);} }
+:root[data-theme="dark"] .callout.note{color:var(--info);}
+.callout b{display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;}
+
+.kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px;}
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px 18px;}
+.kpi .k-label{font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em;}
+.kpi .k-val{font-size:22px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums;}
+
+@media (max-width:900px){ .docnav{display:none;} main.doc{padding:32px 20px 100px;} }
+
+</style>
+
+<div class="shell">
+  <nav class="docnav">
+    <a class="back" href="https://claude.ai/code/artifact/b312c057-4efc-457a-9caa-28c30434b3eb">&larr; All references</a>
+    <div class="brand">
+      <div class="mark">W</div>
+      <div><div class="t1">Warehouse &amp; Hub Ops</div><div class="t2">Reference 06</div></div>
+    </div>
+    <div class="kicker">On this page</div>
+    <a href="#overview">Overview</a>
+    <a href="#screen">The screen</a>
+    <a href="#data">Data model touchpoints</a>
+    <a href="#build">If you're building here</a>
+  </nav>
+
+  <main class="doc">
+    <div class="eyebrow">Reference 06 &middot; Module</div>
+    <h1 class="title">Warehouse &amp; Hub Ops</h1>
+    <p class="lede">Pallet allotment, barcode/QR scanning and hub-level sorting logs — the only sidebar module that's a single screen rather than a group, because there's exactly one job here: record what's on the floor.</p>
+
+    <div class="meta-row">
+      <span><b>Sidebar item:</b> Warehouse &amp; Hub Ops (flat, no sub-group)</span>
+      <span><b>Route:</b> <code class="mono">/warehouse-hub-ops</code></span>
+      <span><b>File:</b> <code class="mono">src/pages/WarehouseHubOps.jsx</code></span>
+    </div>
+
+    <section class="doc-section" id="overview">
+      <h2><span class="num">01</span> Overview</h2>
+      <div class="flow">
+        <div class="node">Order inward<small>order-module</small></div>
+        <span class="arrow">&rarr;<small>scan event</small></span>
+        <div class="node">Hub floor<small>this module</small></div>
+        <span class="arrow">&rarr;<small>loaded on vehicle</small></span>
+        <div class="node">Trip departs<small>trip-module</small></div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="screen">
+      <h2><span class="num">02</span> The screen</h2>
+      <div class="screen-card">
+        <div class="sc-head"><span class="sc-title">Record a scan</span></div>
+        <p class="sc-body">A three-field form — AWB number, hub, event type (Inward / Sorted / Loaded on Vehicle / Outward) — appends a scan event and immediately updates the "on the floor, by hub" summary tiles above the log table. The scan log itself is searchable by AWB or hub.</p>
+        <div class="sc-tags"><span class="sc-tag">EVENT_BADGE (page-local, sky/amber/emerald/slate)</span><span class="sc-tag">per-hub floor summary tiles</span></div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="data">
+      <h2><span class="num">03</span> Data model touchpoints</h2>
+      <table class="ref">
+        <tr><th>Export</th><th>File</th><th>Use it for</th></tr>
+        <tr><td class="strong"><code>recordScan()</code></td><td><code>data/warehouse.js</code></td><td>The one write path — appends a scan event, don't push into the array directly</td></tr>
+        <tr><td class="strong"><code>hubFloorSummary()</code></td><td><code>data/warehouse.js</code></td><td>Derives "what's currently on the floor, by hub" from the scan log</td></tr>
+        <tr><td class="strong"><code>SCAN_EVENT_TYPES</code> / <code>HUBS</code></td><td><code>data/warehouse.js</code></td><td>Dropdown option lists for the scan form</td></tr>
+      </table>
+      <div class="callout warn"><b>Note</b>This screen's <code>EVENT_BADGE</code> color map is defined locally rather than in <code>data/warehouse.js</code>, unlike most other status badges in the app (see the Design System's Standardization notes). Fine to follow this existing pattern for now; worth promoting to the data file if this page grows more badge types.</div>
+    </section>
+
+    <section class="doc-section" id="build">
+      <h2><span class="num">04</span> If you're building here</h2>
+      <ul style="font-size:13.5px; color:var(--ink-soft); line-height:1.9; padding-left:20px">
+        <li>A new hub-level event type belongs in <code>SCAN_EVENT_TYPES</code>, plus a matching color in <code>EVENT_BADGE</code>.</li>
+        <li>"Loaded on Vehicle" is the natural connection point to <a href="https://claude.ai/code/artifact/2cf13cc2-a9f4-4c34-bf9e-545151cf9290" style="text-decoration:underline">Trip Module</a>'s departure flow — if you're wiring that up for real, this is where the scan should trigger it.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>

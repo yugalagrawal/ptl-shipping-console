@@ -1,0 +1,130 @@
+<title>PTL Console — Team Reference Library</title>
+<style>
+  :root{
+    --navy:#1A2B4A; --navy-light:#243560; --navy-dark:#111D33;
+    --orange:#D94F1C; --orange-light:#F4743B; --orange-dark:#A83710;
+    --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+    --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+    --line:#E3E6ED; --line-soft:#EDEFF3;
+    --success:#0F9D6D; --success-bg:#E7F7F1; --success-ink:#0B7A56;
+    --warning:#B45309; --warning-bg:#FDF3E3;
+    --danger:#C81E4A; --danger-bg:#FBE9EE; --danger-ink:#A3123A;
+    --info:#0369A1; --info-bg:#E6F3FA;
+    --violet:#6D4AAE; --violet-bg:#EFE9F9;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
+    --shadow-soft:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.07);
+    --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+      --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+      --line:#233150; --line-soft:#1A2743;
+    }
+  }
+  :root[data-theme="dark"]{
+    --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+    --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+    --line:#233150; --line-soft:#1A2743;
+  }
+  :root[data-theme="light"]{
+    --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+    --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+    --line:#E3E6ED; --line-soft:#EDEFF3;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--canvas); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+  code, .mono{font-family:var(--font-mono);}
+  a{color:inherit;}
+
+  .top{background:var(--navy); color:#fff; padding:56px 60px 48px;}
+  .top .brand{display:flex; align-items:center; gap:12px; margin-bottom:26px;}
+  .top .brand .mark{width:36px; height:36px; border-radius:9px; background:var(--orange); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px;}
+  .top .brand .t2{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#8FA0C9;}
+  .top h1{font-size:36px; margin:0 0 14px; letter-spacing:-.015em; text-wrap:balance; max-width:720px;}
+  .top p{font-size:15.5px; color:#B7C0D6; max-width:640px; line-height:1.65; margin:0;}
+
+  main{max-width:1080px; margin:0 auto; padding:52px 60px 120px;}
+  h2.section-title{font-size:20px; font-weight:700; margin:0 0 6px;}
+  p.section-sub{color:var(--ink-soft); font-size:13.5px; max-width:640px; line-height:1.6; margin:0 0 24px;}
+
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; margin-bottom:56px;}
+  .doc-card{display:block; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 24px; text-decoration:none; transition:border-color .15s, transform .15s;}
+  .doc-card:hover{border-color:var(--orange); transform:translateY(-1px);}
+  .doc-card .dc-num{font-family:var(--font-mono); font-size:11.5px; color:var(--muted-2); margin-bottom:10px;}
+  .doc-card .dc-title{font-size:16px; font-weight:700; color:var(--ink); margin-bottom:6px;}
+  .doc-card .dc-body{font-size:13px; color:var(--muted); line-height:1.55;}
+  .doc-card.flagship{border-color:var(--orange); background:linear-gradient(180deg, rgba(217,79,28,.05), var(--surface) 60%);}
+
+  table.ref{width:100%; border-collapse:collapse; font-size:13px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden; margin-bottom:56px;}
+  table.ref th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface-2);}
+  table.ref td{padding:11px 16px; border-bottom:1px solid var(--line-soft); color:var(--ink-soft); vertical-align:top;}
+  table.ref tr:last-child td{border-bottom:none;}
+  table.ref td code{background:var(--surface-2); padding:2px 6px; border-radius:5px; font-size:11.5px; color:var(--ink);}
+  table.ref td.strong{color:var(--ink); font-weight:600;}
+  table.ref a{text-decoration:underline; color:var(--orange-dark);}
+
+  .howto{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:26px 28px; margin-bottom:56px;}
+  .howto ol{margin:0; padding-left:20px; font-size:13.5px; color:var(--ink-soft); line-height:1.9;}
+  .howto b{color:var(--ink);}
+
+  @media (max-width:700px){ .top{padding:40px 24px 36px;} main{padding:36px 24px 80px;} }
+</style>
+
+<div class="top">
+  <div class="brand"><div class="mark">P</div><div><div style="font-weight:700; font-size:15px">PTL Console</div><div class="t2">Team Reference Library</div></div></div>
+  <h1>Everything the team needs to build the next module in the same visual language.</h1>
+  <p>Pulled straight from the shipped code — not a spec someone will drift from. Start with the Design System, then open your module's own reference before you write a line of new UI.</p>
+</div>
+
+<main>
+  <h2 class="section-title">01 &middot; Foundations</h2>
+  <p class="section-sub">Read this one first, regardless of which module you're building.</p>
+  <div class="card-grid">
+    <a class="doc-card flagship" href="https://claude.ai/code/artifact/3126864f-7f30-41bb-8cf3-8ef81043134c">
+      <div class="dc-num">START HERE</div>
+      <div class="dc-title">Design System</div>
+      <div class="dc-body">Color, type, spacing, buttons, badges, cards, tables, forms, modals, icons, page shell — plus seven spots where two conventions coexist by accident, worth a team decision.</div>
+    </a>
+  </div>
+
+  <h2 class="section-title">02 &middot; Module references</h2>
+  <p class="section-sub">One file per sidebar group — what each screen does, the data it reads and writes, and what to reuse before you build something new.</p>
+  <div class="card-grid">
+    <a class="doc-card" href="https://claude.ai/code/artifact/b199407f-bedc-41be-a0f8-b6d7d4315801"><div class="dc-num">02</div><div class="dc-title">Client Module</div><div class="dc-body">Onboarding wizard, approvals, active roster, pricing config. The deepest reference — its wizard is the pattern to copy for any future multi-step flow.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/84410ec8-0865-4713-85b1-d1d8a4f901c4"><div class="dc-num">03</div><div class="dc-title">Order Module</div><div class="dc-body">Create Order's live pricing preview, My Orders' expandable rows.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/2cf13cc2-a9f4-4c34-bf9e-545151cf9290"><div class="dc-num">04</div><div class="dc-title">Trip Module</div><div class="dc-body">Lane aggregation, manifest building, live tracking, past trips.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/19b51bce-e8bd-4714-b421-5f76f6f37afb"><div class="dc-num">05</div><div class="dc-title">Supply &amp; Fleet Module</div><div class="dc-body">Fleet roster, compliance, and the suggest-then-confirm truck matcher.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/60132202-2563-4e90-80ef-25eedc0a19c5"><div class="dc-num">06</div><div class="dc-title">Warehouse &amp; Hub Ops</div><div class="dc-body">One screen: scan events and hub-floor summaries.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/d79eeca0-852a-4145-8485-df6eeacc370b"><div class="dc-num">07</div><div class="dc-title">Network Simulator</div><div class="dc-body">One illustrative tool, one that's fully real — the reference explains which is which.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/58dcd327-2a3b-4bcf-b0ec-0dab440dab63"><div class="dc-num">08</div><div class="dc-title">Finance Management</div><div class="dc-body">MIS, invoicing, collections, analytics — and the one assumed-not-real number to know about.</div></a>
+    <a class="doc-card" href="https://claude.ai/code/artifact/72a55131-c5cd-4844-bd2f-12e52800af82"><div class="dc-num">09</div><div class="dc-title">Logic Engine, User Module &amp; System Info</div><div class="dc-body">Rules, permissions and the read-only map of how everything connects.</div></a>
+  </div>
+
+  <h2 class="section-title">Module map</h2>
+  <p class="section-sub">Every sidebar group, its base route, and its source folder — useful for splitting up ownership.</p>
+  <table class="ref">
+    <tr><th>Module</th><th>Base route</th><th>Source</th><th>Reference</th></tr>
+    <tr><td class="strong">Client Module</td><td><code>/client-module/*</code></td><td><code>src/pages/client/</code></td><td><a href="https://claude.ai/code/artifact/b199407f-bedc-41be-a0f8-b6d7d4315801">open</a></td></tr>
+    <tr><td class="strong">Order Module</td><td><code>/order-module/*</code></td><td><code>src/pages/order/</code></td><td><a href="https://claude.ai/code/artifact/84410ec8-0865-4713-85b1-d1d8a4f901c4">open</a></td></tr>
+    <tr><td class="strong">Trip Module</td><td><code>/trip-management/*</code></td><td><code>src/pages/trip/</code></td><td><a href="https://claude.ai/code/artifact/2cf13cc2-a9f4-4c34-bf9e-545151cf9290">open</a></td></tr>
+    <tr><td class="strong">Supply &amp; Fleet Module</td><td><code>/supply-fleet-module/*</code></td><td><code>src/pages/supply-fleet/</code></td><td><a href="https://claude.ai/code/artifact/19b51bce-e8bd-4714-b421-5f76f6f37afb">open</a></td></tr>
+    <tr><td class="strong">Warehouse &amp; Hub Ops</td><td><code>/warehouse-hub-ops</code></td><td><code>src/pages/WarehouseHubOps.jsx</code></td><td><a href="https://claude.ai/code/artifact/60132202-2563-4e90-80ef-25eedc0a19c5">open</a></td></tr>
+    <tr><td class="strong">Network Simulator</td><td><code>/network-simulator/*</code></td><td><code>src/pages/network/</code></td><td><a href="https://claude.ai/code/artifact/d79eeca0-852a-4145-8485-df6eeacc370b">open</a></td></tr>
+    <tr><td class="strong">Finance Management</td><td><code>/finance-management/*</code></td><td><code>src/pages/finance/</code></td><td><a href="https://claude.ai/code/artifact/58dcd327-2a3b-4bcf-b0ec-0dab440dab63">open</a></td></tr>
+    <tr><td class="strong">Logic Engine</td><td><code>/logic-engine</code></td><td><code>src/pages/LogicEngine.jsx</code></td><td><a href="https://claude.ai/code/artifact/72a55131-c5cd-4844-bd2f-12e52800af82">open</a></td></tr>
+    <tr><td class="strong">User Module</td><td><code>/user-module/*</code></td><td><code>src/pages/admin/</code></td><td><a href="https://claude.ai/code/artifact/72a55131-c5cd-4844-bd2f-12e52800af82">open</a></td></tr>
+    <tr><td class="strong">System Info</td><td><code>/system-info</code></td><td><code>src/pages/SystemInfo.jsx</code></td><td><a href="https://claude.ai/code/artifact/72a55131-c5cd-4844-bd2f-12e52800af82">open</a></td></tr>
+  </table>
+
+  <h2 class="section-title">How to use this library</h2>
+  <div class="howto">
+    <ol>
+      <li><b>Read the Design System once</b> before writing any new screen — it's the token file the whole app already follows, just pulled out and shown.</li>
+      <li><b>Open your module's reference</b> before adding a screen — it tells you which shared data exports to import instead of re-deriving state locally, and which existing pattern (repeatable row, suggest-then-confirm, tick-based re-render) your new feature probably matches.</li>
+      <li><b>Check the Standardization notes</b> at the bottom of the Design System before introducing a new button/badge/card variant — there's a good chance one already exists, just inconsistently applied.</li>
+      <li>These files live in <code>design-docs/</code> at the project root and are not imported by the app — edit them directly, they don't need a build step. Open <code>index.html</code> locally or serve the folder to browse.</li>
+    </ol>
+  </div>
+</main>

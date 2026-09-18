@@ -1,0 +1,44 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Dated one-off HTML prototype snapshots (kept locally as iteration history, not tracked)
+/PTL-Console-CreatePickup-17Sep.html
+/PTL-Console-Frontend-Preview.html
+/PTL-Console-PartnerModuleV1-16Sep.html
+/PTL-Console-Prototype-24Aug.html
+/PTL-Console-Prototype-29Aug.html
+/PTL-Console-Prototype.html
+/PTL-PRS-Prototype-10Sept.html
+/PTL-Pricing-Prototype-7Sep.html
+/PTL-Prototype-AccessUIupdate-clientmodule-20Aug.html
+/PTL-prototype-Configuration-consignor-for-pickup.html
+/PTL-updatedClientOnboarding-standardpricing-emaillogs-26Aug.html
+/Prototype-ClientModule.html
+/Prototype-UserModule.html
+/index.standalone.html
+
+# Separate repo (PTL App - mobile prototype), not part of this repo
+/PTL APP/
+.claude/

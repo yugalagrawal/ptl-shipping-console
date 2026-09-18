@@ -1,0 +1,272 @@
+<title>PTL Console — Client Module</title>
+<style>
+/* PTL Console — shared reference-doc stylesheet. Used by every file in
+   design-docs/ except design-system.html and index.html, which inline this
+   same system so they stay single-file shareable links. Keep the two in sync
+   if you change tokens here. */
+:root{
+  --navy:#1A2B4A; --navy-light:#243560; --navy-dark:#111D33;
+  --orange:#D94F1C; --orange-light:#F4743B; --orange-dark:#A83710;
+  --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+  --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+  --line:#E3E6ED; --line-soft:#EDEFF3;
+  --success:#0F9D6D; --success-bg:#E7F7F1; --success-ink:#0B7A56;
+  --warning:#B45309; --warning-bg:#FDF3E3;
+  --danger:#C81E4A; --danger-bg:#FBE9EE; --danger-ink:#A3123A;
+  --info:#0369A1; --info-bg:#E6F3FA;
+  --violet:#6D4AAE; --violet-bg:#EFE9F9;
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-full:999px;
+  --shadow-soft:0 1px 2px rgba(15,23,42,.05), 0 1px 3px rgba(15,23,42,.07);
+  --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+    --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+    --line:#233150; --line-soft:#1A2743;
+    --success-bg:rgba(15,157,109,.16); --success-ink:#4FD9A8;
+    --warning-bg:rgba(180,83,9,.2); --warning:#F0A93E;
+    --danger-bg:rgba(200,30,74,.18); --danger-ink:#F0567F; --danger:#F0567F;
+    --info-bg:rgba(3,105,161,.22); --info:#5EC2F7;
+    --violet-bg:rgba(109,74,174,.24); --violet:#B29AE0;
+    --shadow-soft:0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#0A1220; --surface:#111A2C; --surface-2:#0D1626;
+  --ink:#E8EBF1; --ink-soft:#AEB7C9; --muted:#7885A0; --muted-2:#5C6A88;
+  --line:#233150; --line-soft:#1A2743;
+  --success-bg:rgba(15,157,109,.16); --success-ink:#4FD9A8;
+  --warning-bg:rgba(180,83,9,.2); --warning:#F0A93E;
+  --danger-bg:rgba(200,30,74,.18); --danger-ink:#F0567F; --danger:#F0567F;
+  --info-bg:rgba(3,105,161,.22); --info:#5EC2F7;
+  --violet-bg:rgba(109,74,174,.24); --violet:#B29AE0;
+}
+:root[data-theme="light"]{
+  --canvas:#F3F5F8; --surface:#FFFFFF; --surface-2:#F8F9FB;
+  --ink:#16213A; --ink-soft:#4B5567; --muted:#8892A6; --muted-2:#AEB6C4;
+  --line:#E3E6ED; --line-soft:#EDEFF3;
+  --success-bg:#E7F7F1; --success-ink:#0B7A56;
+  --warning-bg:#FDF3E3; --warning:#B45309;
+  --danger-bg:#FBE9EE; --danger-ink:#A3123A; --danger:#C81E4A;
+  --info-bg:#E6F3FA; --info:#0369A1;
+  --violet-bg:#EFE9F9; --violet:#6D4AAE;
+}
+
+*{box-sizing:border-box;}
+body{margin:0; background:var(--canvas); color:var(--ink); font-family:var(--font-sans); -webkit-font-smoothing:antialiased;}
+code, .mono{font-family:var(--font-mono);}
+a{color:inherit;}
+::selection{background:rgba(217,79,28,.22);}
+
+.shell{display:flex; min-height:100vh;}
+.docnav{width:252px; flex-shrink:0; background:var(--navy); color:#C7CEDD; position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto; padding:26px 16px 40px;}
+.docnav .brand{display:flex; align-items:center; gap:10px; padding:2px 8px 22px;}
+.docnav .brand .mark{width:30px; height:30px; border-radius:8px; background:var(--orange); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; font-size:13px; flex-shrink:0;}
+.docnav .brand div{line-height:1.25;}
+.docnav .brand .t1{font-size:13.5px; font-weight:700; color:#fff;}
+.docnav .brand .t2{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:#8FA0C9;}
+.docnav .kicker{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#6F80A8; padding:16px 10px 6px;}
+.docnav a{display:block; padding:6.5px 10px; border-radius:8px; font-size:13px; color:#B7C0D6; text-decoration:none; transition:background .12s,color .12s;}
+.docnav a:hover{background:rgba(255,255,255,.07); color:#fff;}
+.docnav .back{display:inline-flex; align-items:center; gap:6px; margin:0 0 18px 8px; font-size:12px; color:#8FA0C9; text-decoration:none;}
+.docnav .back:hover{color:#fff;}
+
+main.doc{flex:1; min-width:0; padding:52px 60px 140px; max-width:1160px;}
+.eyebrow{font-size:11.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--orange-dark); font-weight:700; margin:0 0 10px;}
+h1.title{font-size:34px; line-height:1.15; letter-spacing:-.015em; margin:0 0 12px; text-wrap:balance; font-weight:700;}
+.lede{font-size:15.5px; color:var(--ink-soft); max-width:680px; line-height:1.6; margin:0 0 6px;}
+.meta-row{display:flex; gap:18px; flex-wrap:wrap; margin:22px 0 48px; padding:14px 18px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md); font-size:12.5px; color:var(--muted);}
+.meta-row b{color:var(--ink-soft); font-weight:600;}
+
+section.doc-section{margin-bottom:60px; scroll-margin-top:24px;}
+section.doc-section > h2{font-size:21px; font-weight:700; letter-spacing:-.01em; margin:0 0 6px; display:flex; align-items:baseline; gap:10px;}
+section.doc-section > h2 .num{font-family:var(--font-mono); font-size:13px; color:var(--muted-2); font-weight:500;}
+section.doc-section > .sub{color:var(--ink-soft); font-size:13.5px; max-width:660px; line-height:1.6; margin:0 0 22px;}
+h3.sub-title{font-size:14px; font-weight:700; margin:28px 0 12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em;}
+
+table.ref{width:100%; border-collapse:collapse; font-size:13px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); overflow:hidden;}
+table.ref th{text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface-2);}
+table.ref td{padding:11px 16px; border-bottom:1px solid var(--line-soft); color:var(--ink-soft); vertical-align:top;}
+table.ref tr:last-child td{border-bottom:none;}
+table.ref td code{background:var(--surface-2); padding:2px 6px; border-radius:5px; font-size:11.5px; color:var(--ink);}
+table.ref td.strong{color:var(--ink); font-weight:600;}
+
+.pill{border-radius:999px; padding:3px 11px; font-size:11.5px; font-weight:600; display:inline-flex; align-items:center;}
+.pill-success{background:var(--success-bg); color:var(--success-ink);}
+.pill-warning{background:var(--warning-bg); color:var(--warning);}
+.pill-danger{background:var(--danger-bg); color:var(--danger-ink);}
+.pill-info{background:var(--info-bg); color:var(--info);}
+.pill-neutral{background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--line);}
+.pill-brand{background:rgba(217,79,28,.12); color:var(--orange-dark);}
+.pill-violet{background:var(--violet-bg); color:var(--violet);}
+
+.route{font-family:var(--font-mono); font-size:11.5px; background:var(--surface-2); border:1px solid var(--line); padding:2px 8px; border-radius:6px; color:var(--ink-soft); white-space:nowrap;}
+
+.screen-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:20px 22px; margin-bottom:14px;}
+.screen-card .sc-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:8px;}
+.screen-card .sc-title{font-size:15px; font-weight:700; color:var(--ink);}
+.screen-card .sc-body{font-size:13.5px; color:var(--ink-soft); line-height:1.6;}
+.screen-card .sc-tags{display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;}
+.screen-card .sc-tag{font-size:11px; background:var(--surface-2); border:1px solid var(--line); color:var(--muted); padding:3px 9px; border-radius:999px;}
+
+.flow{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:22px; background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);}
+.flow .node{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r-md); padding:10px 16px; font-size:12.5px; font-weight:600; color:var(--ink); text-align:center; min-width:120px;}
+.flow .node small{display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:2px;}
+.flow .arrow{color:var(--muted-2); font-size:16px; flex-shrink:0;}
+.flow .arrow small{display:block; font-size:10px; color:var(--muted-2); text-align:center; margin-top:2px;}
+
+.callout{border-radius:var(--r-md); padding:14px 18px; font-size:13px; line-height:1.6; margin:14px 0;}
+.callout.warn{background:var(--warning-bg); color:#8A4508;}
+@media (prefers-color-scheme:dark){ .callout.warn{color:var(--warning);} }
+:root[data-theme="dark"] .callout.warn{color:var(--warning);}
+.callout.note{background:var(--info-bg); color:#0A5C87;}
+@media (prefers-color-scheme:dark){ .callout.note{color:var(--info);} }
+:root[data-theme="dark"] .callout.note{color:var(--info);}
+.callout b{display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;}
+
+.kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px;}
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px 18px;}
+.kpi .k-label{font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em;}
+.kpi .k-val{font-size:22px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums;}
+
+@media (max-width:900px){ .docnav{display:none;} main.doc{padding:32px 20px 100px;} }
+
+</style>
+
+<div class="shell">
+  <nav class="docnav">
+    <a class="back" href="https://claude.ai/code/artifact/b312c057-4efc-457a-9caa-28c30434b3eb">&larr; All references</a>
+    <div class="brand">
+      <div class="mark">C</div>
+      <div><div class="t1">Client Module</div><div class="t2">Reference 02</div></div>
+    </div>
+    <div class="kicker">On this page</div>
+    <a href="#overview">Overview</a>
+    <a href="#screens">Screens</a>
+    <a href="#onboarding">Onboarding wizard</a>
+    <a href="#lifecycle">Client lifecycle</a>
+    <a href="#data">Data model</a>
+    <a href="#build">If you're building here</a>
+  </nav>
+
+  <main class="doc">
+    <div class="eyebrow">Reference 02 &middot; Module</div>
+    <h1 class="title">Client Module</h1>
+    <p class="lede">Client master data, KYC, tiering, rate cards and lane setup — this is where a company becomes a bookable client, and where Sales/Finance sign off on the commercial terms before that happens.</p>
+
+    <div class="meta-row">
+      <span><b>Sidebar group:</b> Client Module</span>
+      <span><b>Base route:</b> <code class="mono">/client-module/*</code></span>
+      <span><b>Files:</b> <code class="mono">src/pages/client/*.jsx</code></span>
+      <span><b>Design tokens:</b> see <a href="https://claude.ai/code/artifact/3126864f-7f30-41bb-8cf3-8ef81043134c" style="text-decoration:underline">Design System</a></span>
+    </div>
+
+    <section class="doc-section" id="overview">
+      <h2><span class="num">01</span> Overview</h2>
+      <p class="sub">Four screens cover the full journey: draft a client, get pricing approved, keep a roster of who's active, and maintain the standard rate card everyone's tier discount is calculated from.</p>
+      <div class="flow">
+        <div class="node">Client Onboarding<small>draft &amp; wizard</small></div>
+        <span class="arrow">&rarr;<small>submit</small></span>
+        <div class="node">Client Approvals<small>Sales Admin sign-off</small></div>
+        <span class="arrow">&rarr;<small>activate</small></span>
+        <div class="node">My Clients<small>bookable roster</small></div>
+      </div>
+      <p class="sub" style="margin-top:14px">Client Pricing Configuration runs alongside all three — it's the standard rate card + additional-charges catalogue every client's tier discount is computed against, not a step in the flow.</p>
+    </section>
+
+    <section class="doc-section" id="screens">
+      <h2><span class="num">02</span> Screens</h2>
+
+      <div class="screen-card">
+        <div class="sc-head"><span class="sc-title">Client Onboarding</span><span class="route">/client-module/onboarding</span></div>
+        <p class="sc-body">Landing page for the module — two tabs: <b>Drafts</b> (not yet past Billing Info, resumable) and <b>Client activation in progress</b> (already submitted, sitting in Sales/Finance review). Search-by-name on both; the in-progress tab adds a status filter and shows a correction comment inline in rose text when Sales Admin has kicked something back.</p>
+        <div class="sc-tags"><span class="sc-tag">card list, not table</span><span class="sc-tag">status pill</span><span class="sc-tag">resume via query params</span></div>
+      </div>
+
+      <div class="screen-card">
+        <div class="sc-head"><span class="sc-title">Client Approvals</span><span class="route">/client-module/approvals</span></div>
+        <p class="sc-body">Sales Admin / Finance Admin's queue. Each pending client expands into a read-only review — company, contact, billing, identification rows, KYC documents (opened via object-URL, since nothing uploads to a real backend yet) — with two actions: approve to the next stage, or send back with a required correction comment that reopens the client at the exact wizard step that needs fixing.</p>
+        <div class="sc-tags"><span class="sc-tag">DetailField / ReviewSection helpers</span><span class="sc-tag">filled danger button</span><span class="sc-tag">stage badges</span></div>
+      </div>
+
+      <div class="screen-card">
+        <div class="sc-head"><span class="sc-title">My Clients</span><span class="route">/client-module/active-clients</span></div>
+        <p class="sc-body">Two tabs, paginated 10/page: <b>Active Clients</b> (tier badge, expandable row revealing that client's live pricing via <code>ClientPricingPanel</code>) and <b>Client Groups</b> (the legal-entity grouping a client's rates are actually attached to). This is the roster every other module's client picker reads from.</p>
+        <div class="sc-tags"><span class="sc-tag">expandable row</span><span class="sc-tag">Pagination component</span><span class="sc-tag">tier badge</span></div>
+      </div>
+
+      <div class="screen-card">
+        <div class="sc-head"><span class="sc-title">Client Pricing Configuration</span><span class="route">/client-module/pricing-configuration</span></div>
+        <p class="sc-body">The standard 9-zone rate matrix, per-tier discount percentages, and the additional-charges master catalogue (COD, fuel surcharge, appointment, etc.) that every client's own pricing is derived from at onboarding time. Editing here changes the baseline for <i>every</i> client that hasn't gone custom.</p>
+        <div class="sc-tags"><span class="sc-tag">matrix editor</span><span class="sc-tag">charge-rule builder</span><span class="sc-tag">source of TIER_BADGE / TIER_DISCOUNTS</span></div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="onboarding">
+      <h2><span class="num">03</span> Onboarding wizard — the reference to copy</h2>
+      <p class="sub"><code>NewClient.jsx</code> is the single most complete example of a multi-step form in the codebase — anyone building a wizard elsewhere (a future multi-step order flow, a fleet onboarding flow) should start by reading this file, not by inventing a new pattern.</p>
+      <table class="ref">
+        <tr><th>Step</th><th>Captures</th><th>Notable pattern</th></tr>
+        <tr><td class="strong">1. Company Info</td><td>Legal identity, PAN, address, GST/HSN/SAC</td><td>Pincode lookup with a simulated network delay, autofilling city/state</td></tr>
+        <tr><td class="strong">2. Contact Info</td><td>POC, ops/finance email, assigned salesperson</td><td>Typeahead component for salesperson search</td></tr>
+        <tr><td class="strong">3. Identification Info</td><td>One or more ID documents (GSTIN, Aadhaar, Passport…)</td><td>Repeatable row group — <code>IdentificationRow</code>, add/update/remove by id</td></tr>
+        <tr><td class="strong">4. Billing Info</td><td>Contract dates, billing period, credit limit, security deposit, exemptions, CFT&rarr;Kg conversion by shipment type</td><td>The densest step — multiple independent repeatable groups on one screen (billing documents, CFT conversions)</td></tr>
+        <tr><td class="strong">5. Pricing</td><td>Auto-suggested tier (from declared volume + payment type), optional override with a required reason, additional charges</td><td>Suggestion-with-override UX: system proposes, human can disagree but must say why</td></tr>
+        <tr><td class="strong">6. KYC</td><td>Statutory documents (PAN, GST certificate, MSME…)</td><td>Same repeatable-row shape as step 3, reusing <code>docRowSeq</code> so ids never collide across the two lists</td></tr>
+      </table>
+
+      <h3 class="sub-title">The repeatable-row recipe</h3>
+      <p class="sub" style="margin-bottom:10px">Every "add another one of these" group in this file (identifications, KYC docs, billing docs, CFT conversions, additional charges) follows the same three-function shape. Copy this, don't reinvent it:</p>
+      <div class="callout note">
+        <b>The pattern</b>
+        <code>const [rows, setRows] = useState([{ id: seq++, ...defaults }])</code><br/>
+        <code>add()</code> &rarr; append a row with fresh defaults and the next id<br/>
+        <code>update(id, field, value)</code> &rarr; <code>rows.map(r =&gt; r.id === id ? {...r, [field]: value} : r)</code><br/>
+        <code>remove(id)</code> &rarr; <code>rows.filter(r =&gt; r.id !== id)</code>, usually hidden when only one row remains
+      </div>
+
+      <h3 class="sub-title">Suggestion + override</h3>
+      <p class="sub">Client tier is computed from declared volume and payment type (<code>suggestTier()</code>), shown as the default, but a human can override it — doing so requires typing a reason (<code>tierOverrideReason</code>), which is the general shape to reuse anywhere a system proposes a number a person might need to overrule with accountability attached.</p>
+    </section>
+
+    <section class="doc-section" id="lifecycle">
+      <h2><span class="num">04</span> Client lifecycle &amp; where a client "counts"</h2>
+      <p class="sub">A client is considered created — and leaves Drafts — the moment Billing Info is confirmed, even though Pricing and KYC aren't done yet. That's intentional: it's already real enough to show up in Sales Admin's queue.</p>
+      <table class="ref">
+        <tr><th>Status</th><th>Sits in</th><th>Who acts</th></tr>
+        <tr><td><span class="pill pill-neutral">Draft</span></td><td>Client Onboarding &middot; Drafts tab</td><td>Whoever started it — resumable anytime</td></tr>
+        <tr><td><span class="pill pill-warning">Tier pricing pending</span></td><td>Client Onboarding &middot; in-progress tab</td><td>Sales — finish Pricing + KYC</td></tr>
+        <tr><td><span class="pill pill-info">Finance review</span></td><td>Client Approvals</td><td>Finance Admin — approve pricing or send back</td></tr>
+        <tr><td><span class="pill pill-violet">KYC pending</span></td><td>Client Approvals</td><td>Sales Admin — verify documents</td></tr>
+        <tr><td><span class="pill pill-danger">Correction requested</span></td><td>Back in the wizard, at the flagged step</td><td>Original owner — <code>ACTIVATION_RESUME_STEP</code> routes them straight there</td></tr>
+        <tr><td><span class="pill pill-success">Active</span></td><td>My Clients</td><td>Bookable by Order Module from here on</td></tr>
+      </table>
+    </section>
+
+    <section class="doc-section" id="data">
+      <h2><span class="num">05</span> Data model touchpoints</h2>
+      <p class="sub">If your module needs to reference a client, these are the shared exports to import — don't re-derive client data locally.</p>
+      <table class="ref">
+        <tr><th>Export</th><th>File</th><th>Use it for</th></tr>
+        <tr><td class="strong"><code>ACTIVE_CLIENTS_SEED</code></td><td><code>data/clients.js</code></td><td>Every module's "pick a client" dropdown (Order, Invoicing, MIS…)</td></tr>
+        <tr><td class="strong"><code>TIER_BADGE</code> / <code>TIER_DISCOUNTS</code></td><td><code>data/pricing.js</code></td><td>Rendering a tier pill or computing a discount — the canonical copy (see <a href="https://claude.ai/code/artifact/3126864f-7f30-41bb-8cf3-8ef81043134c#badges" style="text-decoration:underline">Standardization notes</a> re: the duplicate in NewClient.jsx)</td></tr>
+        <tr><td class="strong"><code>computeOrderPricing()</code></td><td><code>data/pricing.js</code></td><td>Anywhere freight needs to be quoted — Create Order, Freight Calculator both call this, not their own math</td></tr>
+        <tr><td class="strong"><code>CUSTOMER_GROUPS</code> / <code>groupById()</code></td><td><code>data/groups.js</code></td><td>Legal-entity grouping — rates and "copy rates from" both key off this, not the trade name</td></tr>
+        <tr><td class="strong"><code>ACTIVATION_STATUS_*</code></td><td><code>data/activations.js</code></td><td>Rendering an in-progress client's stage badge / resume link</td></tr>
+      </table>
+    </section>
+
+    <section class="doc-section" id="build">
+      <h2><span class="num">06</span> If you're building here</h2>
+      <ul style="font-size:13.5px; color:var(--ink-soft); line-height:1.9; padding-left:20px">
+        <li>New wizard field with multiple types/values per client (like CFT&rarr;Kg conversion)? Use the repeatable-row recipe above, not a single flat field.</li>
+        <li>New client status? Add it to <code>data/activations.js</code>'s status maps, don't hardcode a color in the page.</li>
+        <li>Need a client picker? Import <code>ACTIVE_CLIENTS_SEED</code> — every other module already does.</li>
+        <li>Touching pricing? It's centralized in <code>data/pricing.js</code> on purpose — Create Order and Freight Calculator both call the same <code>computeOrderPricing()</code> so a rate change can't silently drift between the two.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
