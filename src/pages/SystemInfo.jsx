@@ -78,13 +78,13 @@ export default function SystemInfo() {
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">System Info</h1>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">Read-only</span>
         </div>
-        <p className="mt-1 text-slate-500">How PTL Console's modules connect and hand off to one another — a reference, not a working screen.</p>
+        <p className="mt-1 text-slate-500">How FLOW's modules connect and hand off to one another — a reference, not a working screen.</p>
       </div>
 
       <div className={`space-y-2 p-6 ${card}`}>
-        <h2 className="text-sm font-semibold text-slate-900">What PTL Console is</h2>
+        <h2 className="text-sm font-semibold text-slate-900">What FLOW is</h2>
         <p className="text-sm leading-relaxed text-slate-600">
-          PTL Console is LetsTransport's internal operating system for Part Truck Load (PTL) logistics. It replaces spreadsheets and
+          FLOW is LetsTransport's internal operating system for Part Truck Load (PTL) logistics. It replaces spreadsheets and
           third-party TMS tools with one connected system spanning client onboarding, order booking, trip execution, fleet management,
           warehouse operations and billing — every module below reads from or writes to the same underlying client, order and trip
           records, rather than each running its own disconnected copy of the truth.

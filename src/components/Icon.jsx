@@ -189,6 +189,14 @@ const PATHS = {
       <path d="M6 6l12 12M18 6L6 18" />
     </>
   ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V4.5a1 1 0 011-1h4a1 1 0 011 1V7" />
+      <path d="M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
   truck: (
     <>
       <rect x="1.5" y="7" width="12" height="9" rx="1.2" />
@@ -253,6 +261,26 @@ const PATHS = {
       <circle cx="7.7" cy="19" r="1" fill="currentColor" stroke="none" />
       <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
       <circle cx="16.3" cy="19" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  filter: (
+    <>
+      <path d="M4 5h16" />
+      <path d="M7 12h10" />
+      <path d="M10 19h4" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6" />
+    </>
+  ),
+  columns: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M15 4v16" />
     </>
   ),
 }

@@ -29,7 +29,7 @@
 // (data/permissions.js USER_TAGS) — metadata only, shown read-only on My
 // Profile; no longer editable from User Management, which now edits
 // `products` instead (see below).
-// `products` are which internal apps this login can use (PTL Console, Hub
+// `products` are which internal apps this login can use (FLOW, Hub
 // App, Scan Tool, …) — set at creation and editable from User Management's
 // search panel; metadata only for now, not read by any permission check.
 // `firstName`/`lastName`/`mobile` are identity/contact details shown in

@@ -10,7 +10,7 @@ import { card, btnPrimary, btnSecondary, thCls, tdCls, rowCls } from '../../comp
 // Which internal apps a login can use — kept local to this page for now
 // rather than in data/permissions.js since nothing outside User Management
 // reads it yet.
-const PRODUCT_TAGS = ['PTL Console', 'Hub App', 'Scan Tool']
+const PRODUCT_TAGS = ['FLOW', 'Hub App', 'Scan Tool']
 
 // Case-insensitive "add if new" against a catalog array, generalized so both
 // the new-user form and the edit panel can grow the same Product Tags list.

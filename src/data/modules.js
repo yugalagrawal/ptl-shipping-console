@@ -55,8 +55,8 @@ export const MODULES = [
     icon: 'invoice',
     tagline: 'Docket creation and tracking for the PTL network.',
     children: [
-      { key: 'create-docket', label: 'Create Docket', to: '/docket-module/create-docket', icon: 'invoice', tagline: 'Create Docket — coming soon.' },
-      { key: 'docket-dashboard', label: 'Docket Dashboard', to: '/docket-module/dashboard', icon: 'grid', tagline: 'Docket Dashboard — coming soon.' },
+      { key: 'create-docket', label: 'Create Docket', to: '/docket-module/create-docket', icon: 'invoice', tagline: 'Manually raise a docket for a pickup — for ops use.' },
+      { key: 'docket-dashboard', label: 'Docket Dashboard', to: '/docket-module/dashboard', icon: 'grid', tagline: 'Track dockets raised from pickups, ready for trip.' },
     ],
   },
   {
@@ -108,6 +108,17 @@ export const MODULES = [
       { key: 'invoicing', label: 'Invoicing', to: '/finance-management/invoicing', icon: 'invoice', tagline: 'Client billing, invoice generation and dispatch.' },
       { key: 'collections', label: 'Collections', to: '/finance-management/collections', icon: 'collections', tagline: 'Receivables ageing and collection follow-up.' },
       { key: 'finance-analytics', label: 'Analytics', to: '/finance-management/analytics', icon: 'analytics', tagline: 'Revenue, margin and DSO trends over time.' },
+    ],
+  },
+  {
+    key: 'master-module',
+    label: 'Master Module',
+    icon: 'settings',
+    tagline: 'Shared reference data — geography and logistics masters used across every other module.',
+    children: [
+      { key: 'geography-master', label: 'Geography Master', to: '/master-module/geography-master', icon: 'route', tagline: 'Geography Master — coming soon.' },
+      { key: 'logistics-master', label: 'Location Master', to: '/master-module/logistics-master', icon: 'grid', tagline: 'Location Master — coming soon.' },
+      { key: 'mapping-ladder', label: 'Logistics Ladder', to: '/master-module/mapping-ladder', icon: 'search', tagline: 'Search any State, City, Region, Hub… and see its full mapping across Geography + Logistics.' },
     ],
   },
   {

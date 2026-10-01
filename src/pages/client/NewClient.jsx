@@ -15,7 +15,7 @@ import {
   emptyChargeRule,
 } from '../../data/pricing.js'
 import { STATE_CITY_DIRECTORY, buildRegionsFromStandard, freshRegionId, REGION_TEMPLATES, cloneRegionTemplate } from '../../data/regionMapping.js'
-import { cloneDefaultOdaEntries, cloneDefaultOdaOverrides, getDefaultOdaRate } from '../../data/odaPincodes.js'
+import { cloneDefaultOdaEntries, cloneDefaultOdaOverrides, cloneOdaRates, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { INDIAN_STATES, lookupPincode, STATE_TO_GST_CODE } from '../../data/geo.js'
 
 const CHARGE_RULE_UNITS = { flat_per_awb: '₹ / AWB', per_kg: '₹ / kg', percent_of_freight: '%', percent_of_cod: '%' }
@@ -929,7 +929,7 @@ export default function NewClient() {
   // in components/OdaListManager.jsx, shared with that Client Pricing page.
   const [odaEntries, setOdaEntries] = useState(() => cloneDefaultOdaEntries())
   const [odaPricing, setOdaPricing] = useState(() => cloneDefaultOdaOverrides())
-  const [odaDefaultRate, setOdaDefaultRate] = useState(() => ({ ...getDefaultOdaRate() }))
+  const [odaDefaultRate, setOdaDefaultRate] = useState(() => cloneOdaRates(getDefaultOdaRate()))
   const [noOda, setNoOda] = useState(false)
 
   function handleNoOda(checked) {

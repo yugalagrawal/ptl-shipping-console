@@ -385,7 +385,7 @@ export const PICKUPS_SEED = [
     consignee: { name: 'Nykaa Luxe Store — Indiranagar', city: 'Bengaluru', pincode: '560001' },
     packagesCount: 6, scannedCount: 6,
     awbNumbers: ['PU-3390-AWB-01', 'PU-3390-AWB-02', 'PU-3390-AWB-03', 'PU-3390-AWB-04', 'PU-3390-AWB-05', 'PU-3390-AWB-06'],
-    docketNumber: 'DKT-5501', createdAt: '2 days ago',
+    docketNumber: '4829173650', createdAt: '2 days ago',
   },
   {
     id: 'PU-3395', clientId: 'lenskart', clientName: 'Lenskart',
@@ -396,7 +396,7 @@ export const PICKUPS_SEED = [
     consignee: { name: 'Lenskart Store — Lajpat Nagar', city: 'New Delhi', pincode: '110001' },
     packagesCount: 4, scannedCount: 4,
     awbNumbers: ['PU-3395-AWB-01', 'PU-3395-AWB-02', 'PU-3395-AWB-03', 'PU-3395-AWB-04'],
-    docketNumber: 'DKT-5502', createdAt: '1 day ago',
+    docketNumber: '7316402985', createdAt: '1 day ago',
   },
   {
     id: 'PU-3398', clientId: 'oriflame', clientName: 'Oriflame',

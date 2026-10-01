@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { MODULES, ADMIN_MODULE, SYSTEM_INFO_MODULE } from '../data/modules.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from './Icon.jsx'
-import ltLogo from '../assets/lt-logo.svg'
+import flowLogo from '../assets/flow-logo.svg'
 
 function itemActiveClass(isActive) {
   return `group flex flex-1 items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ${
@@ -43,14 +43,8 @@ export default function Sidebar() {
 
   return (
     <aside className="flex h-screen w-[260px] shrink-0 flex-col bg-brand-navy text-slate-300">
-      <div className="flex items-center gap-2.5 px-5 pt-6 pb-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/95 p-1 shadow-soft">
-          <img src={ltLogo} alt="LetsTransport" className="h-full w-full" />
-        </div>
-        <div>
-          <div className="text-[15px] font-semibold leading-tight tracking-tight text-white">PTL Console</div>
-          <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">LetsTransport</div>
-        </div>
+      <div className="px-5 pt-4 pb-3">
+        <img src={flowLogo} alt="FLOW by LetsTransport" className="h-auto w-[104px]" />
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">

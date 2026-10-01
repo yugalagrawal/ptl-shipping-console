@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { LT_USERS, CLIENT_USERS, PARTNER_USERS } from '../data/users.js'
 import { btnPrimary } from '../components/ui.js'
 import Icon from '../components/Icon.jsx'
-import ltLogo from '../assets/lt-logo.svg'
+import flowLogo from '../assets/flow-logo.svg'
 
 export default function Login() {
   const [persona, setPersona] = useState('lt')
@@ -42,20 +42,17 @@ export default function Login() {
               'radial-gradient(circle at 20% 20%, white 0, transparent 45%), radial-gradient(circle at 80% 70%, white 0, transparent 40%)',
           }}
         />
-        <div className="relative flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/95 p-1.5 shadow-soft">
-            <img src={ltLogo} alt="LetsTransport" className="h-full w-full" />
-          </div>
-          <div className="text-lg font-semibold tracking-tight">PTL Console</div>
+        <div className="relative">
+          <img src={flowLogo} alt="FLOW by LetsTransport" className="h-auto w-[150px]" />
+          <p className="mt-3 text-sm font-medium tracking-wide text-slate-300">Freight &amp; Logistics Operating World</p>
         </div>
 
         <div className="relative space-y-5">
-          <h1 className="max-w-sm text-[34px] font-semibold leading-tight tracking-tight">
-            Deliveries made easy. Single platform for all your PTL operations.
+          <h1 className="text-balance text-[34px] font-semibold leading-tight tracking-tight">
+            Every shipment, one flow.
           </h1>
           <p className="max-w-sm text-slate-300">
-            One system for onboarding, orders, trips and finance — built ground-up for how LetsTransport's
-            Part Truck Load network actually moves.
+            Onboarding to delivery on one platform.
           </p>
         </div>
 
@@ -78,13 +75,14 @@ export default function Login() {
       <div className="flex flex-1 items-center justify-center bg-[#F6F7F9] px-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-1.5 shadow-soft">
-              <img src={ltLogo} alt="LetsTransport" className="h-full w-full" />
+            <div className="inline-block rounded-2xl bg-brand-navy px-4 py-3">
+              <img src={flowLogo} alt="FLOW by LetsTransport" className="h-auto w-[100px]" />
             </div>
+            <p className="mt-2 text-xs font-medium text-slate-500">Freight &amp; Logistics Operating World</p>
           </div>
 
-          <h2 className="text-[22px] font-semibold tracking-tight text-slate-900">Sign in</h2>
-          <p className="mt-1 text-sm text-slate-500">Choose how you're accessing PTL Console.</p>
+          <h2 className="text-[22px] font-semibold tracking-tight text-slate-900">Sign in to FLOW</h2>
+          <p className="mt-1 text-sm text-slate-500">Choose how you're accessing FLOW.</p>
 
           <div className="mt-6 grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
             <button
