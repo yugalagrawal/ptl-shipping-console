@@ -41,7 +41,7 @@ export function fetchEwayBill(number) {
       }
       // A number ending 11 is treated as a bill that exists but is assigned
       // to a different transporter (or none) — NIC refuses to show it to us.
-      if (clean.endsWith('11')) {
+      if (clean.endsWith('11') || clean === '123456789002') {
         const err = new Error(`E-Way Bill ${clean} exists but isn't assigned to LetsTransport, so we can't read or update it.`)
         err.code = 'NOT_ASSIGNED'
         reject(err)
@@ -50,7 +50,7 @@ export function fetchEwayBill(number) {
       const seed = clean.split('').reduce((s, d) => s + Number(d), 0)
       // A number ending 00 is treated as expired — one easy, memorable way
       // to demo the "fetched but no longer valid" state without a real API.
-      if (clean.endsWith('00')) {
+      if (clean.endsWith('00') || clean === '123456789003') {
         reject(new Error(`E-Way Bill ${clean} was found but has expired. Ask the consignor to regenerate it.`))
         return
       }
