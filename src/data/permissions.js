@@ -72,6 +72,8 @@ export const FUNCTIONS = [
   { id: 'create-docket.view', label: 'View', module: 'Docket Module' },
   { id: 'create-docket.manage', label: 'Create dockets', module: 'Docket Module' },
   { id: 'docket-dashboard.view', label: 'View', module: 'Docket Module' },
+  { id: 'eway-bill.view', label: 'View', module: 'Docket Module' },
+  { id: 'eway-bill.manage', label: 'Create & update e-way bills', module: 'Docket Module' },
 
   { id: 'routing-simulator.view', label: 'View', module: 'Trip Module' },
   { id: 'routing-simulator.manage', label: 'Build & confirm trips', module: 'Trip Module' },
@@ -165,6 +167,7 @@ const RAW_TASKS = [
 
   { id: 'create-docket', label: 'Create Docket', module: 'Docket Module', levels: { 'Read Only': 'create-docket.view', 'Create': 'create-docket.manage' } },
   { id: 'docket-dashboard', label: 'Docket Dashboard', module: 'Docket Module', levels: { 'Read Only': 'docket-dashboard.view' } },
+  { id: 'eway-bill', label: 'E-way Bill', module: 'Docket Module', levels: { 'Read Only': 'eway-bill.view', 'Create': 'eway-bill.manage' } },
 
   { id: 'routing-simulator', label: 'Routing Simulator', module: 'Trip Module', levels: { 'Read Only': 'routing-simulator.view', 'Create': 'routing-simulator.manage' } },
   { id: 'trip-tracking', label: 'Trip Tracking', module: 'Trip Module', levels: { 'Read Only': 'trip-tracking.view' } },
