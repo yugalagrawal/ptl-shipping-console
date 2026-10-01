@@ -574,7 +574,7 @@ export default function EwayBill() {
   const [tab, setTab] = useState('create')
   const [activeNo, setActiveNo] = useState(null)
   const tabs = [
-    ['create', 'Create e-way bill'],
+    ['create', 'Create'],
     ['fetch', 'Fetch & update'],
     ['dashboard', 'Dashboard'],
   ]
