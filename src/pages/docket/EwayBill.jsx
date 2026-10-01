@@ -551,7 +551,7 @@ export default function EwayBill() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">E-way Bill</h1>
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">E-way Bill Console</h1>
         <p className="mt-1 text-slate-500">Generate bills for clients and consignors, fetch any bill assigned to us, and keep Part B and validity up to date.</p>
       </div>
 

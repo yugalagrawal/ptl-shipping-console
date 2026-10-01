@@ -57,7 +57,7 @@ export const MODULES = [
     children: [
       { key: 'create-docket', label: 'Create Docket', to: '/docket-module/create-docket', icon: 'invoice', tagline: 'Manually raise a docket for a pickup — for ops use.' },
       { key: 'docket-dashboard', label: 'Docket Dashboard', to: '/docket-module/dashboard', icon: 'grid', tagline: 'Track dockets raised from pickups, ready for trip.' },
-      { key: 'eway-bill', label: 'E-way Bill', to: '/docket-module/eway-bill', icon: 'file', tagline: 'Generate, fetch and update e-way bills for clients and consignors.' },
+      { key: 'eway-bill', label: 'E-way Bill Console', to: '/docket-module/eway-bill', icon: 'file', tagline: 'Generate, fetch and update e-way bills for clients and consignors.' },
     ],
   },
   {

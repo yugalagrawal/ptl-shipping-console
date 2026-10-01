@@ -167,7 +167,7 @@ const RAW_TASKS = [
 
   { id: 'create-docket', label: 'Create Docket', module: 'Docket Module', levels: { 'Read Only': 'create-docket.view', 'Create': 'create-docket.manage' } },
   { id: 'docket-dashboard', label: 'Docket Dashboard', module: 'Docket Module', levels: { 'Read Only': 'docket-dashboard.view' } },
-  { id: 'eway-bill', label: 'E-way Bill', module: 'Docket Module', levels: { 'Read Only': 'eway-bill.view', 'Create': 'eway-bill.manage' } },
+  { id: 'eway-bill', label: 'E-way Bill Console', module: 'Docket Module', levels: { 'Read Only': 'eway-bill.view', 'Create': 'eway-bill.manage' } },
 
   { id: 'routing-simulator', label: 'Routing Simulator', module: 'Trip Module', levels: { 'Read Only': 'routing-simulator.view', 'Create': 'routing-simulator.manage' } },
   { id: 'trip-tracking', label: 'Trip Tracking', module: 'Trip Module', levels: { 'Read Only': 'trip-tracking.view' } },
