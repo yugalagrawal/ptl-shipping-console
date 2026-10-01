@@ -399,6 +399,11 @@ export const PICKUPS_SEED = [
     estWeightKg: 95, status: PICKUP_STATUS.SCANNED, prsId: 'PRS-102',
     actualWeightKg: 98, volumetricWeightKg: 88,
     consignee: { name: 'Lenskart Store — Lajpat Nagar', city: 'New Delhi', pincode: '110001' },
+    details: { destinations: [
+      { consignee: { name: 'Lenskart Store — Lajpat Nagar', city: 'New Delhi', pincode: '110024', state: 'Delhi' }, boxes: 2, kg: 50 },
+      { consignee: { name: 'Lenskart Store — Sector 18', city: 'Noida', pincode: '201301', state: 'Uttar Pradesh' }, boxes: 1, kg: 28 },
+      { consignee: { name: 'Lenskart Store — Cyber Hub', city: 'Gurugram', pincode: '122002', state: 'Haryana' }, boxes: 1, kg: 20 },
+    ] },
     packagesCount: 4, scannedCount: 4,
     awbNumbers: ['PU-3395-AWB-01', 'PU-3395-AWB-02', 'PU-3395-AWB-03', 'PU-3395-AWB-04'],
     docketNumber: '7316402985', createdAt: '1 day ago',

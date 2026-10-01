@@ -297,14 +297,20 @@ function CreateTab({ onOpen, canManage }) {
           <Field label="Pickup ID" hint="Optional — pre-fills consignor and consignee from the pickup">
             <select className={inputCls} value={f.pickupId} onChange={pickPickup} disabled={!client}>
               <option value="">{pickups.length || !client ? 'Not linked' : 'No pickups for this client'}</option>
-              {pickups.map((p) => <option key={p.id} value={p.id}>{p.id} · {p.consignor.name}</option>)}
+              {pickups.map((p) => {
+                const n = p.details?.destinations?.filter((d) => d.consignee?.name).length ?? 0
+                return <option key={p.id} value={p.id}>{p.id} · {p.consignor.name}{n > 1 ? ` · ${n} consignees` : ''}</option>
+              })}
             </select>
           </Field>
           {pickupConsignees.length > 1 && (
             <Field label="Consignee *" hint={`${pickupConsignees.length} consignees on this pickup — pick the one this bill is for`} className="sm:col-span-3">
               <select className={inputCls} value={f.consigneeIdx} onChange={pickConsignee}>
                 <option value="">Select consignee…</option>
-                {pickupConsignees.map((c, i) => <option key={i} value={i}>{c.name} · {c.city}{c.boxes ? ` · ${c.boxes} boxes` : ''}</option>)}
+                {pickupConsignees.map((c, i) => {
+                  const billed = listEwayBills().find((b) => b.pickupId === f.pickupId && b.consignee.name === c.name && !b.cancelled)
+                  return <option key={i} value={i}>{c.name} · {c.city}{c.boxes ? ` · ${c.boxes} boxes` : ''}{billed ? ` · bill ${billed.ewayBillNo} generated` : ''}</option>
+                })}
               </select>
             </Field>
           )}
