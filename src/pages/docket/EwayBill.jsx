@@ -537,12 +537,12 @@ function FetchTab({ activeNo, setActiveNo, canManage }) {
 export default function EwayBill() {
   const { hasFunction } = useAuth()
   const canManage = hasFunction('eway-bill.manage')
-  const [tab, setTab] = useState('dashboard')
+  const [tab, setTab] = useState('create')
   const [activeNo, setActiveNo] = useState(null)
   const tabs = [
-    ['dashboard', 'Dashboard'],
     ['create', 'Create e-way bill'],
     ['fetch', 'Fetch & update'],
+    ['dashboard', 'Dashboard'],
   ]
   function open(no) {
     setActiveNo(no)
