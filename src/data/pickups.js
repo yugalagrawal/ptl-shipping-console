@@ -383,6 +383,11 @@ export const PICKUPS_SEED = [
     estWeightKg: 180, status: PICKUP_STATUS.DROPPED, prsId: 'PRS-101',
     actualWeightKg: 176, volumetricWeightKg: 190,
     consignee: { name: 'Nykaa Luxe Store — Indiranagar', city: 'Bengaluru', pincode: '560001' },
+    // Two consignees on one pickup (the Create Pickup "Consignee List") — lets E-way Bill's consignee picker be demoed.
+    details: { destinations: [
+      { consignee: { name: 'Nykaa Luxe Store — Indiranagar', city: 'Bengaluru', pincode: '560001', state: 'Karnataka' }, boxes: 4, kg: 120 },
+      { consignee: { name: 'Nykaa Hub — Hyderabad', city: 'Hyderabad', pincode: '500081', state: 'Telangana' }, boxes: 2, kg: 56 },
+    ] },
     packagesCount: 6, scannedCount: 6,
     awbNumbers: ['PU-3390-AWB-01', 'PU-3390-AWB-02', 'PU-3390-AWB-03', 'PU-3390-AWB-04', 'PU-3390-AWB-05', 'PU-3390-AWB-06'],
     docketNumber: '4829173650', createdAt: '2 days ago',

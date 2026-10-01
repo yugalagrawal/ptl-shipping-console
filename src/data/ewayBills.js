@@ -98,7 +98,7 @@ function seedBill(n, o) {
     generatedOn,
     generatedBy: o.by ?? 'LetsTransport',
     clientId: o.clientId, clientName: o.clientName,
-    docketNumber: o.docketNumber ?? '',
+    pickupId: o.pickupId ?? '', docketNumber: o.docketNumber ?? '',
     supplyType: SUPPLY_TYPES[0],
     consignor: o.consignor, consignee: o.consignee,
     invoiceNo: o.invoiceNo, invoiceDate: new Date(generatedOn).toISOString().slice(0, 10),
@@ -121,8 +121,8 @@ const nyk = { name: 'Nykaa E-Retail Pvt Ltd', gstin: '27AAACN5678B1Z2', city: 'M
 const len = { name: 'Lenskart Solutions Pvt Ltd', gstin: '06AAFCL3341B1ZS', city: 'Gurugram', state: 'Haryana', pincode: '122001' }
 
 let REGISTER = [
-  seedBill('281034556791', { ...NYKAA, agoHours: 6, docketNumber: '4829173650', consignor: nyk, consignee: { name: 'Nykaa Luxe Store — Indiranagar', gstin: '29AAACN5678B1Z8', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' }, invoiceNo: 'NYK/26-27/10482', goods: { description: 'Cosmetics & personal care', hsn: '3304', quantity: 6, unit: 'BOX' }, taxable: 148000, km: 985, vehicle: 'MH04KP4521' }),
-  seedBill('281034556802', { ...LENS, agoHours: 20, docketNumber: '7316402985', consignor: len, consignee: { name: 'Lenskart Store — Lajpat Nagar', gstin: '07AAFCL3341B1ZR', city: 'New Delhi', state: 'Delhi', pincode: '110024' }, invoiceNo: 'LK/26-27/7781', goods: { description: 'Spectacle frames', hsn: '9003', quantity: 4, unit: 'CTN' }, taxable: 96500, km: 30, vehicle: 'HR55AB1290' }),
+  seedBill('281034556791', { ...NYKAA, agoHours: 6, pickupId: 'PU-3390', docketNumber: '4829173650', consignor: nyk, consignee: { name: 'Nykaa Luxe Store — Indiranagar', gstin: '29AAACN5678B1Z8', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' }, invoiceNo: 'NYK/26-27/10482', goods: { description: 'Cosmetics & personal care', hsn: '3304', quantity: 6, unit: 'BOX' }, taxable: 148000, km: 985, vehicle: 'MH04KP4521' }),
+  seedBill('281034556802', { ...LENS, agoHours: 20, pickupId: 'PU-3395', docketNumber: '7316402985', consignor: len, consignee: { name: 'Lenskart Store — Lajpat Nagar', gstin: '07AAFCL3341B1ZR', city: 'New Delhi', state: 'Delhi', pincode: '110024' }, invoiceNo: 'LK/26-27/7781', goods: { description: 'Spectacle frames', hsn: '9003', quantity: 4, unit: 'CTN' }, taxable: 96500, km: 30, vehicle: 'HR55AB1290' }),
   seedBill('281034556813', { ...NYKAA, agoHours: 3, consignor: nyk, consignee: { name: 'Nykaa Hub — Hyderabad', gstin: '36AAACN5678B1Z4', city: 'Hyderabad', state: 'Telangana', pincode: '500081' }, invoiceNo: 'NYK/26-27/10497', goods: { description: 'Hair care products', hsn: '3305', quantity: 9, unit: 'BOX' }, taxable: 212000, km: 710 }),
   seedBill('281034556824', { ...LENS, agoHours: 70, by: 'Consignor', consignor: len, consignee: { name: 'Lenskart Store — Koramangala', gstin: '29AAFCL3341B1ZQ', city: 'Bengaluru', state: 'Karnataka', pincode: '560034' }, invoiceNo: 'LK/26-27/7702', goods: { description: 'Contact lens cartons', hsn: '9001', quantity: 12, unit: 'CTN' }, taxable: 184000, km: 2150, vehicle: 'HR38AC7745' }),
   seedBill('281034556835', { ...NYKAA, agoHours: 80, consignor: nyk, consignee: { name: 'Nykaa Store — Pune', gstin: '27AAACN5678B1Z2', city: 'Pune', state: 'Maharashtra', pincode: '411001' }, invoiceNo: 'NYK/26-27/10311', goods: { description: 'Cosmetics & personal care', hsn: '3304', quantity: 5, unit: 'BOX' }, taxable: 64000, km: 150, vehicle: 'MH12QR8830' }),
@@ -156,7 +156,7 @@ export function createEwayBill(input) {
       const now = Date.now()
       const bill = {
         ewayBillNo, generatedOn: now, generatedBy: 'LetsTransport',
-        clientId: input.clientId, clientName: input.clientName, docketNumber: input.docketNumber || '',
+        clientId: input.clientId, clientName: input.clientName, pickupId: input.pickupId || '', docketNumber: input.docketNumber || '',
         supplyType: input.supplyType,
         consignor: input.consignor, consignee: input.consignee,
         invoiceNo: input.invoiceNo, invoiceDate: input.invoiceDate,
@@ -189,7 +189,7 @@ export async function lookupEwayBill(number) {
   const generatedOn = new Date(r.generatedOn).getTime()
   const bill = {
     ewayBillNo: r.ewayBillNo, generatedOn, generatedBy: 'Consignor',
-    clientId: '', clientName: '—', docketNumber: '', supplyType: SUPPLY_TYPES[0],
+    clientId: '', clientName: '—', pickupId: '', docketNumber: '', supplyType: SUPPLY_TYPES[0],
     consignor: { name: 'As per e-Way Bill', gstin: '', city: '', state: '', pincode: '' },
     consignee: r.consignee,
     invoiceNo: r.invoiceNo, invoiceDate: r.invoiceDate,
@@ -232,6 +232,6 @@ export function cancelEwayBill(no, { reason, remark }) {
   }))
 }
 
-export function linkDocket(no, docketNumber) {
-  return patch(no, (b) => ({ ...b, docketNumber, history: [...b.history, log('Linked', `Linked to docket ${docketNumber}`)] }))
+export function linkPickup(no, pickupId, docketNumber = '') {
+  return patch(no, (b) => ({ ...b, pickupId, docketNumber, history: [...b.history, log('Linked', `Linked to pickup ${pickupId}`)] }))
 }

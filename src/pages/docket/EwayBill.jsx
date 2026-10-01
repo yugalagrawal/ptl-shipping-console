@@ -4,13 +4,13 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import { card, thCls, tdCls, rowCls, btnPrimary, btnSecondary } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
 import { getConsignorsForClient } from '../../data/consignors.js'
-import { DOCKETS_SEED } from '../../data/dockets.js'
+import { PICKUPS_SEED } from '../../data/pickups.js'
 import { INDIAN_STATES, lookupPincode } from '../../data/geo.js'
 import { OUR_GSTIN } from '../../data/ewayBill.js'
 import {
   EWB_STATUS, EWB_STATUS_LABEL, EWB_STATUS_BADGE, PART_B_REASONS, EXTEND_REASONS, CANCEL_REASONS, SUPPLY_TYPES, GOODS_UNITS, GST_RATES,
   statusOf, actionRules, validityDays, isValidVehicleNo, totalInvoiceValue,
-  listEwayBills, getEwayBill, createEwayBill, lookupEwayBill, updatePartB, extendValidity, cancelEwayBill, linkDocket,
+  listEwayBills, getEwayBill, createEwayBill, lookupEwayBill, updatePartB, extendValidity, cancelEwayBill, linkPickup,
 } from '../../data/ewayBills.js'
 
 const th = thCls.replace('px-6', 'px-3')
@@ -58,7 +58,7 @@ function printBill(bill) {
     <h2 style="margin:0">e-Way Bill</h2><p style="margin:4px 0 18px;color:#64748b">${bill.ewayBillNo} · ${EWB_STATUS_LABEL[statusOf(bill)]}</p>
     <table style="border-collapse:collapse;width:100%;font-size:13px;border:1px solid #e2e8f0">
       ${row('Generated', `${when(bill.generatedOn)} by ${bill.generatedBy}`)}${row('Valid until', when(bill.validUntil))}
-      ${row('Supply type', bill.supplyType)}${row('Docket', bill.docketNumber)}
+      ${row('Supply type', bill.supplyType)}${row('Pickup ID', bill.pickupId)}${row('Docket', bill.docketNumber)}
       ${row('From (consignor)', `${bill.consignor.name} · ${bill.consignor.gstin} · ${[bill.consignor.city, bill.consignor.state].filter(Boolean).join(', ')}`)}
       ${row('To (consignee)', `${bill.consignee.name} · ${bill.consignee.gstin} · ${[bill.consignee.city, bill.consignee.state, bill.consignee.pincode].filter(Boolean).join(', ')}`)}
       ${row('Invoice', `${bill.invoiceNo} · ${bill.invoiceDate} · ${inr(bill.invoiceValue)}`)}
@@ -78,7 +78,7 @@ function Dashboard({ onOpen }) {
   const rows = bills.filter(
     (b) =>
       (filter === 'all' || statusOf(b) === filter) &&
-      (!q || [b.ewayBillNo, b.docketNumber, b.clientName, b.invoiceNo, b.vehicleNo, b.consignee.name, b.consignee.city].some((v) => String(v ?? '').toLowerCase().includes(q))),
+      (!q || [b.ewayBillNo, b.pickupId, b.docketNumber, b.clientName, b.invoiceNo, b.vehicleNo, b.consignee.name, b.consignee.city].some((v) => String(v ?? '').toLowerCase().includes(q))),
   )
   const tiles = [
     ['all', 'All bills', bills.length],
@@ -106,7 +106,7 @@ function Dashboard({ onOpen }) {
 
       <div className="relative">
         <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search e-way bill no., docket, client, invoice, vehicle or consignee…" className={`${inputCls} pl-9`} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search e-way bill no., pickup ID, client, invoice, vehicle or consignee…" className={`${inputCls} pl-9`} />
       </div>
 
       <div className={`overflow-x-auto ${card}`}>
@@ -116,7 +116,7 @@ function Dashboard({ onOpen }) {
           <table className="w-full">
             <thead>
               <tr>
-                {['E-way bill no.', 'Docket', 'Client', 'Consignee', 'Value', 'Vehicle', 'Valid until', 'Status'].map((h) => (
+                {['E-way bill no.', 'Pickup ID', 'Client', 'Consignee', 'Value', 'Vehicle', 'Valid until', 'Status'].map((h) => (
                   <th key={h} className={th}>{h}</th>
                 ))}
               </tr>
@@ -125,7 +125,7 @@ function Dashboard({ onOpen }) {
               {rows.map((b) => (
                 <tr key={b.ewayBillNo} onClick={() => onOpen(b.ewayBillNo)} className={`${rowCls} cursor-pointer`}>
                   <td className={`${td} font-medium tabular-nums text-slate-900`}>{b.ewayBillNo}</td>
-                  <td className={`${td} tabular-nums`}>{b.docketNumber || <span className="text-slate-300">—</span>}</td>
+                  <td className={`${td} tabular-nums`}>{b.pickupId || <span className="text-slate-300">—</span>}</td>
                   <td className={td}>{b.clientName}</td>
                   <td className={td}>
                     {b.consignee.name}
@@ -148,7 +148,7 @@ function Dashboard({ onOpen }) {
 // ───────────────────────────── Create ─────────────────────────────
 const emptyParty = { name: '', gstin: '', pincode: '', city: '', state: '' }
 const emptyForm = {
-  clientId: '', consignorKey: '', docketNumber: '', consignor: { ...emptyParty }, consignee: { ...emptyParty },
+  clientId: '', consignorKey: '', pickupId: '', consigneeIdx: '', consignor: { ...emptyParty }, consignee: { ...emptyParty },
   supplyType: SUPPLY_TYPES[0], invoiceNo: '', invoiceDate: new Date().toISOString().slice(0, 10),
   description: '', hsn: '', quantity: '', unit: GOODS_UNITS[0], taxableValue: '', gstRate: 18, distanceKm: '', vehicleNo: '',
 }
@@ -196,35 +196,59 @@ function CreateTab({ onOpen, canManage }) {
       ...getConsignorsForClient(client.id).map((c) => ({ key: c.id, label: `${c.partyName} — ${c.city}`, party: { name: c.partyName, gstin: client.gstin, pincode: c.pincode, city: c.city, state: c.state } })),
     ]
   }, [client])
-  const dockets = client ? DOCKETS_SEED.filter((d) => d.clientName === client.name) : []
+  const pickups = client ? PICKUPS_SEED.filter((p) => p.clientId === client.id) : []
+  const pickup = pickups.find((p) => p.id === f.pickupId)
+  // A pickup can carry several consignees (Create Pickup's Consignee List); older ones have just one.
+  const pickupConsignees = pickup
+    ? (pickup.details?.destinations?.filter((d) => d.consignee?.name).map((d) => ({ ...d.consignee, boxes: d.boxes })) ?? (pickup.consignee ? [pickup.consignee] : []))
+    : []
 
   function pickClient(e) {
     setF({ ...emptyForm, clientId: e.target.value, invoiceDate: f.invoiceDate })
   }
   function pickConsignor(e) {
+    if (e.target.value === 'pickup') return
     const opt = consignorOptions.find((o) => o.key === e.target.value)
     setF((p) => ({ ...p, consignorKey: e.target.value, consignor: opt ? { ...opt.party } : { ...emptyParty } }))
   }
-  function pickDocket(e) {
-    const d = dockets.find((x) => x.docketNumber === e.target.value)
+  function applyConsignee(c) {
     setF((p) => ({
-      ...p, docketNumber: e.target.value,
-      consignee: d ? { ...p.consignee, name: d.consignee.name, city: d.consignee.city, pincode: d.consignee.pincode } : p.consignee,
+      ...p,
+      consignee: { ...emptyParty, name: c.name ?? '', pincode: c.pincode ?? '', city: c.city ?? '', state: c.state ?? '' },
+      quantity: c.boxes ? String(c.boxes) : p.quantity,
     }))
+    if (c.pincode && !c.state) lookupPincode(c.pincode).then((r) => r && setF((p) => ({ ...p, consignee: { ...p.consignee, state: r.state } })))
+  }
+  function pickPickup(e) {
+    const id = e.target.value
+    const pu = pickups.find((x) => x.id === id)
+    const cs = pu ? (pu.details?.destinations?.filter((d) => d.consignee?.name).map((d) => ({ ...d.consignee, boxes: d.boxes })) ?? (pu.consignee ? [pu.consignee] : [])) : []
+    setF((p) => ({
+      ...p, pickupId: id, consigneeIdx: cs.length === 1 ? '0' : '',
+      consignorKey: pu ? 'pickup' : p.consignorKey,
+      consignor: pu ? { name: pu.consignor.name, gstin: client.gstin, pincode: pu.consignor.pincode ?? '', city: pu.consignor.city ?? '', state: pu.consignor.state ?? '' } : p.consignor,
+      consignee: pu && cs.length !== 1 ? { ...emptyParty } : p.consignee,
+    }))
+    if (cs.length === 1) applyConsignee(cs[0])
+  }
+  function pickConsignee(e) {
+    const i = e.target.value
+    setF((p) => ({ ...p, consigneeIdx: i }))
+    if (i !== '') applyConsignee(pickupConsignees[Number(i)])
   }
 
   const total = totalInvoiceValue(f.taxableValue, f.gstRate)
   const days = validityDays(f.distanceKm)
   const partyOk = (p) => p.name.trim() && /^\d{6}$/.test(p.pincode) && p.city.trim() && p.state
   const valid =
-    client && partyOk(f.consignor) && partyOk(f.consignee) && f.invoiceNo.trim() && f.description.trim() && /^\d{4,8}$/.test(f.hsn) &&
+    client && (pickupConsignees.length < 2 || f.consigneeIdx !== '') && partyOk(f.consignor) && partyOk(f.consignee) && f.invoiceNo.trim() && f.description.trim() && /^\d{4,8}$/.test(f.hsn) &&
     Number(f.quantity) > 0 && Number(f.taxableValue) > 0 && Number(f.distanceKm) > 0 && (!f.vehicleNo || isValidVehicleNo(f.vehicleNo))
 
   async function submit() {
     setBusy(true)
     const party = (p) => ({ ...p, gstin: p.gstin.trim() || 'URP' })
     const bill = await createEwayBill({
-      clientId: client.id, clientName: client.name, docketNumber: f.docketNumber, supplyType: f.supplyType,
+      clientId: client.id, clientName: client.name, pickupId: f.pickupId, docketNumber: pickup?.docketNumber ?? '', supplyType: f.supplyType,
       consignor: party(f.consignor), consignee: party(f.consignee),
       invoiceNo: f.invoiceNo.trim(), invoiceDate: f.invoiceDate,
       goods: { description: f.description.trim(), hsn: f.hsn, quantity: Number(f.quantity), unit: f.unit },
@@ -267,14 +291,23 @@ function CreateTab({ onOpen, canManage }) {
             <select className={inputCls} value={f.consignorKey} onChange={pickConsignor} disabled={!client}>
               <option value="">{client ? 'Select consignor…' : 'Pick a client first'}</option>
               {consignorOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              {pickup && <option value="pickup">{pickup.consignor.name} (from pickup {pickup.id})</option>}
             </select>
           </Field>
-          <Field label="Docket (optional)" hint="Links the bill to a docket and pre-fills the consignee">
-            <select className={inputCls} value={f.docketNumber} onChange={pickDocket} disabled={!client}>
-              <option value="">{dockets.length || !client ? 'Not linked' : 'No dockets for this client'}</option>
-              {dockets.map((d) => <option key={d.docketNumber} value={d.docketNumber}>{d.docketNumber} → {d.consignee.city}</option>)}
+          <Field label="Pickup ID" hint="Optional — pre-fills consignor and consignee from the pickup">
+            <select className={inputCls} value={f.pickupId} onChange={pickPickup} disabled={!client}>
+              <option value="">{pickups.length || !client ? 'Not linked' : 'No pickups for this client'}</option>
+              {pickups.map((p) => <option key={p.id} value={p.id}>{p.id} · {p.consignor.name}</option>)}
             </select>
           </Field>
+          {pickupConsignees.length > 1 && (
+            <Field label="Consignee *" hint={`${pickupConsignees.length} consignees on this pickup — pick the one this bill is for`} className="sm:col-span-3">
+              <select className={inputCls} value={f.consigneeIdx} onChange={pickConsignee}>
+                <option value="">Select consignee…</option>
+                {pickupConsignees.map((c, i) => <option key={i} value={i}>{c.name} · {c.city}{c.boxes ? ` · ${c.boxes} boxes` : ''}</option>)}
+              </select>
+            </Field>
+          )}
         </div>
       </div>
 
@@ -391,6 +424,7 @@ function BillDetail({ bill, canManage, onChange }) {
   const rules = actionRules(bill)
   const info = [
     ['Client', bill.clientName],
+    ['Pickup ID', bill.pickupId],
     ['Docket', bill.docketNumber],
     ['Consignor', `${bill.consignor.name}${bill.consignor.city ? ` · ${bill.consignor.city}` : ''}`],
     ['Consignee', `${bill.consignee.name} · ${bill.consignee.city}`],
@@ -406,7 +440,7 @@ function BillDetail({ bill, canManage, onChange }) {
     ['extend', 'Extend validity', rules.extend, 'history'],
     ['cancel', 'Cancel bill', rules.cancel, 'trash'],
   ]
-  const dockets = DOCKETS_SEED
+  const pickups = PICKUPS_SEED.filter((p) => !bill.clientId || p.clientId === bill.clientId)
   return (
     <div className={`${card} p-6`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -422,10 +456,10 @@ function BillDetail({ bill, canManage, onChange }) {
           <div key={k} className="flex gap-3 text-sm">
             <dt className="w-32 shrink-0 text-slate-400">{k}</dt>
             <dd className="min-w-0 text-slate-800">
-              {k === 'Docket' && !v && canManage && !bill.cancelled ? (
-                <select className="rounded-md border border-slate-200 px-1.5 py-0.5 text-xs text-slate-600" value="" onChange={(e) => e.target.value && (linkDocket(bill.ewayBillNo, e.target.value), onChange())}>
-                  <option value="">Link a docket…</option>
-                  {dockets.map((d) => <option key={d.docketNumber} value={d.docketNumber}>{d.docketNumber} · {d.clientName}</option>)}
+              {k === 'Pickup ID' && !v && canManage && !bill.cancelled ? (
+                <select className="rounded-md border border-slate-200 px-1.5 py-0.5 text-xs text-slate-600" value="" onChange={(e) => { const pu = pickups.find((x) => x.id === e.target.value); if (pu) { linkPickup(bill.ewayBillNo, pu.id, pu.docketNumber ?? ''); onChange() } }}>
+                  <option value="">Link a pickup…</option>
+                  {pickups.map((p) => <option key={p.id} value={p.id}>{p.id} · {p.clientName}</option>)}
                 </select>
               ) : (
                 v || <span className="text-slate-300">—</span>
@@ -552,7 +586,6 @@ export default function EwayBill() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">E-way Bill Console</h1>
-        <p className="mt-1 text-slate-500">Generate bills for clients and consignors, fetch any bill assigned to us, and keep Part B and validity up to date.</p>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-1 text-sm sm:w-fit">
