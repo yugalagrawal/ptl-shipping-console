@@ -514,6 +514,16 @@ function BillDetail({ bill, canManage, onChange }) {
   )
 }
 
+// One number per outcome the fetch can have — the 12-digit endings are the
+// prototype's NIC stand-in rules (see data/ewayBill.js); the last one is a
+// bill already in our register that is inside its extension window.
+const SAMPLES = [
+  ['123456789012', 'Valid · fetched from NIC, Part B pending', 'border-emerald-200 bg-emerald-50 text-emerald-700'],
+  ['123456789011', 'Not assigned to us', 'border-amber-200 bg-amber-50 text-amber-700'],
+  ['123456789000', 'Expired', 'border-rose-200 bg-rose-50 text-rose-700'],
+  ['281034556802', 'In our register · expiring, can extend', 'border-sky-200 bg-sky-50 text-sky-700'],
+]
+
 function FetchTab({ activeNo, setActiveNo, canManage }) {
   const [, bump] = useState(0)
   const [input, setInput] = useState(activeNo ?? '')
@@ -552,7 +562,14 @@ function FetchTab({ activeNo, setActiveNo, canManage }) {
             {state.status === 'loading' ? 'Fetching…' : 'Fetch'}
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-slate-400">Bills generated here are found instantly; others are fetched from NIC — only bills assigned to LetsTransport can be read or updated.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-slate-400">Try a sample</span>
+          {SAMPLES.map(([no, label, tone]) => (
+            <button key={no} type="button" onClick={() => { setInput(no); fetchIt(no) }} className={`rounded-full border px-3 py-1 text-xs font-medium hover:brightness-95 ${tone}`}>
+              <span className="tabular-nums">{no}</span> · {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {state.status === 'error' && state.code === 'NOT_ASSIGNED' && (
