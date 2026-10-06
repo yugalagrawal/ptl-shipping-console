@@ -36,6 +36,8 @@ import TruckAssignment from './pages/supply-fleet/TruckAssignment.jsx'
 import WarehouseHubOps from './pages/WarehouseHubOps.jsx'
 import RouteCostSimulator from './pages/network/RouteCostSimulator.jsx'
 import FreightCalculator from './pages/network/FreightCalculator.jsx'
+import CostOverview from './pages/costing/CostOverview.jsx'
+import CostForecast from './pages/costing/CostForecast.jsx'
 import Mis from './pages/finance/Mis.jsx'
 import Invoicing from './pages/finance/Invoicing.jsx'
 import Collections from './pages/finance/Collections.jsx'
@@ -90,6 +92,8 @@ export default function App() {
         <Route path="/finance-management/invoicing" element={<Invoicing />} />
         <Route path="/finance-management/collections" element={<Collections />} />
         <Route path="/finance-management/analytics" element={<FinanceAnalytics />} />
+        <Route path="/costing-module/overview" element={<CostOverview />} />
+        <Route path="/costing-module/forecast" element={<CostForecast />} />
         <Route path="/logic-engine" element={<LogicEngine />} />
         <Route path="/user-module/access-management" element={<AccessManagement />} />
         <Route path="/user-module/user-relations" element={<UserRelations />} />

@@ -28,6 +28,7 @@ const MODULE_ICON = {
   'Warehouse & Hub Ops': 'warehouse',
   'Network Simulator': 'route',
   'Finance Management': 'finance',
+  'Costing Module': 'costing',
   'Logic Engine': 'logic',
   Admin: 'shield',
   'System Info': 'info',

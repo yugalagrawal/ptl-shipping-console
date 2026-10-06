@@ -37,7 +37,7 @@
 //   it — see the toggle* cascades in AccessManagement.jsx. First rough pass,
 //   flagged for refinement.
 
-export const MODULE_ORDER = ['Birdview', 'Client Module', 'Partner Module', 'Pickup Module', 'Docket Module', 'Trip Module', 'Supply & Fleet Module', 'Warehouse & Hub Ops', 'Network Simulator', 'Finance Management', 'Master Module', 'Logic Engine', 'Admin', 'System Info']
+export const MODULE_ORDER = ['Birdview', 'Client Module', 'Partner Module', 'Pickup Module', 'Docket Module', 'Trip Module', 'Supply & Fleet Module', 'Warehouse & Hub Ops', 'Network Simulator', 'Finance Management', 'Costing Module', 'Master Module', 'Logic Engine', 'Admin', 'System Info']
 
 export const FUNCTIONS = [
   { id: 'dashboard.view', label: 'View', module: 'Birdview' },
@@ -97,6 +97,9 @@ export const FUNCTIONS = [
   { id: 'collections.view', label: 'View', module: 'Finance Management' },
   { id: 'collections.manage', label: 'Record follow-up', module: 'Finance Management' },
   { id: 'finance-analytics.view', label: 'View', module: 'Finance Management' },
+
+  { id: 'cost-overview.view', label: 'View', module: 'Costing Module' },
+  { id: 'cost-forecast.view', label: 'View', module: 'Costing Module' },
 
   { id: 'geography-master.view', label: 'View', module: 'Master Module' },
   { id: 'geography-master.manage', label: 'Add / edit geography mapping', module: 'Master Module' },
@@ -186,6 +189,9 @@ const RAW_TASKS = [
   { id: 'invoicing', label: 'Invoicing', module: 'Finance Management', levels: { 'Read Only': 'invoicing.view', 'Create': 'invoicing.manage' } },
   { id: 'collections', label: 'Collections', module: 'Finance Management', levels: { 'Read Only': 'collections.view', 'Edit': 'collections.manage' } },
   { id: 'finance-analytics', label: 'Analytics', module: 'Finance Management', levels: { 'Read Only': 'finance-analytics.view' } },
+
+  { id: 'cost-overview', label: 'Cost Overview', module: 'Costing Module', levels: { 'Read Only': 'cost-overview.view' } },
+  { id: 'cost-forecast', label: 'Forecast & What-if', module: 'Costing Module', levels: { 'Read Only': 'cost-forecast.view' } },
 
   { id: 'geography-master', label: 'Geography Master', module: 'Master Module', levels: { 'Read Only': 'geography-master.view', 'Edit': 'geography-master.manage' } },
   { id: 'logistics-master', label: 'Location Master', module: 'Master Module', levels: { 'Read Only': 'logistics-master.view', 'Edit': 'logistics-master.manage' } },

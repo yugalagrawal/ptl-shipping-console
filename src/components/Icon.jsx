@@ -73,6 +73,15 @@ const PATHS = {
       <path d="M12 7v5l3.5 2" />
     </>
   ),
+  costing: (
+    <>
+      <path d="M4 19V9" />
+      <path d="M10 19V4" />
+      <path d="M16 19v-7" />
+      <path d="M3 21h18" />
+      <path d="M15 6l3 3 3-4" />
+    </>
+  ),
   analytics: (
     <>
       <path d="M4 20V10M11 20V4M18 20v-7" />
