@@ -107,6 +107,7 @@ export const FUNCTIONS = [
   { id: 'logistics-master.manage', label: 'Add / edit location mapping', module: 'Master Module' },
   { id: 'mapping-ladder.view', label: 'View', module: 'Master Module' },
   { id: 'mapping-ladder.manage', label: 'Edit the underlying geography / logistics row', module: 'Master Module' },
+  { id: 'consignor-consignee-masters.view', label: 'View', module: 'Master Module' },
 
   { id: 'logic-engine.view', label: 'View', module: 'Logic Engine' },
   { id: 'logic-engine.manage', label: 'Edit rules', module: 'Logic Engine' },
@@ -196,6 +197,7 @@ const RAW_TASKS = [
   { id: 'geography-master', label: 'Geography Master', module: 'Master Module', levels: { 'Read Only': 'geography-master.view', 'Edit': 'geography-master.manage' } },
   { id: 'logistics-master', label: 'Location Master', module: 'Master Module', levels: { 'Read Only': 'logistics-master.view', 'Edit': 'logistics-master.manage' } },
   { id: 'mapping-ladder', label: 'Logistics Ladder', module: 'Master Module', levels: { 'Read Only': 'mapping-ladder.view', 'Edit': 'mapping-ladder.manage' } },
+  { id: 'consignor-consignee-masters', label: 'Consignor-Consignee Masters', module: 'Master Module', levels: { 'Read Only': 'consignor-consignee-masters.view' } },
 
   { id: 'logic-engine', label: 'Logic Engine', module: 'Logic Engine', levels: { 'Read Only': 'logic-engine.view', 'Edit': 'logic-engine.manage' } },
 
@@ -247,7 +249,7 @@ export const ROLE_DEFAULTS = {
     'fleet-roster.view', 'fleet-roster.manage', 'truck-assignment.view', 'truck-assignment.manage',
     'warehouse-hub-ops.view',
     'route-cost-simulator.view', 'freight-calculator.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   'Finance Manager': [
@@ -256,7 +258,7 @@ export const ROLE_DEFAULTS = {
     'invoicing.view', 'invoicing.manage',
     'collections.view', 'collections.manage',
     'finance-analytics.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   'Client Success': [
@@ -267,7 +269,7 @@ export const ROLE_DEFAULTS = {
     'create-order.view', 'my-orders.view',
     'trip-tracking.view', 'past-trips.view',
     'route-cost-simulator.view', 'freight-calculator.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   // Onboards new clients (the New Client wizard) — no approvals access.
@@ -275,7 +277,7 @@ export const ROLE_DEFAULTS = {
     'client-onboarding.view', 'client-onboarding.manage',
     'client-directory.view',
     'client-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   // Stage 1 of Client Approvals — reviews everything except Billing &
@@ -291,7 +293,7 @@ export const ROLE_DEFAULTS = {
     'client-directory.view',
     'client-configuration.view', 'client-configuration.manage',
     'client-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   // Stage 2 of Client Approvals — reviews the zone matrix + additional
@@ -303,7 +305,7 @@ export const ROLE_DEFAULTS = {
     'client-directory.view',
     'client-pricing-configuration.view', 'client-configuration.view',
     'client-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   // Renamed from "Read Only" (Yugal's explicit ask) — same view-only default
@@ -317,7 +319,7 @@ export const ROLE_DEFAULTS = {
     'partner-onboarding.view', 'partner-onboarding.manage',
     'my-partners.view',
     'partner-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
   // Single-stage Partner Approvals — reviews and activates a partner (no
@@ -329,7 +331,7 @@ export const ROLE_DEFAULTS = {
     'my-partners.view',
     'partner-configuration.view',
     'partner-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view',
+    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-masters.view',
     'system-info.view',
   ],
 

@@ -130,6 +130,7 @@ export const MODULES = [
       { key: 'geography-master', label: 'Geography Master', to: '/master-module/geography-master', icon: 'route', tagline: 'Geography Master — coming soon.' },
       { key: 'logistics-master', label: 'Location Master', to: '/master-module/logistics-master', icon: 'grid', tagline: 'Location Master — coming soon.' },
       { key: 'mapping-ladder', label: 'Logistics Ladder', to: '/master-module/mapping-ladder', icon: 'search', tagline: 'Search any State, City, Region, Hub… and see its full mapping across Geography + Logistics.' },
+      { key: 'consignor-consignee-masters', label: 'Consignor-Consignee Masters', to: '/master-module/consignor-consignee-masters', icon: 'user', tagline: 'Every consignor and consignee mapped to a client, in one place.' },
     ],
   },
   {
