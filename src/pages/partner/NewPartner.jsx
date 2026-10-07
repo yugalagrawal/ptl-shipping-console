@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
-import { card } from '../../components/ui.js'
+import { card, thCls, rowCls } from '../../components/ui.js'
 import { INDIAN_STATES, lookupPincode, STATE_TO_GST_CODE } from '../../data/geo.js'
 import {
   STATES, citiesForStates, pincodesForCities, citiesUnderStates, pincodesUnderCities,
@@ -13,6 +13,7 @@ import {
   createPartnerActivation, updatePartnerActivationStatus, removePartnerActivation,
 } from '../../data/partnerActivations.js'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { VEHICLE_TYPES } from '../../data/fleet.js'
 
 // Create Partner wizard — being built step by step per Yugal's prompts.
 // Fields below are placeholders based on the Softpal vendor-onboarding
@@ -39,6 +40,7 @@ const PARTNER_TYPE_INFO = [
   { type: 'Franchise', description: 'A local partner operating under the main brand to manage branch hubs, bookings, and regional deliveries.' },
   { type: 'Individual Driver', description: 'A contracted or employed driver who operates a vehicle provided by a third party or fleet owner.' },
 ]
+const FLEET_VEHICLE_TYPES = VEHICLE_TYPES.map((v) => v.type)
 const BILLING_PERIODS = ['Weekly', 'Fortnightly', 'Monthly']
 const STATES_COUNTRY = ['India']
 // Same list as Client Onboarding's own KYC upload (NewClient.jsx).
@@ -148,6 +150,16 @@ const IFSC_BANK_PREFIXES = {
 }
 function bankNameForIfsc(ifsc) {
   return IFSC_BANK_PREFIXES[ifsc.slice(0, 4).toUpperCase()] ?? null
+}
+
+// Vehicle type is auto-filled from the registration number instead of picked
+// manually — per Yugal, a real lookup (VAHAN or similar RTO registry) is a
+// dev-side integration for later; this is a random-but-deterministic
+// stand-in so the same reg number always resolves to the same type here.
+function vehicleTypeFromRegNo(regNo) {
+  let hash = 0
+  for (let i = 0; i < regNo.length; i++) hash = (hash * 31 + regNo.charCodeAt(i)) >>> 0
+  return FLEET_VEHICLE_TYPES[hash % FLEET_VEHICLE_TYPES.length]
 }
 
 function formatDisplayDate(iso) {
@@ -645,6 +657,14 @@ export default function NewPartner() {
   }
   function handleNext() {
     if (isLastStep) {
+      // Registration number, Vehicle type and RC are mandatory for every
+      // vehicle row (Other documents stays optional) — row 1 itself is
+      // mandatory same as GSTIN's row 1. Send them straight to the Vehicles
+      // tab instead of a generic blocked-button state.
+      if (vehicles.some((v) => !v.regNo.trim() || !v.rcFile)) {
+        setFleetTab('vehicles')
+        return
+      }
       // KYC submitted — the partner is done with the wizard entirely and
       // moves from "Partner activation in progress" to Partner Approvals for
       // Supply Admin's sign-off. Mirrors NewClient.jsx's own submit step.
@@ -664,6 +684,7 @@ export default function NewPartner() {
           contact: { pocName, pocPhoneCode, pocMobile, pocEmail },
           identifications: noGstin ? [] : identifications,
           billing: { contractStart, contractEnd, billingPeriod, billingDocuments },
+          fleet: { vehicles, drivers, teamMembers },
           documents,
         },
       })
@@ -914,6 +935,65 @@ export default function NewPartner() {
   )
   function updateBillingDocument(id, field, value) {
     setBillingDocuments((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }
+
+  // Fleet & Team (KYC step) — the partner's own vehicles, drivers and
+  // back-office users, none of which any prior step captured. Shown for
+  // every partner type — even an Agent/Co-loader may run a small fleet of
+  // its own rather than only brokering — and at least 1 vehicle is required
+  // before the partner can go for approval (validated in handleNext).
+  // Shares docRowSeq with the document lists above so ids never collide.
+  const [fleetTab, setFleetTab] = useState('vehicles')
+
+  // Row 1 is mandatory (no remove button) same as GSTIN Info's first row —
+  // "Add vehicle" appends further, removable rows. Vehicle type isn't picked
+  // manually — it's auto-filled the moment a registration number is typed
+  // (see vehicleTypeFromRegNo above). Insurance/Permit are optional — each is
+  // a checkbox that reveals its own upload slot when ticked, rather than a
+  // generic "Add document" row + type dropdown.
+  function emptyVehicle() {
+    return { id: docRowSeq++, regNo: '', type: '', rcFile: null, hasInsurance: false, insuranceFile: null, hasPermit: false, permitFile: null }
+  }
+  const [vehicles, setVehicles] = useState([emptyVehicle()])
+  function addVehicle() {
+    setVehicles((rows) => [...rows, emptyVehicle()])
+  }
+  function updateVehicle(id, field, value) {
+    setVehicles((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }
+  function updateVehicleRegNo(id, regNo) {
+    setVehicles((rows) => rows.map((r) => (r.id === id ? { ...r, regNo, type: regNo.trim() ? vehicleTypeFromRegNo(regNo.trim()) : '' } : r)))
+  }
+  function removeVehicle(id) {
+    setVehicles((rows) => rows.filter((r) => r.id !== id))
+  }
+  // Unticking a checkbox clears its file too, so a hidden upload never lingers.
+  function toggleVehicleDoc(vehicleId, docKey, checked) {
+    setVehicles((rows) =>
+      rows.map((r) => (r.id === vehicleId ? { ...r, [`has${docKey}`]: checked, [`${docKey.toLowerCase()}File`]: checked ? r[`${docKey.toLowerCase()}File`] : null } : r)),
+    )
+  }
+
+  const [drivers, setDrivers] = useState([])
+  function addDriver() {
+    setDrivers((rows) => [...rows, { id: docRowSeq++, name: '', phoneCode: PHONE_CODES[0], mobile: '', licenseNumber: '', assignedVehicleId: '' }])
+  }
+  function updateDriver(id, field, value) {
+    setDrivers((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }
+  function removeDriver(id) {
+    setDrivers((rows) => rows.filter((r) => r.id !== id))
+  }
+
+  const [teamMembers, setTeamMembers] = useState([])
+  function addTeamMember() {
+    setTeamMembers((rows) => [...rows, { id: docRowSeq++, name: '', phoneCode: PHONE_CODES[0], mobile: '', email: '', label: '' }])
+  }
+  function updateTeamMember(id, field, value) {
+    setTeamMembers((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }
+  function removeTeamMember(id) {
+    setTeamMembers((rows) => rows.filter((r) => r.id !== id))
   }
 
   return (
@@ -1433,13 +1513,357 @@ export default function NewPartner() {
 
       {step === 5 && (
         <div className={`space-y-5 p-6 ${card}`}>
+          <div>
+            <h2 className="font-medium text-slate-900">Fleet & Team</h2>
+          </div>
+
+          <div className="flex gap-2 rounded-xl bg-slate-100 p-1 text-sm sm:w-fit">
+            <button
+              type="button"
+              onClick={() => setFleetTab('vehicles')}
+              className={`rounded-lg px-4 py-2 font-medium transition-colors ${fleetTab === 'vehicles' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Vehicles {vehicles.length > 0 && <span className="text-slate-400">({vehicles.length})</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFleetTab('drivers')}
+              className={`rounded-lg px-4 py-2 font-medium transition-colors ${fleetTab === 'drivers' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Drivers {drivers.length > 0 && <span className="text-slate-400">({drivers.length})</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFleetTab('team')}
+              className={`rounded-lg px-4 py-2 font-medium transition-colors ${fleetTab === 'team' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Team members {teamMembers.length > 0 && <span className="text-slate-400">({teamMembers.length})</span>}
+            </button>
+          </div>
+
+          {fleetTab === 'vehicles' && (
+            <div className="space-y-3">
+              <div className={`overflow-x-auto ${card}`}>
+                <table className="w-full min-w-[44rem]">
+                  <thead>
+                    <tr>
+                      <th className={`${thCls} w-10`}>#</th>
+                      <th className={`${thCls} w-44`}>
+                        Registration number<span className="text-brand-orange-dark"> *</span>
+                      </th>
+                      <th className={`${thCls} w-48`}>
+                        Vehicle type<span className="text-brand-orange-dark"> *</span>
+                      </th>
+                      <th className={`${thCls} w-36`}>
+                        Upload RC<span className="text-brand-orange-dark"> *</span>
+                      </th>
+                      <th className={`${thCls} w-36`}>Other documents</th>
+                      <th className={`${thCls} w-10`} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vehicles.map((v, i) => (
+                      <tr key={v.id} className={rowCls}>
+                        <td className="px-3 py-3 align-top text-sm font-medium text-slate-400">{i + 1}</td>
+                        <td className="px-3 py-3 align-top">
+                          <input
+                            type="text"
+                            required
+                            value={v.regNo}
+                            onChange={(e) => updateVehicleRegNo(v.id, e.target.value.toUpperCase())}
+                            placeholder="MH04 AB 1234"
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                          />
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 align-top text-sm">
+                          {v.type ? <span className="text-slate-800">{v.type}</span> : <span className="text-xs text-slate-400">Auto-filled from reg. no.</span>}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-2.5 py-1.5 text-xs text-slate-500 hover:border-brand-orange/40">
+                            <Icon name="upload" className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{v.rcFile ? v.rcFile.name : 'Upload'}</span>
+                            <input type="file" className="hidden" onChange={(e) => updateVehicle(v.id, 'rcFile', e.target.files[0] ?? null)} />
+                          </label>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex items-center gap-1.5">
+                            <label className="flex items-center gap-1 text-xs text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={v.hasInsurance}
+                                onChange={(e) => toggleVehicleDoc(v.id, 'Insurance', e.target.checked)}
+                                className="h-3.5 w-3.5 rounded accent-brand-orange"
+                              />
+                              Insurance
+                            </label>
+                            {v.hasInsurance && (
+                              <label className="flex cursor-pointer items-center rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-1.5 text-slate-500 hover:border-brand-orange/40" title={v.insuranceFile ? v.insuranceFile.name : 'Upload insurance copy'}>
+                                <Icon name="upload" className="h-3.5 w-3.5" />
+                                <input type="file" className="hidden" onChange={(e) => updateVehicle(v.id, 'insuranceFile', e.target.files[0] ?? null)} />
+                              </label>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <label className="flex items-center gap-1 text-xs text-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={v.hasPermit}
+                                onChange={(e) => toggleVehicleDoc(v.id, 'Permit', e.target.checked)}
+                                className="h-3.5 w-3.5 rounded accent-brand-orange"
+                              />
+                              Permit
+                            </label>
+                            {v.hasPermit && (
+                              <label className="flex cursor-pointer items-center rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-1.5 text-slate-500 hover:border-brand-orange/40" title={v.permitFile ? v.permitFile.name : 'Upload permit copy'}>
+                                <Icon name="upload" className="h-3.5 w-3.5" />
+                                <input type="file" className="hidden" onChange={(e) => updateVehicle(v.id, 'permitFile', e.target.files[0] ?? null)} />
+                              </label>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          {i > 0 && (
+                            <button type="button" onClick={() => removeVehicle(v.id)} className="text-slate-400 hover:text-rose-500" title="Remove vehicle">
+                              <Icon name="close" className="h-4 w-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={addVehicle}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Icon name="plus" className="h-3.5 w-3.5" />
+                  Add vehicle
+                </button>
+              </div>
+            </div>
+          )}
+
+          {fleetTab === 'drivers' && (
+            <div className="space-y-3">
+              {drivers.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No drivers added yet.</p>
+              ) : (
+                <div className={`overflow-x-auto ${card}`}>
+                  <table className="w-full min-w-[44rem]">
+                    <thead>
+                      <tr>
+                        <th className={`${thCls} w-10`}>#</th>
+                        <th className={`${thCls} w-40`}>
+                          Driver name<span className="text-brand-orange-dark"> *</span>
+                        </th>
+                        <th className={`${thCls} w-40`}>
+                          License number<span className="text-brand-orange-dark"> *</span>
+                        </th>
+                        <th className={`${thCls} w-40`}>
+                          Driver mobile<span className="text-brand-orange-dark"> *</span>
+                        </th>
+                        <th className={`${thCls} w-44`}>Assigned vehicle</th>
+                        <th className={`${thCls} w-10`} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drivers.map((d, i) => (
+                        <tr key={d.id} className={rowCls}>
+                          <td className="px-3 py-3 align-top text-sm font-medium text-slate-400">{i + 1}</td>
+                          <td className="px-3 py-3 align-top">
+                            <input
+                              type="text"
+                              required
+                              value={d.name}
+                              onChange={(e) => updateDriver(d.id, 'name', e.target.value)}
+                              placeholder="Name"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            />
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <input
+                              type="text"
+                              required
+                              value={d.licenseNumber}
+                              onChange={(e) => updateDriver(d.id, 'licenseNumber', e.target.value.toUpperCase())}
+                              placeholder="MH1420110012345"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            />
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <div className="flex gap-1">
+                              <select
+                                value={d.phoneCode}
+                                onChange={(e) => updateDriver(d.id, 'phoneCode', e.target.value)}
+                                className="w-16 shrink-0 appearance-none rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                              >
+                                {PHONE_CODES.map((c) => (
+                                  <option key={c} value={c}>
+                                    {c}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                required
+                                value={d.mobile}
+                                onChange={(e) => updateDriver(d.id, 'mobile', e.target.value)}
+                                placeholder="99999 99999"
+                                className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <select
+                              value={d.assignedVehicleId}
+                              onChange={(e) => updateDriver(d.id, 'assignedVehicleId', e.target.value)}
+                              className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            >
+                              <option value="">Unassigned</option>
+                              {vehicles.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.regNo || 'Unnamed vehicle'}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <button type="button" onClick={() => removeDriver(d.id)} className="text-slate-400 hover:text-rose-500" title="Remove driver">
+                              <Icon name="close" className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={addDriver}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Icon name="plus" className="h-3.5 w-3.5" />
+                  Add driver
+                </button>
+              </div>
+            </div>
+          )}
+
+          {fleetTab === 'team' && (
+            <div className="space-y-3">
+              {teamMembers.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No team members added yet.</p>
+              ) : (
+                <div className={`overflow-x-auto ${card}`}>
+                  <table className="w-full min-w-[44rem]">
+                    <thead>
+                      <tr>
+                        <th className={`${thCls} w-10`}>#</th>
+                        <th className={`${thCls} w-40`}>
+                          Name<span className="text-brand-orange-dark"> *</span>
+                        </th>
+                        <th className={`${thCls} w-40`}>
+                          Mobile<span className="text-brand-orange-dark"> *</span>
+                        </th>
+                        <th className={`${thCls} w-48`}>
+                          Email<span className="text-brand-orange-dark"> *</span>
+                        </th>
+                        <th className={`${thCls} w-40`}>Member label</th>
+                        <th className={`${thCls} w-10`} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamMembers.map((m, i) => (
+                        <tr key={m.id} className={rowCls}>
+                          <td className="px-3 py-3 align-top text-sm font-medium text-slate-400">{i + 1}</td>
+                          <td className="px-3 py-3 align-top">
+                            <input
+                              type="text"
+                              required
+                              value={m.name}
+                              onChange={(e) => updateTeamMember(m.id, 'name', e.target.value)}
+                              placeholder="Name"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            />
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <div className="flex gap-1">
+                              <select
+                                value={m.phoneCode}
+                                onChange={(e) => updateTeamMember(m.id, 'phoneCode', e.target.value)}
+                                className="w-16 shrink-0 appearance-none rounded-lg border border-slate-200 bg-slate-50/60 px-1.5 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                              >
+                                {PHONE_CODES.map((c) => (
+                                  <option key={c} value={c}>
+                                    {c}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                required
+                                value={m.mobile}
+                                onChange={(e) => updateTeamMember(m.id, 'mobile', e.target.value)}
+                                placeholder="99999 99999"
+                                className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <input
+                              type="email"
+                              required
+                              value={m.email}
+                              onChange={(e) => updateTeamMember(m.id, 'email', e.target.value)}
+                              placeholder="name@partner.in"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            />
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <input
+                              type="text"
+                              value={m.label}
+                              onChange={(e) => updateTeamMember(m.id, 'label', e.target.value)}
+                              placeholder="e.g. Warehouse POC"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            />
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <button type="button" onClick={() => removeTeamMember(m.id)} className="text-slate-400 hover:text-rose-500" title="Remove team member">
+                              <Icon name="close" className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={addTeamMember}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Icon name="plus" className="h-3.5 w-3.5" />
+                  Add team member
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 5 && (
+        <div className={`space-y-5 p-6 ${card}`}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-medium text-slate-900">KYC upload</h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                Add every proof document this partner needs on file — all of them must be uploaded before this can go for approval. Remove a row instead of
-                leaving it empty if it doesn't apply.
-              </p>
             </div>
             <button
               type="button"
