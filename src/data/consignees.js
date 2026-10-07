@@ -1,27 +1,17 @@
-// Consignees manually mapped to a client from Client Configuration >
-// Consignor & Consignee. Same shape/purpose as consignors.js — see that
-// file's header for the fuller rationale (distinct from the order-history-
-// derived consignee picker in New Pickup). In the real system this list is
-// expected to accumulate automatically as pickups are booked for the
-// client; manual "Add Consignee" here is just a fallback for when one's
-// needed ahead of any actual booking.
-let consigneeRowSeq = 1
-const CONSIGNEES_BY_CLIENT = {}
+// Consignees (delivery parties) — one global master, mapped to clients via
+// `clientIds`. Same shape/purpose as consignors.js; in the real system this
+// list is expected to accumulate automatically as pickups are booked, so
+// manual create is just a fallback for when one's needed ahead of a booking.
+import { createPartyStore } from './parties.js'
+import { CONSIGNEE_SEED } from './partiesSeed.js'
 
-export function getConsigneesForClient(clientId) {
-  return CONSIGNEES_BY_CLIENT[clientId] ?? []
-}
+const store = createPartyStore('consignee', CONSIGNEE_SEED)
 
-export function addConsigneeForClient(clientId, consignee) {
-  const row = { id: `consignee-${consigneeRowSeq++}`, ...consignee }
-  CONSIGNEES_BY_CLIENT[clientId] = [...getConsigneesForClient(clientId), row]
-  return row
-}
+export const getConsigneesForClient = (clientId) => store.forClient(clientId)
+export const addConsigneeForClient = (clientId, consignee) => store.addForClient(clientId, consignee)
+export const updateConsigneeForClient = (_clientId, consigneeId, updates) => store.update(consigneeId, updates)
+export const removeConsigneeForClient = (clientId, consigneeId) => store.unmapFromClient(clientId, consigneeId)
 
-export function updateConsigneeForClient(clientId, consigneeId, updates) {
-  CONSIGNEES_BY_CLIENT[clientId] = getConsigneesForClient(clientId).map((c) => (c.id === consigneeId ? { ...c, ...updates } : c))
-}
-
-export function removeConsigneeForClient(clientId, consigneeId) {
-  CONSIGNEES_BY_CLIENT[clientId] = getConsigneesForClient(clientId).filter((c) => c.id !== consigneeId)
-}
+export const getAllConsignees = () => store.all()
+export const createConsignee = (data) => store.create(data)
+export const updateConsignee = (id, updates) => store.update(id, updates)
