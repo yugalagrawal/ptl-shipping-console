@@ -193,7 +193,7 @@ function CreateTab({ onOpen, canManage }) {
     if (!client) return []
     return [
       { key: 'self', label: `${client.name} (client's registered address)`, party: { name: client.name, gstin: client.gstin, pincode: '', city: client.city, state: client.state } },
-      ...getConsignorsForClient(client.id).map((c) => ({ key: c.id, label: `${c.partyName} — ${c.city}`, party: { name: c.partyName, gstin: client.gstin, pincode: c.pincode, city: c.city, state: c.state } })),
+      ...getConsignorsForClient(client.id).flatMap((c) => c.sites.map((st) => ({ key: `${c.id}:${st.id}`, label: `${c.partyName}${st.label ? ` · ${st.label}` : ''} — ${st.city}`, party: { name: c.partyName, gstin: client.gstin, pincode: st.pincode, city: st.city, state: st.state } }))),
     ]
   }, [client])
   const pickups = client ? PICKUPS_SEED.filter((p) => p.clientId === client.id) : []

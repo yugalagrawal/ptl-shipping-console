@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
 import SortToggle from '../../components/SortToggle.jsx'
@@ -7,7 +7,8 @@ import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, APPROVAL_STAGE_LABEL, APPROV
 import { CLIENT_CONFIG_TABS, CLIENT_CONFIG_FIELDS_BY_ID, getClientConfigValues, saveClientConfigValues } from '../../data/clientConfigFields.js'
 import { getConsignorsForClient, addConsignorForClient, updateConsignorForClient, removeConsignorForClient } from '../../data/consignors.js'
 import { getConsigneesForClient, addConsigneeForClient, updateConsigneeForClient, removeConsigneeForClient } from '../../data/consignees.js'
-import { lookupPincode } from '../../data/geo.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import PartyModal, { siteLine } from '../../components/PartyModal.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 
 // One field row — label on the left, its dropdown on the right. Only
@@ -62,128 +63,6 @@ function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly }) {
         {fieldIds.map((fieldId) => (
           <ConfigField key={fieldId} field={CLIENT_CONFIG_FIELDS_BY_ID[fieldId]} value={values[fieldId]} onChange={onChange} readOnly={readOnly} />
         ))}
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, required, hint, className = '', ...props }) {
-  return (
-    <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-xs font-medium text-slate-500">
-        {label}
-        {required && <span className="text-brand-orange-dark"> *</span>}
-      </span>
-      <input
-        {...props}
-        className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-      />
-      {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
-    </label>
-  )
-}
-
-const emptyParty = { partyName: '', company: '', pocName: '', pocPhone: '', pocEmail: '', address: '', pincode: '', city: '', state: '' }
-
-// Shared add/edit modal for a client's mapped consignors AND consignees —
-// same field set for both, only the labels/copy differ (Consignor vs
-// Consignee, "Pickup Location" vs "Delivery Location"). Company defaults to
-// the client this party is being mapped under (most ship/receive as the
-// client itself) but stays editable — sometimes it's a different party.
-// Pincode still does a light auto-fill of city/state (data/geo.js
-// lookupPincode, same mock used elsewhere) but nothing fancier than that for
-// this prototype.
-function PartyModal({ kind, companyDefault, initial, onClose, onSave }) {
-  const editMode = !!initial
-  const isConsignor = kind === 'consignor'
-  const label = isConsignor ? 'Consignor' : 'Consignee'
-  const locationLabel = isConsignor ? 'Pickup Location' : 'Delivery Location'
-  const [form, setForm] = useState(() => (initial ? { ...initial } : { ...emptyParty, company: companyDefault }))
-  const [cityTouched, setCityTouched] = useState(editMode)
-  const [stateTouched, setStateTouched] = useState(editMode)
-
-  function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }))
-  }
-
-  useEffect(() => {
-    if (form.pincode.length !== 6) return
-    let cancelled = false
-    lookupPincode(form.pincode).then((res) => {
-      if (cancelled || !res) return
-      setForm((f) => ({ ...f, city: cityTouched ? f.city : res.city, state: stateTouched ? f.state : res.state }))
-    })
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.pincode])
-
-  const isValid =
-    form.partyName.trim() &&
-    form.pocName.trim() &&
-    form.pocPhone.trim() &&
-    form.pocEmail.trim() &&
-    form.address.trim() &&
-    form.pincode.length === 6 &&
-    form.city.trim() &&
-    form.state.trim()
-
-  return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-soft">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-base font-semibold text-slate-900">{editMode ? `Edit ${label}` : `Add ${label}`}</h3>
-          <button type="button" onClick={onClose} className="shrink-0 text-slate-400 hover:text-slate-600">
-            <Icon name="close" className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label={`${label} Name`} required value={form.partyName} onChange={(e) => set('partyName', e.target.value)} placeholder="Nova Retail — Whitefield Warehouse" />
-          <Field
-            label="Company Name"
-            required
-            value={form.company}
-            onChange={(e) => set('company', e.target.value)}
-            hint="Editable if shipping for another party"
-          />
-          <Field label="POC Name" required value={form.pocName} onChange={(e) => set('pocName', e.target.value)} placeholder="Arvind Krishnan" />
-          <Field label="POC Phone" required value={form.pocPhone} onChange={(e) => set('pocPhone', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9845012211" />
-          <Field label="POC Email" required type="email" className="sm:col-span-2" value={form.pocEmail} onChange={(e) => set('pocEmail', e.target.value)} placeholder="arvind.k@novaretail.in" />
-
-          <div className="sm:col-span-2">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">{locationLabel}</span>
-          </div>
-          <Field
-            label="Address"
-            required
-            className="sm:col-span-2"
-            value={form.address}
-            onChange={(e) => set('address', e.target.value)}
-            placeholder="Plot 14, ITPL Main Road, Whitefield"
-          />
-          <Field
-            label="Pincode"
-            required
-            value={form.pincode}
-            onChange={(e) => {
-              set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))
-              setCityTouched(false)
-              setStateTouched(false)
-            }}
-            placeholder="560066"
-          />
-          <Field label="City" required value={form.city} onChange={(e) => { set('city', e.target.value); setCityTouched(true) }} placeholder="Bengaluru" />
-          <Field label="State" required value={form.state} onChange={(e) => { set('state', e.target.value); setStateTouched(true) }} placeholder="Karnataka" />
-        </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={btnSecondary}>
-            Cancel
-          </button>
-          <button type="button" onClick={() => onSave(form)} disabled={!isValid} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-50`}>
-            {editMode ? 'Save Changes' : `Save ${label}`}
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -249,7 +128,7 @@ function PartyListCard({ label, parties, canEdit, onAdd, onEdit, onRemove, empty
                   {p.company && <span className="font-normal text-slate-400"> · {p.company}</span>}
                 </div>
                 <div className="mt-0.5 truncate text-xs text-slate-400">
-                  {p.address}, {p.city}, {p.state} {p.pincode} · {p.pocName} · {p.pocPhone}
+                  {p.sites[0] ? siteLine(p.sites[0]) : ''}{p.sites.length > 1 ? ` (+${p.sites.length - 1} more site${p.sites.length > 2 ? 's' : ''})` : ''} · {p.pocName} · {p.pocPhone}
                 </div>
               </div>
               {canEdit && (
@@ -279,7 +158,15 @@ function ConsignorConsigneeTab({ client, canEdit }) {
   const consignors = useMemo(() => getConsignorsForClient(client.id), [client.id, tick])
   const consignees = useMemo(() => getConsigneesForClient(client.id), [client.id, tick])
 
-  function handleSave(form) {
+  const [pendingEdit, setPendingEdit] = useState(null)
+
+  function handleSave(fullForm) {
+    if (editingParty && !pendingEdit) {
+      setPendingEdit(fullForm)
+      return
+    }
+    const { clientIds: _ignored, ...form } = fullForm
+    setPendingEdit(null)
     if (subTab === 'consignor') {
       if (editingParty) updateConsignorForClient(client.id, editingParty.id, form)
       else addConsignorForClient(client.id, form)
@@ -363,10 +250,20 @@ function ConsignorConsigneeTab({ client, canEdit }) {
         />
       )}
 
+      <ConfirmDialog
+        open={!!pendingEdit}
+        title={`Save changes to this ${subTab}?`}
+        message={pendingEdit && `Are you sure? "${pendingEdit.partyName}" will be updated everywhere it's used, including the Consignor/Consignee master.`}
+        confirmLabel="Yes, save"
+        cancelLabel="Cancel"
+        onConfirm={() => handleSave(pendingEdit)}
+        onCancel={() => setPendingEdit(null)}
+      />
+
       {removingParty && (
         <ConfirmRemoveModal
           title={`Remove this ${subTab}?`}
-          description={`Are you sure you want to remove "${removingParty.partyName}"? This can't be undone.`}
+          description={`Remove "${removingParty.partyName}" from ${client.name}? It stays in the Consignor/Consignee master and any other clients it's mapped to.`}
           onCancel={() => setRemovingParty(null)}
           onConfirm={handleConfirmRemove}
         />
