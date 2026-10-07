@@ -34,7 +34,7 @@ function Field({ label, hint, className = '', ...props }) {
 
 function SectionCard({ title, children }) {
   return (
-    <div className={`space-y-3.5 p-5 ${card}`}>
+    <div className={`space-y-3 p-4 ${card}`}>
       <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
       {children}
     </div>
@@ -313,7 +313,7 @@ function DocketForm({ pickup }) {
   const [ewayStatus, setEwayStatus] = useState('idle') // idle | loading | done | error | notAssigned | unverified | generate | manual
   const [ewayError, setEwayError] = useState('')
   const [ewayData, setEwayData] = useState(null)
-  const [vehicleNo, setVehicleNo] = useState('')
+  const [vehicleNo, setVehicleNo] = useState(vehicleFor(pickup)?.regNo ?? '') // auto from the pickup's assigned vehicle
   const transporterGstin = OUR_GSTIN // fixed — we are always the transporter; only the vehicle changes
 
   // Invoice & goods
@@ -325,7 +325,7 @@ function DocketForm({ pickup }) {
 
   // ⑨⑩ Packages — dimensions per SKU row, actual weight above, volumetric
   // computed here (auto), chargeable weight = MAX(actual, volumetric).
-  const [packageRows, setPackageRows] = useState([emptyPackageRow()])
+  const [packageRows, setPackageRows] = useState([{ ...emptyPackageRow(), qty: pickup.packagesCount ?? 1 }])
   const totalVolumeCft = useMemo(() => packageRows.reduce((s, r) => s + packageVolumeCft(r), 0), [packageRows])
   const volKg = useMemo(() => volumetricWeightKg(totalVolumeCft), [totalVolumeCft])
   const enteredActualWeight = hasDetails ? pickup.actualWeightKg : Number(actualWeightKg) || 0
@@ -449,7 +449,7 @@ function DocketForm({ pickup }) {
       ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
       ewayUnverified: ewayStatus === 'unverified',
       vehicleNo, transporterGstin,
-      invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(declaredValue) || 0, insuredValue: Number(insuredValue) || 0,
+      invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(declaredValue) || Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
       goodsDescription, isOda,
       paymentTerm, riskCover, insuranceCompany, policyNo,
       podType,
@@ -469,7 +469,7 @@ function DocketForm({ pickup }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/70 bg-white px-4 py-2.5 shadow-soft">
         <div className="inline-flex rounded-xl bg-slate-100 p-1 text-sm font-medium">
           {[['details', 'Fill details'], ['preview', 'Docket preview']].map(([k, label]) => (
@@ -493,11 +493,21 @@ function DocketForm({ pickup }) {
         )}
       </div>
 
-      <div className={`min-w-0 space-y-5 ${view === 'details' ? '' : 'hidden'}`}>
+      <div className={`min-w-0 space-y-4 ${view === 'details' ? '' : 'hidden'}`}>
         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
-          <div className="mb-3 flex items-baseline justify-between gap-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
             <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber}</span></p>
-            <p className="text-xs text-slate-500">Pickup ID: <span className="font-medium text-slate-700">{pickup.id}</span></p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
+              <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
+              <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
+              <span>{pickup.consignor.city} <span className="text-slate-300">→</span> <span className="font-medium text-slate-700">{pickup.dropMiniHubName}</span></span>
+              <label className="flex items-center gap-1.5">
+                Mode
+                <select value={mode} onChange={(e) => setMode(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                  {Object.values(MODE).map((v) => <option key={v} value={v}>{MODE_LABEL[v]}</option>)}
+                </select>
+              </label>
+            </div>
           </div>
           <div className="flex flex-col gap-3">
             <div className="min-w-0 flex-1 space-y-3">
@@ -632,84 +642,80 @@ function DocketForm({ pickup }) {
           </div>
         )}
 
-        <SectionCard title="Mode">
-          <select value={mode} onChange={(e) => setMode(e.target.value)} className="w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40">
-            {Object.values(MODE).map((v) => <option key={v} value={v}>{MODE_LABEL[v]}</option>)}
-          </select>
-        </SectionCard>
-
         <SectionCard title="Consignor & consignee">
-          <div className="grid gap-3.5 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignor <span className="text-brand-orange-dark">(auto from pickup)</span></p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignor <span className="text-brand-orange-dark">(auto from pickup)</span></p>
               <p className="text-sm font-medium text-slate-800">{pickup.consignor.name}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{pickup.consignor.address}, {pickup.consignor.city}, {pickup.consignor.state} · {pickup.consignor.pincode}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{pickup.consignor.phone} · {pickup.consignor.email}</p>
+              <p className="text-xs text-slate-500">{pickup.consignor.address}, {pickup.consignor.city}, {pickup.consignor.state} · {pickup.consignor.pincode}</p>
+              <p className="text-xs text-slate-500">{pickup.consignor.phone} · {pickup.consignor.email}</p>
             </div>
-            <div className="space-y-3">
+            <div className="grid grid-cols-6 gap-2.5">
               {hasDetails ? (
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignee</p>
+                <div className="col-span-6 rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5 sm:col-span-4">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignee <span className="text-brand-orange-dark">(auto)</span></p>
                   <p className="text-sm font-medium text-slate-800">{pickup.consignee?.name ?? '—'}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{pickup.consignee?.city} · {pickup.consignee?.pincode}</p>
+                  <p className="text-xs text-slate-500">{pickup.consignee?.city} · {pickup.consignee?.pincode}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2.5">
-                  <Field label="Consignee name *" className="col-span-2" value={consigneeName} onChange={(e) => setConsigneeName(e.target.value)} placeholder="Business or store name" />
-                  <Field label="City" value={consigneeCity} onChange={(e) => setConsigneeCity(e.target.value)} placeholder="City" />
-                  <Field label="Pincode" value={consigneePincode} onChange={(e) => setConsigneePincode(e.target.value)} placeholder="Pincode" />
-                </div>
+                <>
+                  <Field label="Consignee name *" className="col-span-6 sm:col-span-3" value={consigneeName} onChange={(e) => setConsigneeName(e.target.value)} placeholder="Business or store name" />
+                  <Field label="City" className="col-span-3 sm:col-span-2" value={consigneeCity} onChange={(e) => setConsigneeCity(e.target.value)} placeholder="City" />
+                  <Field label="Pincode" className="col-span-3 sm:col-span-1" value={consigneePincode} onChange={(e) => setConsigneePincode(e.target.value)} placeholder="Pincode" />
+                </>
               )}
-              <Field label="Consignee GSTIN" value={consigneeGstin} onChange={(e) => setConsigneeGstin(e.target.value)} placeholder="Optional" />
+              <Field label="Consignee GSTIN" className={hasDetails ? 'col-span-6 sm:col-span-2' : 'col-span-6'} value={consigneeGstin} onChange={(e) => setConsigneeGstin(e.target.value)} placeholder="Optional" />
             </div>
           </div>
         </SectionCard>
-
 
         <SectionCard title="Invoice & goods">
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <Field label="Invoice no." value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
             <Field label="Invoice value (₹)" type="number" value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
-            <Field label="Declared value (₹)" type="number" value={declaredValue} onChange={(e) => setDeclaredValue(e.target.value)} placeholder="0" />
+            <Field label="Declared value (₹)" hint="= invoice" type="number" value={declaredValue} onChange={(e) => setDeclaredValue(e.target.value)} placeholder={invoiceValue || '0'} />
             <Field label="Insured value (₹)" type="number" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0" />
           </div>
-          <Field label="Goods description" value={goodsDescription} onChange={(e) => setGoodsDescription(e.target.value)} placeholder="Said to contain — e.g. Crate · Fragile" />
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={isOda} onChange={(e) => setIsOda(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
-            Out of Delivery Area (ODA)
-          </label>
+          <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5">
+            <Field label="Goods description" className="min-w-[260px] flex-1" value={goodsDescription} onChange={(e) => setGoodsDescription(e.target.value)} placeholder="Said to contain — e.g. Crate · Fragile" />
+            <label className="mb-2.5 flex items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={isOda} onChange={(e) => setIsOda(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
+              ODA delivery
+            </label>
+          </div>
         </SectionCard>
 
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <SectionCard title="Packages">
           {!hasDetails && (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5">
               <Field label="Actual weight (kg) *" type="number" value={actualWeightKg} onChange={(e) => setActualWeightKg(e.target.value)} placeholder="0.0" />
               <Field label="Package count *" type="number" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder="0" />
             </div>
           )}
           <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full min-w-[520px] text-sm">
+            <table className="w-full min-w-[420px] text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  <th className="px-3 py-2">Size</th>
-                  <th className="px-3 py-2">L (cm)</th>
-                  <th className="px-3 py-2">B (cm)</th>
-                  <th className="px-3 py-2">H (cm)</th>
-                  <th className="px-3 py-2">Qty</th>
-                  <th className="px-3 py-2">Volume (CFT)</th>
-                  <th className="px-3 py-2" />
+                  <th className="px-2.5 py-1.5">Size</th>
+                  <th className="px-2.5 py-1.5">L</th>
+                  <th className="px-2.5 py-1.5">B</th>
+                  <th className="px-2.5 py-1.5">H <span className="normal-case">(cm)</span></th>
+                  <th className="px-2.5 py-1.5">Qty</th>
+                  <th className="px-2.5 py-1.5">CFT</th>
+                  <th className="px-2.5 py-1.5" />
                 </tr>
               </thead>
               <tbody>
                 {packageRows.map((row) => (
                   <tr key={row.id} className="border-t border-slate-100">
-                    <td className="px-3 py-1.5"><input value={row.label} onChange={(e) => updatePackageRow(row.id, { label: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" /></td>
-                    <td className="px-3 py-1.5"><input type="number" value={row.l} onChange={(e) => updatePackageRow(row.id, { l: e.target.value })} className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" /></td>
-                    <td className="px-3 py-1.5"><input type="number" value={row.b} onChange={(e) => updatePackageRow(row.id, { b: e.target.value })} className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" /></td>
-                    <td className="px-3 py-1.5"><input type="number" value={row.h} onChange={(e) => updatePackageRow(row.id, { h: e.target.value })} className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" /></td>
-                    <td className="px-3 py-1.5"><input type="number" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" /></td>
-                    <td className="px-3 py-1.5 tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</td>
-                    <td className="px-3 py-1.5">
+                    <td className="px-2.5 py-1"><input value={row.label} onChange={(e) => updatePackageRow(row.id, { label: e.target.value })} className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
+                    <td className="px-2.5 py-1"><input type="number" value={row.l} onChange={(e) => updatePackageRow(row.id, { l: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
+                    <td className="px-2.5 py-1"><input type="number" value={row.b} onChange={(e) => updatePackageRow(row.id, { b: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
+                    <td className="px-2.5 py-1"><input type="number" value={row.h} onChange={(e) => updatePackageRow(row.id, { h: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
+                    <td className="px-2.5 py-1"><input type="number" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
+                    <td className="px-2.5 py-1 tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</td>
+                    <td className="px-2.5 py-1">
                       <button type="button" onClick={() => removePackageRow(row.id)} className="text-slate-400 hover:text-red-500"><Icon name="trash" className="h-4 w-4" /></button>
                     </td>
                   </tr>
@@ -717,43 +723,43 @@ function DocketForm({ pickup }) {
               </tbody>
             </table>
           </div>
-          <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+          <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">
             <Icon name="plus" className="h-3.5 w-3.5" /> Add row
           </button>
-
-          <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-3.5 sm:grid-cols-4">
-            <AutoChip label="Total volume (CFT)" value={totalVolumeCft.toFixed(1)} />
-            <AutoChip label="Volumetric weight" value={`${volKg.toFixed(1)} kg`} />
-            <AutoChip label="Actual weight" value={`${enteredActualWeight} kg`} />
-            <AutoChip label="Chargeable weight" value={`${chargeableWeight.toFixed(1)} kg`} />
+          <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
+            <AutoChip label="Volume (CFT)" value={totalVolumeCft.toFixed(1)} />
+            <AutoChip label="Volumetric" value={`${volKg.toFixed(1)} kg`} />
+            <AutoChip label="Actual" value={`${enteredActualWeight} kg`} />
+            <AutoChip label="Chargeable" value={`${chargeableWeight.toFixed(1)} kg`} />
           </div>
         </SectionCard>
 
-        <SectionCard title="Pricing">
+        <SectionCard title="Pricing (auto)">
           <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
             {pricing.lines.map((l) => (
-              <div key={l.label} className="flex items-center justify-between px-3.5 py-2 text-sm">
+              <div key={l.label} className="flex items-center justify-between px-3 py-1.5 text-sm">
                 <span className="text-slate-500">{l.label}</span>
                 <span className="font-medium tabular-nums text-slate-800">₹{l.value.toLocaleString('en-IN')}</span>
               </div>
             ))}
-            <div className="flex items-center justify-between bg-slate-50/60 px-3.5 py-2 text-sm">
+            <div className="flex items-center justify-between bg-slate-50/60 px-3 py-1.5 text-sm">
               <span className="text-slate-500">Subtotal</span>
               <span className="font-medium tabular-nums text-slate-800">₹{pricing.subtotal.toLocaleString('en-IN')}</span>
             </div>
-            <div className="flex items-center justify-between px-3.5 py-2 text-sm">
+            <div className="flex items-center justify-between px-3 py-1.5 text-sm">
               <span className="text-slate-500">GST @18%</span>
               <span className="font-medium tabular-nums text-slate-800">₹{pricing.gst.toLocaleString('en-IN')}</span>
             </div>
-            <div className="flex items-center justify-between px-3.5 py-2.5 text-sm font-semibold">
+            <div className="flex items-center justify-between px-3 py-2 text-sm font-semibold">
               <span className="text-slate-800">Total charges</span>
               <span className="tabular-nums text-brand-orange-dark">₹{pricing.total.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </SectionCard>
+        </div>
 
-        <SectionCard title="Payment & risk cover">
-          <div className="grid gap-3.5 sm:grid-cols-2">
+        <SectionCard title="Payment, risk & POD">
+          <div className="grid gap-3.5 lg:grid-cols-3">
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Payment term</span>
               <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} />
@@ -762,6 +768,10 @@ function DocketForm({ pickup }) {
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Risk cover</span>
               <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} />
             </div>
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">Proof of Delivery</span>
+              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} />
+            </div>
           </div>
           {riskCover === RISK_COVER.OWNERS_RISK && (
             <div className="grid grid-cols-2 gap-2.5">
@@ -769,35 +779,13 @@ function DocketForm({ pickup }) {
               <Field label="Policy no." value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} placeholder="Optional" />
             </div>
           )}
-        </SectionCard>
-
-        <SectionCard title="POD type & documents">
-          <div>
-            <span className="mb-1.5 block text-xs font-medium text-slate-500">Proof of Delivery type</span>
-            <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} />
-          </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl border border-slate-100 bg-slate-50/60 p-3.5 sm:grid-cols-3">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-slate-100 pt-3">
+            <span className="text-xs font-medium text-slate-400">Documents</span>
             <CheckRow checked={!!invoiceNo} label="Invoice #" />
             <CheckRow checked={!!consigneeGstin} label="GST no." />
             <CheckRow checked={ewayStatus === 'done'} label="e-Way bill" />
             <CheckRow checked={true} label="Declaration" />
-            <CheckRow checked={false} label="Form / Permit #" />
-            <CheckRow checked={false} label="Consignor DC" />
           </div>
-        </SectionCard>
-        <SectionCard title="Booking details (auto)">
-          <dl className="grid grid-cols-2 gap-y-2 sm:grid-cols-3 sm:divide-x sm:divide-slate-200">
-            {[
-              ['Booking date', new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })],
-              ['Origin hub', pickup.consignor.city],
-              ['Destination Mini Hub', pickup.dropMiniHubName],
-            ].map(([label, value]) => (
-              <div key={label} className="min-w-0 sm:px-4 sm:first:pl-0 sm:last:pr-0">
-                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-                <dd className="truncate text-sm font-semibold text-slate-800">{value}</dd>
-              </div>
-            ))}
-          </dl>
         </SectionCard>
 
         {!generatedDocket && (
