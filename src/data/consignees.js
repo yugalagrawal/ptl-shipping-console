@@ -25,3 +25,9 @@ export function updateConsigneeForClient(clientId, consigneeId, updates) {
 export function removeConsigneeForClient(clientId, consigneeId) {
   CONSIGNEES_BY_CLIENT[clientId] = getConsigneesForClient(clientId).filter((c) => c.id !== consigneeId)
 }
+
+// Flat list across every client, each row tagged with its clientId — feeds
+// Master Module > Consignor-Consignee Masters.
+export function getAllConsignees() {
+  return Object.entries(CONSIGNEES_BY_CLIENT).flatMap(([clientId, rows]) => rows.map((r) => ({ ...r, clientId })))
+}

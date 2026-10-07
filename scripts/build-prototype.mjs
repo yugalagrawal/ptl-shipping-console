@@ -39,7 +39,10 @@ if (!html.includes(scriptTag)) throw new Error('expected head script tag not fou
 html = html.replace(scriptTag, () => '</head>')
 
 if (!html.includes('</body>')) throw new Error('expected </body> not found in build output')
-html = html.replace('</body>', () => `<script>\n${bundle}\n</script>\n  </body>`)
+// Inline <script> bodies are scanned by the HTML parser: any literal `</style`,
+// `</title`, `</script` … inside the bundle's strings (e.g. e-way bill print
+// windows) can end the element early. `<\/` is identical to JS but invisible to it.
+html = html.replace('</body>', () => `<script>\n${bundle.replaceAll('</', '<\\/')}\n</script>\n  </body>`)
 
 writeFileSync(outFile, html)
 rmSync(distDir, { recursive: true, force: true })
