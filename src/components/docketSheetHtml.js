@@ -161,8 +161,8 @@ export function buildDocketSheetBody(docket) {
   <table><tr>
     <td class="np" style="width:42%">
       <table class="mini">
-        <tr><td class="k" style="width:38%">Package Type</td><td class="v">${dash(docket.packageType)}</td></tr>
-        <tr><td class="k">Said to Contain</td><td class="v">${dash(docket.goodsDescription)}</td></tr>
+        <tr><td class="k" style="width:38%">Package Type</td><td class="v"></td></tr>
+        <tr><td class="k">Said to Contain</td><td class="v">${dash(docket.goodsDescription)}${docket.handling?.length ? ` <span class="mut">· ${esc(docket.handling.join(', '))}</span>` : ''}</td></tr>
         <tr><td class="k">Insured Value</td><td class="v">${docket.insuredValue ? `₹${money(docket.insuredValue)}` : ''}</td></tr>
         <tr><td class="k">Invoice Value</td><td class="v">${docket.invoiceValue ? `₹${money(docket.invoiceValue)}` : ''}</td></tr>
         <tr><td class="k">GST payable by</td><td class="v">${cb(false)}Consignor ${cb(false)}Consignee</td></tr>

@@ -416,7 +416,7 @@ export const PICKUPS_SEED = [
     actualWeightKg: 145, volumetricWeightKg: 150,
     consignee: { name: 'Oriflame Distributor — Vazhuthacaud', city: 'Kochi', pincode: '682001' },
     // Two consignees on one pickup — a docket is raised per consignee (Create Docket asks which).
-    details: { destinations: [
+    details: { fragile: true, hazardous: true, hazardClass: 'Class 3 — Flammable Liquids', unNumber: 'UN1266', destinations: [
       { consignee: { name: 'Oriflame Distributor — Vazhuthacaud', city: 'Kochi', pincode: '682001', state: 'Kerala' }, boxes: 5, kg: 90 },
       { consignee: { name: 'Oriflame Distributor — T. Nagar', city: 'Chennai', pincode: '600017', state: 'Tamil Nadu' }, boxes: 3, kg: 55 },
     ] },

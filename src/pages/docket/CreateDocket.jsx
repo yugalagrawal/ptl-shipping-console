@@ -221,6 +221,10 @@ function PickupSearch({ onSelect }) {
 
 const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, boxId: '', label: '', l: '', b: '', h: '', qty: 1 })
 
+// Goods details beyond what the invoice / e-Way Bill already carries.
+// Same two flags Create Pickup captures, so the docket starts from what the booking said.
+const HANDLING_FLAGS = ['Fragile', 'Hazardous']
+
 function packageVolumeCft(row) {
   const l = Number(row.l) || 0, b = Number(row.b) || 0, h = Number(row.h) || 0, qty = Number(row.qty) || 0
   return (l * b * h * qty) / 28317 // cm³ per cubic foot
@@ -418,6 +422,11 @@ function DocketForm({ pickup, onGenerated }) {
   // computed here (auto), chargeable weight = MAX(actual, volumetric).
   const [packageRows, setPackageRows] = useState([emptyPackageRow()])
   const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
+  const pickupFlags = [...(pickup.details?.fragile ? ['Fragile'] : []), ...(pickup.details?.hazardous ? ['Hazardous'] : [])]
+  const [handling, setHandling] = useState(() => [
+    ...(pickup.details?.fragile ? ['Fragile'] : []),
+    ...(pickup.details?.hazardous ? ['Hazardous'] : []),
+  ])
   // Box dimensions are stored in cm; this only switches how they're shown and
   // typed (inches convert automatically both ways).
   const [dimUnit, setDimUnit] = useState('cm')
@@ -569,7 +578,7 @@ function DocketForm({ pickup, onGenerated }) {
     consignor: { ...pickup.consignor, name: consignorName, address: consignorAddress, city: consignorCity, pincode: consignorPincode },
     consigneeGstin,
     invoiceNo, invoiceValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
-    goodsDescription, hsnCode, isOda,
+    goodsDescription, hsnCode, handling, isOda,
     riskCover, insuranceCompany, policyNo,
     packageRows, volumetricWeightKg: volKg,
     documents: { declaration: true },
@@ -615,7 +624,7 @@ function DocketForm({ pickup, onGenerated }) {
       ewayUnverified: ewayStatus === 'unverified',
       vehicleNo, transporterGstin,
       invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
-      goodsDescription, hsnCode, invoiceDate, isOda,
+      goodsDescription, hsnCode, invoiceDate, handling, isOda,
       awbCount: totalBoxes, totalWeightKg: enteredActualWeight,
       consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
       consignor: { ...pickup.consignor, name: consignorName.trim(), address: consignorAddress.trim(), city: consignorCity.trim(), pincode: consignorPincode.trim() }, consigneeGstin, packageRows, volumetricWeightKg: volKg,
@@ -944,7 +953,7 @@ function DocketForm({ pickup, onGenerated }) {
         </SectionCard>
 
         <SectionCard
-          title="Invoice & goods"
+          title="Invoice"
           action={(
             <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
               <input type="checkbox" checked={isOda} onChange={(e) => setIsOda(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
@@ -959,7 +968,7 @@ function DocketForm({ pickup, onGenerated }) {
             <Field label="3 · Value incl. GST (₹)" type="number" min="0" className="col-span-6 sm:col-span-4" dense value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
 
             <label className="col-span-12 block sm:col-span-6">
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">4 · Goods <span className="font-normal text-slate-400">— pick to fill HSN</span></span>
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">4 · Goods description <span className="font-normal text-slate-400">— pick to fill HSN</span></span>
               <GoodsPicker
                 value={goodsDescription}
                 onChange={setGoodsDescription}
@@ -987,6 +996,7 @@ function DocketForm({ pickup, onGenerated }) {
               />
             </label>
           </div>
+
         </SectionCard>
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
@@ -1010,11 +1020,10 @@ function DocketForm({ pickup, onGenerated }) {
           </div>
 
           <div className="space-y-2">
-            <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              <span>3 · Box size</span>
-              <span className="flex items-center gap-1.5">
-                L × B × H
-                <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold normal-case">
+            <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              <span className="flex items-center gap-2 normal-case">
+                <span className="text-xs font-medium text-slate-500">3 · Box size <span className="font-normal text-slate-400">(L × B × H)</span></span>
+                <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold">
                   {['cm', 'in'].map((u) => (
                     <button key={u} type="button" onClick={() => setDimUnit(u)} className={`rounded px-1.5 py-0.5 ${dimUnit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
                   ))}
@@ -1024,10 +1033,9 @@ function DocketForm({ pickup, onGenerated }) {
             </div>
             {packageRows.map((row) => {
               const cell = 'w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1.5 text-sm tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
-              const box = boxes.find((x) => x.id === row.boxId)
               return (
                 <div key={row.id} className="space-y-1.5">
-                  <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
                     <select
                       value={row.boxId}
                       onChange={(e) => {
@@ -1042,7 +1050,6 @@ function DocketForm({ pickup, onGenerated }) {
                       {boxes.map((x) => <option key={x.id} value={x.id}>{x.name} — {dims3(x).replaceAll(' ', '')} {dimUnit}</option>)}
                       <option value="__create">+ Create new box…</option>
                     </select>
-                    <span className="truncate text-sm tabular-nums text-slate-500">{box ? `${dims3(box)} ${dimUnit}` : '—'}</span>
                     <input type="number" min="1" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className={cell} aria-label="Quantity" />
                     <span className="text-right text-sm tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</span>
                     <button type="button" onClick={() => removePackageRow(row.id)} disabled={packageRows.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30" aria-label="Remove size"><Icon name="trash" className="h-4 w-4" /></button>
@@ -1086,18 +1093,39 @@ function DocketForm({ pickup, onGenerated }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-4 divide-x divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/60 text-center">
-            {[
-              ['Volume', `${totalVolumeCft.toFixed(1)} CFT`, false],
-              ['Volumetric', `${volKg.toFixed(1)} kg`, volKg > enteredActualWeight],
-              ['Actual', `${enteredActualWeight} kg`, enteredActualWeight >= volKg],
-              ['Chargeable', `${chargeableWeight.toFixed(1)} kg`, null],
-            ].map(([label, value, applies]) => (
-              <div key={label} className="px-2 py-2">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}{applies === true && <span className="ml-1 normal-case text-brand-orange-dark">· applies</span>}</p>
-                <p className={`text-sm font-semibold tabular-nums ${label === 'Chargeable' ? 'text-brand-orange-dark' : 'text-slate-800'}`}>{value}</p>
-              </div>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {HANDLING_FLAGS.map((f) => {
+              const on = handling.includes(f)
+              const fromPickup = pickupFlags.includes(f)
+              const tone = f === 'Hazardous' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-amber-300 bg-amber-50 text-amber-800'
+              return (
+                <label key={f} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${on ? tone : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={(e) => setHandling((h) => (e.target.checked ? [...h, f] : h.filter((x) => x !== f)))}
+                    className={`h-4 w-4 rounded border-slate-300 ${f === 'Hazardous' ? 'accent-rose-500' : 'accent-amber-500'}`}
+                  />
+                  {f}
+                  {f === 'Hazardous' && on && (pickup.details?.hazardClass || pickup.details?.unNumber) && (
+                    <span className="text-xs font-normal opacity-80">{[pickup.details?.hazardClass?.split(' — ')[0], pickup.details?.unNumber].filter(Boolean).join(' · ')}</span>
+                  )}
+                  {fromPickup && on && <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide opacity-80">from pickup</span>}
+                </label>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+            <div className="flex gap-6 text-xs text-slate-500">
+              <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Volumetric</p><p className="tabular-nums text-slate-700">{volKg.toFixed(1)} kg</p></div>
+              <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Actual</p><p className="tabular-nums text-slate-700">{enteredActualWeight} kg</p></div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Chargeable weight</p>
+              <p className="text-2xl font-semibold tabular-nums leading-tight text-brand-orange-dark">{chargeableWeight.toFixed(1)} <span className="text-sm font-medium">kg</span></p>
+              {chargeableWeight > 0 && <p className="text-[10px] text-slate-400">by {volKg > enteredActualWeight ? 'volumetric' : 'actual'} weight</p>}
+            </div>
           </div>
         </SectionCard>
 
