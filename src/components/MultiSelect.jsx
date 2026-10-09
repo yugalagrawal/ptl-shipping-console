@@ -6,8 +6,9 @@ import { createPortal } from 'react-dom'
 // overflow can't clip it (same approach as ColumnFilter / Combobox).
 // `options` and `selected` are plain string arrays; `onChange` gets the new
 // selected array. Anything selected that isn't in `options` (e.g. a seeded
-// value) is still listed, so it can be seen and unticked.
-export default function MultiSelect({ options, selected, onChange, disabled, placeholder = 'Select…', noun = 'item' }) {
+// value) is still listed, so it can be seen and unticked. `recommended` is an
+// optional list of option strings that get a "Recommended" tag and are pinned to the top of the list.
+export default function MultiSelect({ options, selected, onChange, disabled, placeholder = 'Select…', noun = 'item', recommended = [] }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [coords, setCoords] = useState(null)
@@ -16,7 +17,8 @@ export default function MultiSelect({ options, selected, onChange, disabled, pla
 
   const all = useMemo(() => [...new Set([...options, ...selected])], [options, selected])
   const sel = useMemo(() => new Set(selected), [selected])
-  const shown = all.filter((o) => o.toLowerCase().includes(q.trim().toLowerCase()))
+  const matches = all.filter((o) => o.toLowerCase().includes(q.trim().toLowerCase()))
+  const shown = [...matches.filter((o) => recommended.includes(o)), ...matches.filter((o) => !recommended.includes(o))]
   const allShownSelected = shown.length > 0 && shown.every((o) => sel.has(o))
 
   useEffect(() => {
@@ -82,6 +84,9 @@ export default function MultiSelect({ options, selected, onChange, disabled, pla
               <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">
                 <input type="checkbox" checked={sel.has(o)} onChange={() => toggle(o)} className="h-3.5 w-3.5 rounded border-slate-300" />
                 <span className="truncate">{o}</span>
+                {recommended.includes(o) && (
+                  <span className="ml-auto shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">Recommended</span>
+                )}
               </label>
             ))}
             {shown.length === 0 && <p className="px-2 py-3 text-xs text-slate-400">No matches</p>}

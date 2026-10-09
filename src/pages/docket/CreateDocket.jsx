@@ -3,13 +3,15 @@ import { createPortal } from 'react-dom'
 import Icon from '../../components/Icon.jsx'
 import DocketSheet from '../../components/DocketSheet.jsx'
 import { card, btnPrimary, btnSecondary } from '../../components/ui.js'
-import { PICKUPS_SEED, PICKUP_STATUS, updatePickupFieldDetails, scanPackage } from '../../data/pickups.js'
+import { PICKUPS_SEED, PICKUP_STATUS, MINI_HUBS, updatePickupFieldDetails, scanPackage } from '../../data/pickups.js'
 import {
   MODE, MODE_LABEL,
   PAYMENT_TERM, PAYMENT_TERM_LABEL, RISK_COVER, RISK_COVER_LABEL, POD_TYPE, POD_TYPE_LABEL,
   peekNextDocketNumber, enrichDocketDetails,
 } from '../../data/dockets.js'
 import { INDIAN_STATES } from '../../data/geo.js'
+import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
+import { goodsByHsn, searchGoods } from '../../data/goodsCatalog.js'
 import { PRS_SEED } from '../../data/prs.js'
 import { FLEET_SEED } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
@@ -17,25 +19,30 @@ import { priceDocket, volumetricWeightKg } from '../../data/docketPricing.js'
 import { printDocketSheet } from './docketPrintSheet.js'
 import { shareDocket } from '../../utils/docketShare.js'
 
-function Field({ label, hint, className = '', ...props }) {
+function Field({ label, hint, className = '', dense, ...props }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-slate-500">{label}</span>
-        {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
-      </span>
+      {(label || hint) && (
+        <span className="mb-1.5 flex items-baseline justify-between gap-2">
+          <span className="text-xs font-medium text-slate-500">{label}</span>
+          {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+        </span>
+      )}
       <input
         {...props}
-        className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+        className={`w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 ${dense ? 'py-1.5' : 'py-2.5'}`}
       />
     </label>
   )
 }
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, action, children }) {
   return (
     <div className={`space-y-3 p-4 ${card}`}>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        {action}
+      </div>
       {children}
     </div>
   )
@@ -233,16 +240,50 @@ function pad2(n) {
 // surprise between "what I typed" and "what prints". Numbers in comments
 // below (①②…) trace back to the Docket Module planning whiteboard's own
 // numbered field list.
+// Goods description with a pick-list from the goods catalog: choosing an entry
+// fills the description and its HSN together (onPick), while free text is
+// still allowed — "Said to contain" is often more specific than the catalog.
+function GoodsPicker({ value, onChange, onPick, inputRef }) {
+  const [open, setOpen] = useState(false)
+  const results = searchGoods(value)
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        placeholder="Search goods or type — e.g. Cosmetics"
+        className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+        aria-label="Goods description"
+      />
+      {open && results.length > 0 && (
+        <ul className="absolute left-0 right-0 z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+          {results.map((g) => (
+            <li key={g.hsn + g.name}>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); onPick(g); setOpen(false) }} className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-slate-50">
+                <span className="truncate text-slate-800">{g.name}</span>
+                <span className="shrink-0 font-mono text-xs text-slate-400">{g.hsn}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 // Inline "Generate e-Way Bill" panel — for moves where the consignor hasn't
 // raised one. Collects the Part-A details off the consignor's invoice
 // (pre-filled from whatever the docket form already has) and generates the
 // bill under our own GSTIN. Part B (vehicle) is deliberately not asked here.
 function EwayGenerateForm({ initial, onGenerated, onCancel }) {
   const [v, setV] = useState({
-    invoiceNo: initial.invoiceNo, invoiceDate: new Date().toISOString().slice(0, 10), invoiceValue: initial.invoiceValue,
+    invoiceNo: initial.invoiceNo, invoiceDate: initial.invoiceDate || new Date().toISOString().slice(0, 10), invoiceValue: initial.invoiceValue,
     consigneeName: initial.consigneeName, consigneeGstin: initial.consigneeGstin,
     consigneeCity: initial.consigneeCity, consigneeState: '', consigneePincode: initial.consigneePincode,
-    goodsDescription: initial.goodsDescription, hsn: '', quantity: initial.quantity, unit: 'BOX', distanceKm: '',
+    goodsDescription: initial.goodsDescription, hsn: initial.hsn || '', quantity: initial.quantity, unit: 'BOX', distanceKm: '',
   })
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setV((p) => ({ ...p, [k]: e.target.value }))
@@ -287,6 +328,34 @@ function EwayGenerateForm({ initial, onGenerated, onCancel }) {
   )
 }
 
+// Is an e-Way Bill legally needed? Follows CGST Rule 138 as I understand it —
+// compliance must confirm before the real build:
+//  • Required when the consignment value (invoice value incl. GST) is above
+//    ₹50,000 — however short the distance. Distance only sets the bill's
+//    validity (1 day per 200 km) and whether Part B can wait (within a state,
+//    consignor → transporter, up to 50 km); it never makes a small
+//    consignment need one.
+//  • Required whatever the value for inter-state job-work movement and
+//    inter-state handicraft goods from unregistered dealers.
+//  • Not required for goods on the exempt list (data/ewayExemptGoods.js) —
+//    matched by HSN code, never by a tick box.
+// A state may set a higher intra-state limit (up to ₹1 lakh); ₹50,000 is used
+// here as the safe national default. Several invoices to one consignee in one
+// vehicle can add up past the limit, so ops should enter the combined value.
+const EWAY_VALUE_LIMIT = 50000
+function ewayNeedCheck({ value, exempt, special }) {
+  if (exempt) return { state: 'ok', reason: `Exempt goods — ${exempt.label}`, note: exempt.note }
+  if (special === 'jobwork') return { state: 'required', msg: 'Inter-state job-work — needed at any value' }
+  if (special === 'handicraft') return { state: 'required', msg: 'Inter-state handicraft — needed at any value' }
+  if (!(value > 0)) return { state: 'pending', msg: 'Enter the invoice value to check' }
+  const rs = (n) => `₹${n.toLocaleString('en-IN')}`
+  if (value > EWAY_VALUE_LIMIT) return { state: 'required', msg: `${rs(value)} is above ${rs(EWAY_VALUE_LIMIT)} — needed at any distance` }
+  return { state: 'ok', reason: `Value ${rs(value)} is within ${rs(EWAY_VALUE_LIMIT)}` }
+}
+
+const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
+
 function DocketForm({ pickup }) {
   const hasDetails = pickup.packagesCount != null
 
@@ -296,6 +365,12 @@ function DocketForm({ pickup }) {
   const [consigneeName, setConsigneeName] = useState(pickup.consignee?.name ?? '')
   const [consigneeCity, setConsigneeCity] = useState(pickup.consignee?.city ?? '')
   const [consigneePincode, setConsigneePincode] = useState(pickup.consignee?.pincode ?? '')
+  const [consigneeAddress, setConsigneeAddress] = useState(pickup.consignee?.address ?? '')
+  // Consignor starts as the pickup's own details; every field stays editable.
+  const [consignorName, setConsignorName] = useState(pickup.consignor?.name ?? '')
+  const [consignorAddress, setConsignorAddress] = useState(pickup.consignor?.address ?? '')
+  const [consignorCity, setConsignorCity] = useState(pickup.consignor?.city ?? '')
+  const [consignorPincode, setConsignorPincode] = useState(pickup.consignor?.pincode ?? '')
   const [consigneeGstin, setConsigneeGstin] = useState('')
 
   const [actualWeightKg, setActualWeightKg] = useState(pickup.actualWeightKg ?? '')
@@ -313,13 +388,20 @@ function DocketForm({ pickup }) {
   const [ewayStatus, setEwayStatus] = useState('idle') // idle | loading | done | error | notAssigned | unverified | generate | manual
   const [ewayError, setEwayError] = useState('')
   const [ewayData, setEwayData] = useState(null)
+  const [hsnCode, setHsnCode] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
+  const insuredRef = useRef(null)
+  // The "not required" check runs only on what's entered in its own panel —
+  // nothing is pulled in from the rest of the form or the pickup.
+  const [checkValue, setCheckValue] = useState('')
+  const [checkCategory, setCheckCategory] = useState('') // '' = none of the exempt categories
+  const [ewayMandatorySpecial, setEwayMandatorySpecial] = useState('none') // none | jobwork | handicraft
   const [vehicleNo, setVehicleNo] = useState(vehicleFor(pickup)?.regNo ?? '') // auto from the pickup's assigned vehicle
   const transporterGstin = OUR_GSTIN // fixed — we are always the transporter; only the vehicle changes
 
   // Invoice & goods
   const [invoiceNo, setInvoiceNo] = useState('')
   const [invoiceValue, setInvoiceValue] = useState('')
-  const [declaredValue, setDeclaredValue] = useState('')
   const [insuredValue, setInsuredValue] = useState('')
   const [goodsDescription, setGoodsDescription] = useState('')
 
@@ -349,19 +431,39 @@ function DocketForm({ pickup }) {
   const [view, setView] = useState('details')
   const [shareStatus, setShareStatus] = useState('idle') // idle | shared | copied
 
+  // Source rules: with an e-Way Bill, its Part A fills the consignee, invoice
+  // and goods (it's the legal document, so it wins) and is cross-checked
+  // against the pickup in the panel below; without one, everything already
+  // comes from the pickup (state is seeded from it) and the rest is typed.
+  // All stay editable.
   function applyEwayResult(result) {
     setEwayData(result)
-    // Fill only what ops haven't typed themselves; all stay editable below.
-    setConsigneeGstin((v) => v || result.consignee.gstin)
-    if (!hasDetails) {
-      setConsigneeName((v) => v || result.consignee.name)
-      setConsigneeCity((v) => v || result.consignee.city)
-      setConsigneePincode((v) => v || result.consignee.pincode)
-    }
-    setInvoiceNo((v) => v || result.invoiceNo)
-    setInvoiceValue((v) => v || String(result.invoiceValue))
-    setGoodsDescription((v) => v || result.goods.description)
+    setConsigneeGstin(result.consignee.gstin)
+    setConsigneeName(result.consignee.name)
+    setConsigneeCity(result.consignee.city)
+    setConsigneePincode(result.consignee.pincode)
+    setInvoiceNo(result.invoiceNo)
+    if (result.invoiceDate) setInvoiceDate(result.invoiceDate)
+    setInvoiceValue(String(result.invoiceValue))
+    setGoodsDescription(result.goods.description)
+    setHsnCode(result.goods.hsn ?? '')
     setEwayStatus('done')
+  }
+
+  // Back to the pickup's own values when the e-Way Bill goes away (number
+  // edited, or "generate a new one instead") — only the fields the bill filled.
+  function restoreFromPickup() {
+    if (!ewayData) return
+    setConsigneeName(pickup.consignee?.name ?? '')
+    setConsigneeCity(pickup.consignee?.city ?? '')
+    setConsigneePincode(pickup.consignee?.pincode ?? '')
+    setConsigneeAddress(pickup.consignee?.address ?? '')
+    setConsigneeGstin('')
+    setInvoiceNo((v) => (v === ewayData.invoiceNo ? '' : v))
+    setInvoiceValue((v) => (v === String(ewayData.invoiceValue) ? '' : v))
+    setGoodsDescription((v) => (v === ewayData.goods.description ? '' : v))
+    setHsnCode((v) => (v === ewayData.goods.hsn ? '' : v))
+    setEwayData(null)
   }
 
   function handleEwayGenerated(result) {
@@ -391,9 +493,10 @@ function DocketForm({ pickup }) {
   )
 
   const ewayRequired = ewayStatus !== 'manual'
-  const ewayReady = !ewayRequired || ewayStatus === 'done' || ewayStatus === 'unverified'
+  const ewayNeed = ewayNeedCheck({ value: Number(checkValue) || 0, exempt: EWAY_EXEMPT_GOODS.find((g) => g.hsn === checkCategory) ?? null, special: ewayMandatorySpecial })
+  const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok'
   const canSubmit = !generatedDocket &&
-    (hasDetails || (actualWeightKg && packagesCount && consigneeName.trim())) &&
+    (hasDetails || (actualWeightKg && packagesCount)) && consigneeName.trim() &&
     ewayReady
 
   // Draft preview — the same shape a real docket has, built live from
@@ -403,23 +506,48 @@ function DocketForm({ pickup }) {
   const previewAwbNumbers = hasDetails
     ? pickup.awbNumbers
     : Array.from({ length: Number(packagesCount) || 0 }, (_, i) => `${pickup.id}-AWB-${pad2(i + 1)}`)
+  // Destination Mini Hub follows the consignee — so it updates when an
+  // e-Way Bill swaps the consignee. Prototype stand-in: first Mini Hub in the
+  // consignee's city, else a proxy "<City> Depot"; the real build resolves it
+  // from Location Master's Serviceability by pincode.
+  // Where the consignee came from: the pickup, a matching e-Way Bill, an
+  // e-Way Bill that disagrees with the pickup (its values are the ones used),
+  // or typed by hand when neither has it.
+  const pickupConsignee = pickup.consignee
+  const ewayDiffersFromPickup = ewayStatus === 'done' && ewayData && !!pickupConsignee?.name &&
+    !(sameText(ewayData.consignee.name, pickupConsignee.name) && sameText(ewayData.consignee.city, pickupConsignee.city) && String(ewayData.consignee.pincode) === String(pickupConsignee.pincode ?? ''))
+  const consigneeSource = ewayStatus === 'done'
+    ? (ewayDiffersFromPickup ? 'mismatch · e-way bill' : 'e-way bill')
+    : pickupConsignee?.name ? 'pickup' : 'manual'
+  const destCity = consigneeCity.trim()
+  const destinationMiniHubName = MINI_HUBS.find((h) => h.city.toLowerCase() === destCity.toLowerCase())?.name ?? (destCity ? `${destCity} Depot` : '')
   const draftDocket = {
     docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? peekNextDocketNumber(),
     status: 'pending',
     clientName: pickup.clientName,
     pickupId: pickup.id,
     dropMiniHubName: pickup.dropMiniHubName,
-    consignee: hasDetails ? pickup.consignee : { name: consigneeName, city: consigneeCity, pincode: consigneePincode },
+    consignee: { name: consigneeName, address: consigneeAddress, city: consigneeCity, pincode: consigneePincode },
     awbCount: hasDetails ? pickup.awbCount ?? pickup.packagesCount : Number(packagesCount) || 0,
     awbNumbers: previewAwbNumbers,
     totalWeightKg: enteredActualWeight,
     createdAt: generatedDocket ? 'Just now' : 'Draft — not yet generated',
     mode,
     ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
+    ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
     ewayUnverified: ewayStatus === 'unverified',
     vehicleNo, transporterGstin,
     paymentTerm, podType,
     pricing,
+    // Fuller field set the physical docket sheet prints (DocketSheet) —
+    // same names enrichDocketDetails stores on a generated docket.
+    consignor: { ...pickup.consignor, name: consignorName, address: consignorAddress, city: consignorCity, pincode: consignorPincode },
+    consigneeGstin,
+    invoiceNo, invoiceValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
+    goodsDescription, hsnCode, isOda,
+    riskCover, insuranceCompany, policyNo,
+    packageRows, volumetricWeightKg: volKg,
+    documents: { declaration: true },
   }
 
   function addPackageRow() {
@@ -438,7 +566,7 @@ function DocketForm({ pickup }) {
         actualWeightKg,
         volumetricWeightKg: volKg,
         packagesCount,
-        consignee: { name: consigneeName.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
+        consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
       })
     }
     const target = pickup.packagesCount ?? Number(packagesCount)
@@ -447,10 +575,13 @@ function DocketForm({ pickup }) {
     const docket = enrichDocketDetails(pickup.docketNumber, {
       mode,
       ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
+      ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
       ewayUnverified: ewayStatus === 'unverified',
       vehicleNo, transporterGstin,
-      invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(declaredValue) || Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
-      goodsDescription, isOda,
+      invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
+      goodsDescription, hsnCode, invoiceDate, isOda,
+      consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
+      consignor: { ...pickup.consignor, name: consignorName.trim(), address: consignorAddress.trim(), city: consignorCity.trim(), pincode: consignorPincode.trim() }, consigneeGstin, packageRows, volumetricWeightKg: volKg,
       paymentTerm, riskCover, insuranceCompany, policyNo,
       podType,
       documents: {
@@ -500,7 +631,11 @@ function DocketForm({ pickup }) {
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
               <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
               <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
-              <span>{pickup.consignor.city} <span className="text-slate-300">→</span> <span className="font-medium text-slate-700">{pickup.dropMiniHubName}</span></span>
+              <span>
+                <span className="font-medium text-slate-700">{pickup.dropMiniHubName || 'Source Mini Hub'}</span>
+                <span className="mx-1 text-slate-300">→</span>
+                <span className="font-medium text-slate-700">{destinationMiniHubName || 'Destination Mini Hub'}</span>
+              </span>
               <label className="flex items-center gap-1.5">
                 Mode
                 <select value={mode} onChange={(e) => setMode(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
@@ -511,6 +646,28 @@ function DocketForm({ pickup }) {
           </div>
           <div className="flex flex-col gap-3">
             <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-slate-700">E-Way Bill required</span>
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 text-sm font-medium">
+            {[['has', 'Yes'], ['none', 'No']].map(([k, label]) => {
+              const active = (k === 'none') === (ewayStatus === 'manual')
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    if (active) return
+                    if (k === 'none') { restoreFromPickup(); setEwayStatus('manual'); setEwayError('') }
+                    else { setEwayStatus('idle'); setVehicleNo(''); setCheckValue(''); setCheckCategory(''); setEwayMandatorySpecial('none') }
+                  }}
+                  className={`rounded-lg px-5 py-1.5 transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          </div>
           {ewayStatus !== 'manual' ? (
             <>
               <div className="flex flex-wrap items-end gap-2.5">
@@ -518,7 +675,7 @@ function DocketForm({ pickup }) {
                   label="E-Way Bill number"
                   className="min-w-[220px] flex-1"
                   value={ewayBillNo}
-                  onChange={(e) => { setEwayBillNo(e.target.value); setEwayStatus('idle'); setEwayError(''); setEwayData(null) }}
+                  onChange={(e) => { setEwayBillNo(e.target.value); setEwayStatus('idle'); setEwayError(''); restoreFromPickup() }}
                   placeholder="12-digit EWB number"
                 />
                 <button
@@ -530,9 +687,6 @@ function DocketForm({ pickup }) {
                   <Icon name={ewayStatus === 'loading' ? 'history' : 'search'} className="h-4 w-4" />
                   {ewayStatus === 'loading' ? 'Fetching…' : 'Fetch & validate'}
                 </button>
-                <button type="button" onClick={() => { setEwayStatus('manual'); setEwayError('') }} className="text-xs font-medium text-slate-400 hover:text-slate-600">
-                  Not required for this move
-                </button>
               </div>
               {ewayStatus !== 'generate' && (
                 <button type="button" onClick={() => { setEwayStatus('generate'); setEwayError('') }} className="text-xs font-medium text-brand-orange-dark hover:underline">
@@ -541,7 +695,7 @@ function DocketForm({ pickup }) {
               )}
               {ewayStatus === 'generate' && (
                 <EwayGenerateForm
-                  initial={{ invoiceNo, invoiceValue, consigneeName, consigneeGstin, consigneeCity, consigneePincode, goodsDescription, quantity: packagesCount || pickup.packagesCount || '' }}
+                  initial={{ invoiceNo, invoiceDate, hsn: hsnCode, invoiceValue, consigneeName, consigneeGstin, consigneeCity, consigneePincode, goodsDescription, quantity: packagesCount || pickup.packagesCount || '' }}
                   onGenerated={handleEwayGenerated}
                   onCancel={() => setEwayStatus('idle')}
                 />
@@ -564,7 +718,7 @@ function DocketForm({ pickup }) {
                     <div className="rounded-lg border border-amber-200 bg-white p-3 text-xs text-slate-600">
                       <p className="mb-1 font-semibold text-slate-800">3. Generate a new bill</p>
                       <p>Raise a fresh e-Way Bill under our GSTIN from the consignor's invoice.</p>
-                      <button type="button" onClick={() => { setEwayStatus('generate'); setEwayBillNo('') }} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Generate</button>
+                      <button type="button" onClick={() => { setEwayStatus('generate'); setEwayBillNo(''); restoreFromPickup() }} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Generate</button>
                     </div>
                   </div>
                 </div>
@@ -607,6 +761,40 @@ function DocketForm({ pickup }) {
                       ))}
                     </dl>
                   </div>
+                  {(() => {
+                    const same = sameText
+                    const pickupPackages = pickup.packagesCount ?? (packagesCount === '' ? null : Number(packagesCount))
+                    const checks = [
+                      ['Consignee', ewayData.consignee.name, pickup.consignee?.name, same(ewayData.consignee.name, pickup.consignee?.name)],
+                      ['City', ewayData.consignee.city, pickup.consignee?.city, same(ewayData.consignee.city, pickup.consignee?.city)],
+                      ['Pincode', ewayData.consignee.pincode, pickup.consignee?.pincode, String(ewayData.consignee.pincode) === String(pickup.consignee?.pincode ?? '')],
+                      ['Packages', ewayData.goods.quantity, pickupPackages, pickupPackages != null && Number(ewayData.goods.quantity) === Number(pickupPackages)],
+                    ]
+                    const diffs = checks.filter((c) => !c[3]).length
+                    return (
+                      <div className="border-t border-emerald-200 pt-3">
+                        <p className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                          Cross-check with pickup {pickup.id}
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] normal-case ${diffs ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {diffs ? `${diffs} difference${diffs > 1 ? 's' : ''} — e-Way Bill values used` : 'All match'}
+                          </span>
+                        </p>
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-left text-[10px] uppercase text-emerald-600"><th className="py-1 font-medium">Field</th><th className="font-medium">e-Way Bill</th><th className="font-medium">Pickup</th><th /></tr></thead>
+                          <tbody>
+                            {checks.map(([label, ewb, pu, ok]) => (
+                              <tr key={label} className="border-t border-emerald-100 text-emerald-900">
+                                <td className="py-1 pr-2 text-emerald-700">{label}</td>
+                                <td className="pr-2 font-medium">{ewb}</td>
+                                <td className="pr-2">{pu ?? <span className="text-emerald-500">Not on pickup</span>}</td>
+                                <td className={`text-right font-semibold ${ok ? 'text-emerald-600' : 'text-amber-700'}`}>{ok ? '✓ Match' : '⚠ Differs'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
                   <div className="border-t border-emerald-200 pt-3">
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Part B <span className="font-normal normal-case text-emerald-600">— vehicle details, filled when goods are loaded</span></p>
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -619,14 +807,34 @@ function DocketForm({ pickup }) {
             </>
           ) : (
             <>
-              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">No e-Way Bill for this move — enter Vehicle No. manually.</p>
+              <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <p className={`rounded-lg px-3 py-2 text-sm font-medium ${ewayNeed.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : ewayNeed.state === 'required' ? 'bg-red-100 text-red-700' : 'bg-white text-slate-500'}`}>
+                    {ewayNeed.state === 'ok' ? `✓ Not required · ${ewayNeed.reason}` : ewayNeed.state === 'required' ? `Required · ${ewayNeed.msg}` : ewayNeed.msg}
+                  </p>
+                {ewayNeed.note && <p className="text-xs text-amber-700">{ewayNeed.note}</p>}
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  <Field label="Invoice value incl. GST (₹)" type="number" min="0" value={checkValue} onChange={(e) => setCheckValue(e.target.value)} placeholder="0" />
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Exempt category</span>
+                    <select value={checkCategory} onChange={(e) => setCheckCategory(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                      <option value="">None</option>
+                      {EWAY_EXEMPT_GOODS.map((g) => <option key={g.hsn} value={g.hsn}>{g.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Special movement</span>
+                    <select value={ewayMandatorySpecial} onChange={(e) => setEwayMandatorySpecial(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                      <option value="none">None</option>
+                      <option value="jobwork">Inter-state job-work</option>
+                      <option value="handicraft">Inter-state handicraft</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <Field label="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="e.g. DL-01-CZ-5567" />
                 <Field label="Transporter GSTIN" value={transporterGstin} readOnly hint="LetsTransport" />
               </div>
-              <button type="button" onClick={() => { setEwayStatus('idle'); setVehicleNo('') }} className="text-xs font-medium text-brand-orange-dark hover:underline">
-                Actually, this move has an e-Way Bill
-              </button>
             </>
           )}
             </div>
@@ -643,44 +851,84 @@ function DocketForm({ pickup }) {
         )}
 
         <SectionCard title="Consignor & consignee">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignor <span className="text-brand-orange-dark">(auto from pickup)</span></p>
-              <p className="text-sm font-medium text-slate-800">{pickup.consignor.name}</p>
-              <p className="text-xs text-slate-500">{pickup.consignor.address}, {pickup.consignor.city}, {pickup.consignor.state} · {pickup.consignor.pincode}</p>
-              <p className="text-xs text-slate-500">{pickup.consignor.phone} · {pickup.consignor.email}</p>
-            </div>
-            <div className="grid grid-cols-6 gap-2.5">
-              {hasDetails ? (
-                <div className="col-span-6 rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5 sm:col-span-4">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignee <span className="text-brand-orange-dark">(auto)</span></p>
-                  <p className="text-sm font-medium text-slate-800">{pickup.consignee?.name ?? '—'}</p>
-                  <p className="text-xs text-slate-500">{pickup.consignee?.city} · {pickup.consignee?.pincode}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              {
+                key: 'consignor', label: 'Consignor', source: 'pickup',
+                name: consignorName, setName: setConsignorName, address: consignorAddress, setAddress: setConsignorAddress,
+                city: consignorCity, setCity: setConsignorCity, pincode: consignorPincode, setPincode: setConsignorPincode,
+              },
+              {
+                key: 'consignee', label: 'Consignee',
+                source: consigneeSource, warn: consigneeSource === 'mismatch · e-way bill',
+                name: consigneeName, setName: setConsigneeName, address: consigneeAddress, setAddress: setConsigneeAddress,
+                city: consigneeCity, setCity: setConsigneeCity, pincode: consigneePincode, setPincode: setConsigneePincode,
+              },
+            ].map((p) => {
+              // Same compact card as before (label + name + address lines) —
+              // each line is just an inline-editable field, underlined so it
+              // reads as editable without turning the card into a form.
+              const line = 'min-w-0 border-0 border-b border-dotted border-slate-300 bg-transparent px-0 py-0.5 placeholder:text-slate-400 hover:border-slate-400 focus:border-brand-orange focus:outline-none'
+              return (
+                <div key={p.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {p.label} <span className={p.warn ? 'text-amber-600' : 'text-brand-orange-dark'}>({p.source})</span>
+                  </p>
+                  <input className={`${line} w-full text-sm font-medium text-slate-800`} value={p.name} onChange={(e) => p.setName(e.target.value)} placeholder="Name" aria-label={`${p.key} name`} />
+                  <input className={`${line} mt-1 w-full text-xs text-slate-500`} value={p.address} onChange={(e) => p.setAddress(e.target.value)} placeholder="Address" aria-label={`${p.key} address`} />
+                  <div className="mt-1 flex items-center gap-2">
+                    <input className={`${line} flex-1 text-xs text-slate-500`} value={p.city} onChange={(e) => p.setCity(e.target.value)} placeholder="City" aria-label={`${p.key} city`} />
+                    <span className="text-slate-300">·</span>
+                    <input className={`${line} w-20 shrink-0 text-xs text-slate-500`} value={p.pincode} onChange={(e) => p.setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Pincode" inputMode="numeric" aria-label={`${p.key} pincode`} />
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <Field label="Consignee name *" className="col-span-6 sm:col-span-3" value={consigneeName} onChange={(e) => setConsigneeName(e.target.value)} placeholder="Business or store name" />
-                  <Field label="City" className="col-span-3 sm:col-span-2" value={consigneeCity} onChange={(e) => setConsigneeCity(e.target.value)} placeholder="City" />
-                  <Field label="Pincode" className="col-span-3 sm:col-span-1" value={consigneePincode} onChange={(e) => setConsigneePincode(e.target.value)} placeholder="Pincode" />
-                </>
-              )}
-              <Field label="Consignee GSTIN" className={hasDetails ? 'col-span-6 sm:col-span-2' : 'col-span-6'} value={consigneeGstin} onChange={(e) => setConsigneeGstin(e.target.value)} placeholder="Optional" />
-            </div>
+              )
+            })}
           </div>
         </SectionCard>
 
-        <SectionCard title="Invoice & goods">
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <Field label="Invoice no." value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
-            <Field label="Invoice value (₹)" type="number" value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
-            <Field label="Declared value (₹)" hint="= invoice" type="number" value={declaredValue} onChange={(e) => setDeclaredValue(e.target.value)} placeholder={invoiceValue || '0'} />
-            <Field label="Insured value (₹)" type="number" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0" />
-          </div>
-          <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5">
-            <Field label="Goods description" className="min-w-[260px] flex-1" value={goodsDescription} onChange={(e) => setGoodsDescription(e.target.value)} placeholder="Said to contain — e.g. Crate · Fragile" />
-            <label className="mb-2.5 flex items-center gap-2 text-sm text-slate-600">
+        <SectionCard
+          title="Invoice & goods"
+          action={(
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
               <input type="checkbox" checked={isOda} onChange={(e) => setIsOda(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
               ODA delivery
+            </label>
+          )}
+        >
+          {ewayStatus === 'done' && <p className="-mt-1 text-[11px] font-medium text-brand-orange-dark">Filled from the e-Way Bill — edit if needed.</p>}
+          <div className="grid grid-cols-12 gap-2.5">
+            <Field label="1 · Invoice no." className="col-span-12 sm:col-span-5" dense value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
+            <Field label="2 · Invoice date" type="date" className="col-span-6 sm:col-span-3" dense value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            <Field label="3 · Value incl. GST (₹)" type="number" min="0" className="col-span-6 sm:col-span-4" dense value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
+
+            <label className="col-span-12 block sm:col-span-6">
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">4 · Goods <span className="font-normal text-slate-400">— pick to fill HSN</span></span>
+              <GoodsPicker
+                value={goodsDescription}
+                onChange={setGoodsDescription}
+                onPick={(g) => { setGoodsDescription(g.name); setHsnCode(g.hsn); insuredRef.current?.focus() }}
+              />
+            </label>
+            <Field
+              label="HSN" className="col-span-5 sm:col-span-2" dense value={hsnCode} inputMode="numeric" placeholder="3304"
+              onChange={(e) => {
+                const code = e.target.value.replace(/[^\d]/g, '').slice(0, 8)
+                setHsnCode(code)
+                const hit = goodsByHsn(code)
+                if (hit && (!goodsDescription.trim() || goodsByHsn(hsnCode)?.name === goodsDescription)) setGoodsDescription(hit.name)
+              }}
+            />
+            <label className="col-span-7 block sm:col-span-4">
+              <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500">
+                5 · Insured (₹)
+                <button type="button" onClick={() => setInsuredValue(invoiceValue)} disabled={!invoiceValue} className="font-normal text-brand-orange-dark hover:underline disabled:opacity-40">= invoice</button>
+              </span>
+              <input
+                ref={insuredRef}
+                type="number" min="0" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
             </label>
           </div>
         </SectionCard>
@@ -790,7 +1038,7 @@ function DocketForm({ pickup }) {
 
         {!generatedDocket && (
           <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-soft">
-            {!ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required, before generating.</p>}
+            {!ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required with a reason, before generating.</p>}
             <button type="button" onClick={handleSubmit} disabled={!canSubmit} className={`ml-auto ${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
               <Icon name="invoice" className="h-4 w-4" />
               Generate Docket

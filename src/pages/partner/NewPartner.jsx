@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import { card, thCls, rowCls } from '../../components/ui.js'
+import MultiSelect from '../../components/MultiSelect.jsx'
 import { INDIAN_STATES, lookupPincode, STATE_TO_GST_CODE } from '../../data/geo.js'
 import {
   STATES, citiesForStates, pincodesForCities, citiesUnderStates, pincodesUnderCities,
@@ -74,63 +75,55 @@ const RATE_METHOD = {
   PER_BOX: 'per_box',
   PCT_FREIGHT: 'pct_freight',
   PCT_INVOICE: 'pct_invoice',
-  PCT_REV: 'pct_rev',
   PER_TRIP: 'per_trip',
-  FIXED_MONTHLY_KM_SLAB: 'fixed_monthly_km_slab',
   KM_ONLY: 'km_only',
-  MONTHLY_PLUS_KM: 'monthly_plus_km',
-  TRIP_LANE: 'trip_lane',
-  KM_GUARANTEE: 'km_guarantee',
 }
 const RATE_METHOD_LABEL = {
   [RATE_METHOD.PER_KG]: 'Per KGs',
   [RATE_METHOD.PER_DOCKET]: 'Per Docket',
   [RATE_METHOD.PER_BOX]: 'Per Box',
-  [RATE_METHOD.PCT_FREIGHT]: '% of Freight Value',
+  [RATE_METHOD.PCT_FREIGHT]: '% of Freight Revenue',
   [RATE_METHOD.PCT_INVOICE]: '% of Invoice Value',
-  [RATE_METHOD.PCT_REV]: '% of Rev Value',
   [RATE_METHOD.PER_TRIP]: 'Per Trip',
-  [RATE_METHOD.FIXED_MONTHLY_KM_SLAB]: 'Fixed monthly payout (Km slab)',
-  [RATE_METHOD.KM_ONLY]: 'Km based only',
-  [RATE_METHOD.MONTHLY_PLUS_KM]: 'Monthly payout + Km based',
-  [RATE_METHOD.TRIP_LANE]: 'Trip based (lane/route defined)',
-  [RATE_METHOD.KM_GUARANTEE]: 'Per Km price ± monthly guarantee',
+  [RATE_METHOD.KM_ONLY]: 'Per Km',
 }
 const RATE_METHOD_UNIT = {
   [RATE_METHOD.PER_KG]: '₹ / Kg',
   [RATE_METHOD.PER_DOCKET]: '₹ / Docket',
   [RATE_METHOD.PER_BOX]: '₹ / Box',
-  [RATE_METHOD.PCT_FREIGHT]: '% of Freight',
+  [RATE_METHOD.PCT_FREIGHT]: '% of Freight Revenue',
   [RATE_METHOD.PCT_INVOICE]: '% of Invoice',
-  [RATE_METHOD.PCT_REV]: '% of Revenue',
   [RATE_METHOD.PER_TRIP]: '₹ / Trip',
   [RATE_METHOD.KM_ONLY]: '₹ / Km',
 }
-// Which methods a leg may use — FM gets every weight/value method plus every
-// trip/km/monthly variant; MM is trip/km/guarantee-based only (nothing to
-// weigh a docket/box against mid-haul) plus a plain per-Kg option; LM is
-// restricted back to the weight/value list only (no lane/route to price a
-// last-mile delivery leg by).
+// Payout is two independent choices (Yugal): a rate basis (this list — pick one
+// or more per leg) plus an optional Monthly fixed payout (MonthlyFixedRow,
+// below). Every leg offers the same bases; what differs per leg is only which
+// one is flagged Recommended in the dropdown.
+const ALL_RATE_METHODS = [
+  RATE_METHOD.PER_KG, RATE_METHOD.PER_DOCKET, RATE_METHOD.PER_BOX,
+  RATE_METHOD.PER_TRIP, RATE_METHOD.KM_ONLY,
+  RATE_METHOD.PCT_FREIGHT, RATE_METHOD.PCT_INVOICE,
+]
 const RATE_METHODS_BY_SERVICE = {
-  'FirstMile - Pickup': [
-    RATE_METHOD.PER_KG, RATE_METHOD.PER_DOCKET, RATE_METHOD.PER_BOX,
-    RATE_METHOD.PCT_FREIGHT, RATE_METHOD.PCT_INVOICE, RATE_METHOD.PCT_REV,
-    RATE_METHOD.PER_TRIP, RATE_METHOD.FIXED_MONTHLY_KM_SLAB, RATE_METHOD.KM_ONLY, RATE_METHOD.MONTHLY_PLUS_KM,
-  ],
-  MidMile: [RATE_METHOD.TRIP_LANE, RATE_METHOD.KM_GUARANTEE, RATE_METHOD.PER_KG],
-  'LastMile - Delivery': [
-    RATE_METHOD.PER_KG, RATE_METHOD.PER_DOCKET, RATE_METHOD.PER_BOX,
-    RATE_METHOD.PCT_FREIGHT, RATE_METHOD.PCT_INVOICE, RATE_METHOD.PCT_REV,
-  ],
+  'FirstMile - Pickup': ALL_RATE_METHODS,
+  MidMile: ALL_RATE_METHODS,
+  'LastMile - Delivery': ALL_RATE_METHODS,
+}
+const RECOMMENDED_RATE_METHOD = {
+  'FirstMile - Pickup': RATE_METHOD.PCT_FREIGHT,
+  MidMile: RATE_METHOD.KM_ONLY,
+  'LastMile - Delivery': RATE_METHOD.PER_KG,
 }
 const isPercentMethod = (method) => method?.startsWith('pct_')
 function emptyRateConfig(method) {
-  return {
-    method, rateValue: '',
-    minKm: '', payoutAtMinKm: '', ratePerKmAboveMin: '', tollParkingExtra: false,
-    fixedMonthly: '', ratePerKm: '',
-    guaranteeType: 'Minimum guarantee', guaranteeAmount: '',
-  }
+  return { method, rateValue: '' }
+}
+// Optional Monthly fixed payout, one per leg. `coverKm` is mandatory — 0 =
+// no Km condition (the Per Km rate applies from Km 1); N = the fixed amount
+// covers that many Km and only the Km beyond it earn the Per Km rate.
+function emptyMonthlyFixed() {
+  return { enabled: false, fixedMonthly: '', coverKm: '', ratePerKm: '', tollParkingExtra: false }
 }
 
 // IFSC already encodes bank + branch, so a separate "Bank name"/"Bank
@@ -182,7 +175,7 @@ function Toggle({ label, checked, onChange, disabled }) {
         onClick={() => onChange(!checked)}
         className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed ${checked ? 'bg-brand-orange' : 'bg-slate-200'} ${disabled ? 'opacity-50' : ''}`}
       >
-        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-soft transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        <span className={`absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow-soft transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
       {label}
     </label>
@@ -428,75 +421,59 @@ function SelectField({ label, value, onChange, options, required, placeholder, r
   )
 }
 
-// Renders the right inputs for whichever RATE_METHOD a service card's method
-// select is currently on — one method, one shape of fields; switching
-// methods (setServiceRateMethod) resets the rest of the config so a leftover
-// field from a previous method never silently keeps applying.
+// Renders the right inputs for one ticked RATE_METHOD on a service card — one
+// method, one shape of fields. Each ticked method has its own config, so a
+// leftover field from another method never silently keeps applying.
+// Small (i) with a tooltip that shows on hover, keyboard focus or tap — the
+// native `title` attribute is too slow/unreliable to count as a hint.
+function InfoTip({ text }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label={text}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={(e) => { e.preventDefault(); setOpen((v) => !v) }}
+        className="text-slate-400 hover:text-slate-600"
+      >
+        <Icon name="info" className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <span role="tooltip" className="absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-normal text-white shadow-lg">
+          {text}
+        </span>
+      )}
+    </span>
+  )
+}
+const rateInputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+function RateValue({ config, set, unit, placeholder = '18' }) {
+  return (
+    <div className="flex min-w-[9rem] flex-1 items-center gap-2">
+      <input type="number" min="0" value={config.rateValue} onChange={(e) => set('rateValue', e.target.value)} placeholder={placeholder} className={rateInputCls} />
+      <span className="shrink-0 text-xs text-slate-400">{unit}</span>
+    </div>
+  )
+}
+function RateNumberField({ config, set, label, field, placeholder, width = 'w-32', required, hint }) {
+  return (
+    <label className={`block shrink-0 ${width}`}>
+      <span className="mb-1.5 flex items-center gap-1 whitespace-nowrap text-xs font-medium text-slate-500">
+        {label}
+        {required && <span className="text-brand-orange-dark">*</span>}
+        {hint && <InfoTip text={hint} />}
+      </span>
+      <input type="number" min="0" value={config[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className={rateInputCls} />
+    </label>
+  )
+}
 function RateMethodFields({ config, onChange }) {
   const set = (field, value) => onChange({ ...config, [field]: value })
-  const selectCls = 'min-w-[10rem] appearance-none rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
-  const numberCls = 'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
-
-  function RateValue({ unit, placeholder = '18' }) {
-    return (
-      <div className="flex min-w-[9rem] flex-1 items-center gap-2">
-        <input type="number" value={config.rateValue} onChange={(e) => set('rateValue', e.target.value)} placeholder={placeholder} className={numberCls} />
-        <span className="shrink-0 text-xs text-slate-400">{unit}</span>
-      </div>
-    )
-  }
-  function NumberField({ label, field, placeholder }) {
-    return (
-      <label className="block">
-        <span className="mb-1.5 block text-xs font-medium text-slate-500">{label}</span>
-        <input type="number" value={config[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className={numberCls} />
-      </label>
-    )
-  }
-
-  switch (config.method) {
-    case RATE_METHOD.FIXED_MONTHLY_KM_SLAB:
-      return (
-        <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <NumberField label="Minimum Km" field="minKm" placeholder="3000" />
-          <NumberField label="Payout at minimum Km (₹)" field="payoutAtMinKm" placeholder="60000" />
-          <NumberField label="Rate above minimum (₹ / Km)" field="ratePerKmAboveMin" placeholder="10" />
-          <div className="flex items-end pb-2.5">
-            <Toggle label="Toll & parking extra" checked={config.tollParkingExtra} onChange={(v) => set('tollParkingExtra', v)} />
-          </div>
-        </div>
-      )
-    case RATE_METHOD.MONTHLY_PLUS_KM:
-      return (
-        <div className="grid flex-1 gap-3 sm:grid-cols-2">
-          <NumberField label="Fixed monthly payout (₹)" field="fixedMonthly" placeholder="40000" />
-          <NumberField label="Rate per Km (₹)" field="ratePerKm" placeholder="8" />
-        </div>
-      )
-    case RATE_METHOD.TRIP_LANE:
-      return (
-        <div className="flex-1 space-y-1.5">
-          <RateValue unit={RATE_METHOD_UNIT[RATE_METHOD.PER_TRIP]} />
-          <p className="text-xs text-slate-400">Lane/route for this leg is defined via its Serviceability area, back in Billing Info.</p>
-        </div>
-      )
-    case RATE_METHOD.KM_GUARANTEE:
-      return (
-        <div className="grid flex-1 gap-3 sm:grid-cols-3">
-          <NumberField label="Rate per Km (₹)" field="ratePerKm" placeholder="12" />
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-slate-500">Guarantee type</span>
-            <select value={config.guaranteeType} onChange={(e) => set('guaranteeType', e.target.value)} className={`w-full ${selectCls}`}>
-              <option>Minimum guarantee</option>
-              <option>Additional cap</option>
-            </select>
-          </label>
-          <NumberField label="Guarantee amount (₹ / month)" field="guaranteeAmount" placeholder="15000" />
-        </div>
-      )
-    default:
-      return <RateValue unit={RATE_METHOD_UNIT[config.method]} placeholder={isPercentMethod(config.method) ? '2.5' : '18'} />
-  }
+  return <RateValue config={config} set={set} unit={RATE_METHOD_UNIT[config.method]} placeholder={isPercentMethod(config.method) ? '2.5' : '18'} />
 }
 
 let idRowSeq = 1
@@ -885,15 +862,31 @@ export default function NewPartner() {
   // shared "Agreed Rate" field that makes sense across FM/MM/LM the way there
   // is on Client pricing — one config per selected service type instead, each
   // lazily defaulted the first time that type's card is touched.
+  // Each leg can now carry several payout methods at once (multi-select), each
+  // with its own rate fields — `serviceMethods[type]` is the ticked list (in
+  // the leg's own method order), `serviceRateConfigs[type][method]` the config
+  // per method, kept after un-ticking so re-ticking restores what was typed.
+  const [serviceMethods, setServiceMethods] = useState({})
   const [serviceRateConfigs, setServiceRateConfigs] = useState({})
-  function serviceRateConfigFor(type) {
-    return serviceRateConfigs[type] ?? emptyRateConfig(RATE_METHODS_BY_SERVICE[type][0])
+  const [serviceMonthly, setServiceMonthly] = useState({})
+  function monthlyFor(type) {
+    return serviceMonthly[type] ?? emptyMonthlyFixed()
   }
-  function updateServiceRateConfig(type, next) {
-    setServiceRateConfigs((prev) => ({ ...prev, [type]: next }))
+  function updateMonthly(type, next) {
+    setServiceMonthly((prev) => ({ ...prev, [type]: next }))
   }
-  function setServiceRateMethod(type, method) {
-    updateServiceRateConfig(type, { ...emptyRateConfig(method), rateValue: serviceRateConfigFor(type).rateValue })
+  function methodsFor(type) {
+    return serviceMethods[type] ?? []
+  }
+  function setMethodsFor(type, methods) {
+    const ordered = RATE_METHODS_BY_SERVICE[type].filter((m) => methods.includes(m))
+    setServiceMethods((prev) => ({ ...prev, [type]: ordered }))
+  }
+  function serviceRateConfigFor(type, method) {
+    return serviceRateConfigs[type]?.[method] ?? emptyRateConfig(method)
+  }
+  function updateServiceRateConfig(type, method, next) {
+    setServiceRateConfigs((prev) => ({ ...prev, [type]: { ...prev[type], [method]: next } }))
   }
 
   // CFT→Kg conversion, one factor per Transportation mode actually selected
@@ -1474,8 +1467,8 @@ export default function NewPartner() {
             </div>
           ) : (
             serviceTypes.map((type) => {
-              const methods = RATE_METHODS_BY_SERVICE[type]
-              const config = serviceRateConfigFor(type)
+              const picked = methodsFor(type)
+              const labelToMethod = Object.fromEntries(RATE_METHODS_BY_SERVICE[type].map((m) => [RATE_METHOD_LABEL[m], m]))
               return (
                 <div key={type} className={`space-y-4 p-6 ${card}`}>
                   <div className="flex flex-wrap items-center gap-2.5">
@@ -1485,25 +1478,62 @@ export default function NewPartner() {
                     <h2 className="font-medium text-slate-900">{type}</h2>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="block">
-                      <span className="mb-1.5 block text-xs font-medium text-slate-500">
-                        Payout method<span className="text-brand-orange-dark"> *</span>
-                      </span>
-                      <select
-                        value={config.method}
-                        onChange={(e) => setServiceRateMethod(type, e.target.value)}
-                        className="min-w-[15rem] appearance-none rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                      >
-                        {methods.map((m) => (
-                          <option key={m} value={m}>
-                            {RATE_METHOD_LABEL[m]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <RateMethodFields config={config} onChange={(next) => updateServiceRateConfig(type, next)} />
+                  <div className="block max-w-md">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">
+                      Payout rules<span className="text-brand-orange-dark"> *</span>
+                    </span>
+                    <MultiSelect
+                      options={Object.keys(labelToMethod)}
+                      selected={picked.map((m) => RATE_METHOD_LABEL[m])}
+                      onChange={(labels) => setMethodsFor(type, labels.map((l) => labelToMethod[l]))}
+                      recommended={[RATE_METHOD_LABEL[RECOMMENDED_RATE_METHOD[type]]]}
+                      placeholder="Select payout rules"
+                      noun="rule"
+                    />
                   </div>
+
+                  {picked.map((method, i) => (
+                    <div key={method} className="flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-3">
+                      <div className="flex w-72 shrink-0 items-center gap-2.5 whitespace-nowrap text-sm font-medium text-slate-700">
+                        <span className="shrink-0 rounded-md bg-brand-orange/10 px-2 py-1 text-xs font-semibold text-brand-orange-dark">Mode {i + 1}</span>
+                        <span className="flex-1 truncate" title={RATE_METHOD_LABEL[method]}>{RATE_METHOD_LABEL[method]}</span>
+                        <button
+                          type="button"
+                          onClick={() => setMethodsFor(type, picked.filter((m) => m !== method))}
+                          className="shrink-0 text-slate-400 hover:text-rose-500"
+                          title="Remove rule"
+                        >
+                          <Icon name="trash" className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <RateMethodFields
+                        config={serviceRateConfigFor(type, method)}
+                        onChange={(next) => updateServiceRateConfig(type, method, next)}
+                      />
+                    </div>
+                  ))}
+
+                  {(() => {
+                    const monthly = monthlyFor(type)
+                    const setM = (field, value) => updateMonthly(type, { ...monthly, [field]: value })
+                    return (
+                      <div className="flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-3">
+                        <div className="flex w-72 shrink-0 items-center whitespace-nowrap text-sm font-medium text-slate-700">
+                          <Toggle label="Monthly fixed payout" checked={monthly.enabled} onChange={(v) => setM('enabled', v)} />
+                        </div>
+                        {monthly.enabled && (
+                          <div className="flex flex-1 flex-wrap items-end gap-3">
+                            <RateNumberField config={monthly} set={setM} label="Monthly payout (₹)" field="fixedMonthly" placeholder="40000" width="w-36" />
+                            <RateNumberField config={monthly} set={setM} label="Covers up to (Km)" field="coverKm" placeholder="0" width="w-40" required hint="Put 0 if no km condition" />
+                            <RateNumberField config={monthly} set={setM} label="Per Km after (₹)" field="ratePerKm" placeholder="8" width="w-32" />
+                            <div className="shrink-0 whitespace-nowrap pb-2.5">
+                              <Toggle label="Toll & parking extra" checked={monthly.tollParkingExtra} onChange={(v) => setM('tollParkingExtra', v)} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })
