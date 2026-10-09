@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
 import SortToggle from '../../components/SortToggle.jsx'
 import { card, thCls, tdCls, rowCls, btnPrimary, btnSecondary } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, APPROVAL_STAGE_LABEL, APPROVAL_STAGE_BADGE } from '../../data/clients.js'
-import { CLIENT_CONFIG_TABS, CLIENT_CONFIG_FIELDS_BY_ID, getClientConfigValues, saveClientConfigValues } from '../../data/clientConfigFields.js'
+import { CLIENT_CONFIG_TABS, CLIENT_CONFIG_FIELDS_BY_ID, DOCKET_SERIES_ASSIGNED, getClientConfigValues, saveClientConfigValues } from '../../data/clientConfigFields.js'
+import { validateRanges, rangeUsage, takenRanges, suggestBlock, SERIES_DIGITS } from '../../data/docketSeries.js'
+import { peekNextDocketNumber } from '../../data/dockets.js'
 import { getConsignorsForClient, addConsignorForClient, updateConsignorForClient, removeConsignorForClient } from '../../data/consignors.js'
 import { getConsigneesForClient, addConsigneeForClient, updateConsigneeForClient, removeConsigneeForClient } from '../../data/consignees.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
@@ -52,16 +54,101 @@ function ConfigField({ field, value, onChange, readOnly }) {
 // into these full-width cards. Every field is still a plain dropdown; this
 // is layout only. Stacked full-width (not a side-by-side grid of cards) so a
 // 3-card tab reads top-to-bottom instead of leaving an odd half-width card.
-function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly }) {
+// Assigned Series editor — shown right under the Docket Series dropdown when
+// it's set to Assigned Series. One row per From–To range; dockets draw from
+// them in order, and the system's auto numbering skips them everywhere else.
+const clientName = (id) => [...ACTIVE_CLIENTS_SEED, ...PENDING_CLIENTS_SEED].find((c) => c.id === id)?.name ?? id
+const newRange = () => ({ id: `rng-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, from: '', to: '' })
+
+function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
+  const errors = validateRanges(clientId, ranges, clientName)
+  const taken = takenRanges(clientId)
+  // One tap adds the next free block of that size — into an empty row if one is waiting.
+  const addBlock = (size) => {
+    const b = suggestBlock(clientId, ranges, size)
+    const empty = ranges.findIndex((r) => !r.from && !r.to)
+    onChange(empty >= 0 ? ranges.map((r, j) => (j === empty ? { ...r, ...b } : r)) : [...ranges, { ...newRange(), ...b }])
+  }
+  const setRow = (i, patch) => onChange(ranges.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const digits = (v) => v.replace(/\D/g, '').slice(0, SERIES_DIGITS)
+  const input = 'w-full rounded-lg border bg-white px-3 py-2 text-sm tabular-nums text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40 disabled:bg-slate-50 disabled:text-slate-500'
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:col-span-2 lg:col-span-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-sm font-medium text-slate-700">Series ranges</p>
+        {!readOnly && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+            <span>Next free <span className="font-mono font-medium text-slate-700">{suggestBlock(clientId, ranges, 1).from}</span> — add</span>
+            {[100, 500, 1000, 5000].map((n) => (
+              <button key={n} type="button" onClick={() => addBlock(n)} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-600 hover:border-brand-orange/40 hover:text-brand-orange-dark">
+                {n.toLocaleString('en-IN')}
+              </button>
+            ))}
+            <button type="button" onClick={() => onChange([...ranges, newRange()])} className="ml-1 font-medium text-brand-orange-dark hover:underline">or type your own</button>
+          </div>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-400">
+        Auto numbering is at <span className="font-mono">{peekNextDocketNumber()}</span> and skips every assigned series.
+        {taken.length > 0 && (
+          <details className="mt-1 inline-block align-top">
+            <summary className="ml-1 inline cursor-pointer font-medium text-slate-500">Taken by other clients ({taken.length})</summary>
+            <ul className="mt-1 space-y-0.5 text-slate-500">
+              {taken.map((t) => <li key={`${t.clientId}-${t.from}`}><span className="text-slate-600">{clientName(t.clientId)}</span> <span className="font-mono">{t.from} – {t.to}</span></li>)}
+            </ul>
+          </details>
+        )}
+      </p>
+      {ranges.length === 0 && <p className="text-xs text-amber-700">No series yet — add one, or this client's dockets fall back to auto numbers.</p>}
+      {ranges.map((r, i) => {
+        const usage = rangeUsage(clientId, r)
+        const err = errors[i]
+        const status = !usage ? null : usage.remaining === 0 ? 'Exhausted' : ranges.slice(0, i).every((p) => (rangeUsage(clientId, p)?.remaining ?? 0) === 0) ? 'Active' : 'Queued'
+        return (
+          <div key={r.id} className="space-y-1">
+            <div className="grid items-center gap-2.5 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
+              <input value={r.from} disabled={readOnly} onChange={(e) => setRow(i, { from: digits(e.target.value) })} placeholder="From" inputMode="numeric" aria-label={`Series ${i + 1} from`} className={`${input} ${err ? 'border-red-300' : 'border-slate-200'}`} />
+              <input value={r.to} disabled={readOnly} onChange={(e) => setRow(i, { to: digits(e.target.value) })} placeholder="To" inputMode="numeric" aria-label={`Series ${i + 1} to`} className={`${input} ${err ? 'border-red-300' : 'border-slate-200'}`} />
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                {usage ? (
+                  <>
+                    <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-brand-orange" style={{ width: `${Math.round((usage.used / usage.total) * 100)}%` }} /></div>
+                    <span>{usage.total.toLocaleString('en-IN')} numbers · {usage.used.toLocaleString('en-IN')} used · <span className={usage.remaining === 0 ? 'font-medium text-red-600' : 'font-medium text-slate-700'}>{usage.remaining.toLocaleString('en-IN')} left</span></span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${status === 'Active' ? 'bg-emerald-100 text-emerald-700' : status === 'Exhausted' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-600'}`}>{status}</span>
+                  </>
+                ) : null}
+              </div>
+              {!readOnly && (
+                <button type="button" onClick={() => onChange(ranges.filter((_, j) => j !== i))} disabled={!!usage && usage.used > 0} title={usage && usage.used > 0 ? 'Numbers already used — can\'t remove' : 'Remove series'} className="text-slate-400 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-30">
+                  <Icon name="trash" className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {err && ranges[i].from && ranges[i].to && <p className="text-xs text-red-600">{err}</p>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly, clientId, yetToBuild }) {
   return (
     <div className={`space-y-5 p-6 ${card}`}>
       <div className="flex items-center gap-2 border-b border-slate-100 pb-3 text-base font-semibold text-slate-800">
         <Icon name={icon} className="h-5 w-5 shrink-0 text-brand-orange-dark" />
         {title}
+        {yetToBuild && <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Yet to be built</span>}
       </div>
-      <div className="grid gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Yet-to-build cards keep their dropdowns (dimmed, not editable) so nothing is lost for later. */}
+      <div className={`grid gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 ${yetToBuild ? 'pointer-events-none opacity-50' : ''}`}>
         {fieldIds.map((fieldId) => (
-          <ConfigField key={fieldId} field={CLIENT_CONFIG_FIELDS_BY_ID[fieldId]} value={values[fieldId]} onChange={onChange} readOnly={readOnly} />
+          <Fragment key={fieldId}>
+            <ConfigField field={CLIENT_CONFIG_FIELDS_BY_ID[fieldId]} value={values[fieldId]} onChange={onChange} readOnly={readOnly || yetToBuild} />
+            {fieldId === 'docket-series' && values['docket-series'] === DOCKET_SERIES_ASSIGNED && (
+              <SeriesPanel clientId={clientId} ranges={values['docket-series-ranges'] ?? []} onChange={(next) => onChange('docket-series-ranges', next)} readOnly={readOnly} />
+            )}
+          </Fragment>
         ))}
       </div>
     </div>
@@ -291,6 +378,8 @@ function ClientConfigForm({ client, canEdit, onBack }) {
   }
 
   const isDirty = JSON.stringify(values) !== JSON.stringify(saved)
+  // An assigned series with a bad range can't be saved.
+  const seriesInvalid = values['docket-series'] === DOCKET_SERIES_ASSIGNED && validateRanges(client.id, values['docket-series-ranges'] ?? [], clientName).some(Boolean)
   const currentTab = CLIENT_CONFIG_TABS.find((t) => t.id === activeTab) ?? CLIENT_CONFIG_TABS[0]
 
   return (
@@ -313,7 +402,7 @@ function ClientConfigForm({ client, canEdit, onBack }) {
             <button type="button" onClick={handleRevert} disabled={!isDirty} className={`${btnSecondary} disabled:cursor-not-allowed disabled:opacity-40`}>
               Revert
             </button>
-            <button type="button" onClick={handleSave} disabled={!isDirty} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
+            <button type="button" onClick={handleSave} disabled={!isDirty || seriesInvalid} title={seriesInvalid ? 'Fix the docket series ranges first' : undefined} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
               Save configuration
             </button>
           </div>
@@ -346,7 +435,7 @@ function ClientConfigForm({ client, canEdit, onBack }) {
           <div className={`p-6 text-sm text-slate-400 ${card}`}>Fields for this tab haven't been defined yet.</div>
         ) : (
           currentTab.cards.map((c) => (
-            <ConfigCard key={c.title} title={c.title} icon={c.icon} fieldIds={c.fieldIds} values={values} onChange={handleChange} readOnly={!canEdit} />
+            <ConfigCard key={c.title} title={c.title} icon={c.icon} fieldIds={c.fieldIds} values={values} onChange={handleChange} readOnly={!canEdit} clientId={client.id} yetToBuild={c.yetToBuild} />
           ))
         )}
       </div>

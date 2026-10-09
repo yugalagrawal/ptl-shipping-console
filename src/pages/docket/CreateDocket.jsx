@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import DocketSheet from '../../components/DocketSheet.jsx'
 import { card, btnPrimary, btnSecondary } from '../../components/ui.js'
@@ -12,6 +13,8 @@ import {
 import { INDIAN_STATES } from '../../data/geo.js'
 import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
 import { goodsByHsn, searchGoods } from '../../data/goodsCatalog.js'
+import { seriesState, peekSeriesNumber } from '../../data/docketSeries.js'
+import { BOX_MASTER, addBoxToMaster } from '../../data/boxMaster.js'
 import { PRS_SEED } from '../../data/prs.js'
 import { FLEET_SEED } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
@@ -61,15 +64,6 @@ function SegmentedControl({ options, value, onChange }) {
           {o.label}
         </button>
       ))}
-    </div>
-  )
-}
-
-function AutoChip({ label, value }) {
-  return (
-    <div className="rounded-xl border border-slate-200/70 bg-slate-50/60 px-3.5 py-2.5">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label} <span className="text-brand-orange-dark">(auto)</span></p>
-      <p className="mt-0.5 text-sm font-semibold text-slate-800">{value}</p>
     </div>
   )
 }
@@ -225,7 +219,7 @@ function PickupSearch({ onSelect }) {
   )
 }
 
-const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, label: 'STD', l: '', b: '', h: '', qty: 1 })
+const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, boxId: '', label: '', l: '', b: '', h: '', qty: 1 })
 
 function packageVolumeCft(row) {
   const l = Number(row.l) || 0, b = Number(row.b) || 0, h = Number(row.h) || 0, qty = Number(row.qty) || 0
@@ -362,6 +356,11 @@ const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
 
 function DocketForm({ pickup, onGenerated }) {
+  const navigate = useNavigate()
+  // Assigned docket series (Client Configuration): once a client's numbers run
+  // out, ops chooses — auto-generate this docket's number, or assign a new series.
+  const [seriesAuto, setSeriesAuto] = useState(false)
+  const series = seriesState(pickup.clientId)
   const hasDetails = pickup.packagesCount != null
 
   // ① / ② Consignor is read straight off the pickup (it's who booked it);
@@ -378,8 +377,13 @@ function DocketForm({ pickup, onGenerated }) {
   const [consignorPincode, setConsignorPincode] = useState(pickup.consignor?.pincode ?? '')
   const [consigneeGstin, setConsigneeGstin] = useState('')
 
-  const [actualWeightKg, setActualWeightKg] = useState(pickup.actualWeightKg ?? '')
-  const [packagesCount, setPackagesCount] = useState(pickup.packagesCount ?? '')
+  // Actual weight and package count are always typed fresh — the pickup's
+  // figures are only an estimate, shown as a watermark, so the entry is a real
+  // check against it rather than a copy.
+  const [actualWeightKg, setActualWeightKg] = useState('')
+  const [packagesCount, setPackagesCount] = useState('')
+  const estWeight = pickup.actualWeightKg ?? pickup.estWeightKg ?? null
+  const estCount = pickup.packagesCount ?? pickup.packagesEstimate ?? null
 
   // ⑥⑦ Mode + delivery type (the B/L/V shorthand — Solo MH / Direct Hub /
   // Direct MH) — manual, since routing hasn't run yet at docket time.
@@ -412,11 +416,27 @@ function DocketForm({ pickup, onGenerated }) {
 
   // ⑨⑩ Packages — dimensions per SKU row, actual weight above, volumetric
   // computed here (auto), chargeable weight = MAX(actual, volumetric).
-  const [packageRows, setPackageRows] = useState([{ ...emptyPackageRow(), qty: pickup.packagesCount ?? 1 }])
+  const [packageRows, setPackageRows] = useState([emptyPackageRow()])
+  const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
+  // Box dimensions are stored in cm; this only switches how they're shown and
+  // typed (inches convert automatically both ways).
+  const [dimUnit, setDimUnit] = useState('cm')
+  const toUnit = (cm) => (dimUnit === 'in' ? Math.round((Number(cm) / 2.54) * 10) / 10 : cm)
+  const toCm = (v) => (dimUnit === 'in' ? Math.round(Number(v) * 2.54 * 10) / 10 : Number(v))
+  const dims3 = (x) => `${toUnit(x.l)} × ${toUnit(x.b)} × ${toUnit(x.h)}`
+  const [creatingBoxFor, setCreatingBoxFor] = useState(null) // row id
+  const [newBox, setNewBox] = useState({ l: '', b: '', h: '' })
   const totalVolumeCft = useMemo(() => packageRows.reduce((s, r) => s + packageVolumeCft(r), 0), [packageRows])
   const volKg = useMemo(() => volumetricWeightKg(totalVolumeCft), [totalVolumeCft])
-  const enteredActualWeight = hasDetails ? pickup.actualWeightKg : Number(actualWeightKg) || 0
+  const enteredActualWeight = Number(actualWeightKg) || 0
   const chargeableWeight = Math.max(enteredActualWeight, volKg)
+  // Boxes this docket must account for; the size rows' quantities should add up to it.
+  const totalBoxes = Number(packagesCount) || 0
+  // With a single size, its quantity just follows the package count.
+  useEffect(() => {
+    if (totalBoxes > 0) setPackageRows((rows) => (rows.length === 1 && Number(rows[0].qty) !== totalBoxes ? [{ ...rows[0], qty: totalBoxes }] : rows))
+  }, [totalBoxes])
+  const boxesCovered = packageRows.reduce((n, r) => n + (Number(r.qty) || 0), 0)
 
   // ⑧ ODA — real build resolves this from Location Master's Serviceability
   // (is the consignee's pincode inside a mapped Hub/Mini Hub's coverage?);
@@ -501,7 +521,7 @@ function DocketForm({ pickup, onGenerated }) {
   const ewayNeed = ewayNeedCheck({ value: Number(checkValue) || 0, exempt: EWAY_EXEMPT_GOODS.find((g) => g.hsn === checkCategory) ?? null, special: ewayMandatorySpecial })
   const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok'
   const canSubmit = !generatedDocket &&
-    (hasDetails || (actualWeightKg && packagesCount)) && consigneeName.trim() &&
+    actualWeightKg && packagesCount && packageRows.every((r) => r.boxId) && consigneeName.trim() && !(!pickup.docketNumber && series.exhausted && !seriesAuto) &&
     ewayReady
 
   // Draft preview — the same shape a real docket has, built live from
@@ -527,13 +547,13 @@ function DocketForm({ pickup, onGenerated }) {
   const destCity = consigneeCity.trim()
   const destinationMiniHubName = MINI_HUBS.find((h) => h.city.toLowerCase() === destCity.toLowerCase())?.name ?? (destCity ? `${destCity} Depot` : '')
   const draftDocket = {
-    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? peekNextDocketNumber(),
+    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId) : peekNextDocketNumber()),
     status: 'pending',
     clientName: pickup.clientName,
     pickupId: pickup.id,
     dropMiniHubName: pickup.dropMiniHubName,
     consignee: { name: consigneeName, address: consigneeAddress, city: consigneeCity, pincode: consigneePincode },
-    awbCount: hasDetails ? pickup.awbCount ?? pickup.packagesCount : Number(packagesCount) || 0,
+    awbCount: totalBoxes,
     awbNumbers: previewAwbNumbers,
     totalWeightKg: enteredActualWeight,
     createdAt: generatedDocket ? 'Just now' : 'Draft — not yet generated',
@@ -556,7 +576,15 @@ function DocketForm({ pickup, onGenerated }) {
   }
 
   function addPackageRow() {
-    setPackageRows((prev) => [...prev, emptyPackageRow()])
+    // The new size takes the boxes still unassigned; if every box is already
+    // sized, it takes one from the last row that has more than one.
+    setPackageRows((prev) => {
+      const left = totalBoxes - prev.reduce((n, r) => n + (Number(r.qty) || 0), 0)
+      if (left > 0) return [...prev, { ...emptyPackageRow(), qty: left }]
+      const donor = [...prev].reverse().find((r) => Number(r.qty) > 1)
+      const next = donor ? prev.map((r) => (r.id === donor.id ? { ...r, qty: Number(r.qty) - 1 } : r)) : prev
+      return [...next, { ...emptyPackageRow(), qty: 1 }]
+    })
   }
   function updatePackageRow(id, patch) {
     setPackageRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
@@ -588,6 +616,7 @@ function DocketForm({ pickup, onGenerated }) {
       vehicleNo, transporterGstin,
       invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
       goodsDescription, hsnCode, invoiceDate, isOda,
+      awbCount: totalBoxes, totalWeightKg: enteredActualWeight,
       consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
       consignor: { ...pickup.consignor, name: consignorName.trim(), address: consignorAddress.trim(), city: consignorCity.trim(), pincode: consignorPincode.trim() }, consigneeGstin, packageRows, volumetricWeightKg: volKg,
       paymentTerm, riskCover, insuranceCompany, policyNo,
@@ -634,9 +663,27 @@ function DocketForm({ pickup, onGenerated }) {
       </div>
 
       <div className={`min-w-0 space-y-4 ${view === 'details' ? '' : 'hidden'}`}>
+        {!pickup.docketNumber && !generatedDocket && series.exhausted && (
+          <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${seriesAuto ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-red-200 bg-red-50 text-red-800'}`}>
+            {seriesAuto ? (
+              <span>Series exhausted — this docket gets a system-generated number.</span>
+            ) : (
+              <>
+                <span><span className="font-semibold">Docket series exhausted</span> — {series.ranges.length ? 'every number in this client\'s assigned series is used.' : 'this client has no series assigned.'}</span>
+                <span className="flex items-center gap-2">
+                  <button type="button" onClick={() => setSeriesAuto(true)} className={btnSecondary}>Auto-generate</button>
+                  <button type="button" onClick={() => navigate('/client-module/client-configuration')} className={btnPrimary}>Assign new series</button>
+                </span>
+              </>
+            )}
+          </div>
+        )}
+        {!pickup.docketNumber && !generatedDocket && series.low && (
+          <p className="rounded-xl bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Only {series.remaining} number{series.remaining === 1 ? '' : 's'} left in this client's docket series — assign a new one soon.</p>
+        )}
         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber}</span></p>
+            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
               <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
               <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
@@ -943,51 +990,114 @@ function DocketForm({ pickup, onGenerated }) {
         </SectionCard>
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <SectionCard title="Packages">
-          {!hasDetails && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <Field label="Actual weight (kg) *" type="number" value={actualWeightKg} onChange={(e) => setActualWeightKg(e.target.value)} placeholder="0.0" />
-              <Field label="Package count *" type="number" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder="0" />
+        <SectionCard
+          title="Goods details"
+          action={<span className="text-xs font-medium text-slate-500">{totalBoxes} box{totalBoxes === 1 ? '' : 'es'} · {enteredActualWeight} kg</span>}
+        >
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <Field dense label="1 · Actual weight (kg) *" type="number" min="0" value={actualWeightKg} onChange={(e) => setActualWeightKg(e.target.value)} placeholder={estWeight != null ? String(estWeight) : '0.0'} />
+              {estWeight != null && Number(actualWeightKg) > 0 && Math.abs(Number(actualWeightKg) - estWeight) / estWeight > 0.1 && (
+                <p className="mt-1 text-[11px] text-amber-600">Estimate was {estWeight} kg</p>
+              )}
             </div>
-          )}
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  <th className="px-2.5 py-1.5">Size</th>
-                  <th className="px-2.5 py-1.5">L</th>
-                  <th className="px-2.5 py-1.5">B</th>
-                  <th className="px-2.5 py-1.5">H <span className="normal-case">(cm)</span></th>
-                  <th className="px-2.5 py-1.5">Qty</th>
-                  <th className="px-2.5 py-1.5">CFT</th>
-                  <th className="px-2.5 py-1.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {packageRows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-100">
-                    <td className="px-2.5 py-1"><input value={row.label} onChange={(e) => updatePackageRow(row.id, { label: e.target.value })} className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.l} onChange={(e) => updatePackageRow(row.id, { l: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.b} onChange={(e) => updatePackageRow(row.id, { b: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.h} onChange={(e) => updatePackageRow(row.id, { h: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1 tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</td>
-                    <td className="px-2.5 py-1">
-                      <button type="button" onClick={() => removePackageRow(row.id)} className="text-slate-400 hover:text-red-500"><Icon name="trash" className="h-4 w-4" /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div>
+              <Field dense label="2 · Actual package count *" type="number" min="1" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder={estCount != null ? String(estCount) : '0'} />
+              {estCount != null && Number(packagesCount) > 0 && Number(packagesCount) !== estCount && (
+                <p className="mt-1 text-[11px] text-amber-600">Estimate was {estCount}</p>
+              )}
+            </div>
           </div>
-          <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            <Icon name="plus" className="h-3.5 w-3.5" /> Add row
-          </button>
-          <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
-            <AutoChip label="Volume (CFT)" value={totalVolumeCft.toFixed(1)} />
-            <AutoChip label="Volumetric" value={`${volKg.toFixed(1)} kg`} />
-            <AutoChip label="Actual" value={`${enteredActualWeight} kg`} />
-            <AutoChip label="Chargeable" value={`${chargeableWeight.toFixed(1)} kg`} />
+
+          <div className="space-y-2">
+            <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              <span>3 · Box size</span>
+              <span className="flex items-center gap-1.5">
+                L × B × H
+                <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold normal-case">
+                  {['cm', 'in'].map((u) => (
+                    <button key={u} type="button" onClick={() => setDimUnit(u)} className={`rounded px-1.5 py-0.5 ${dimUnit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
+                  ))}
+                </span>
+              </span>
+              <span>Qty</span><span className="text-right">CFT</span><span />
+            </div>
+            {packageRows.map((row) => {
+              const cell = 'w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1.5 text-sm tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+              const box = boxes.find((x) => x.id === row.boxId)
+              return (
+                <div key={row.id} className="space-y-1.5">
+                  <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
+                    <select
+                      value={row.boxId}
+                      onChange={(e) => {
+                        if (e.target.value === '__create') { setCreatingBoxFor(row.id); setNewBox({ l: '', b: '', h: '' }); return }
+                        const x = boxes.find((bx) => bx.id === e.target.value)
+                        updatePackageRow(row.id, x ? { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h } : { boxId: '', label: '', l: '', b: '', h: '' })
+                      }}
+                      className={`${cell} ${row.boxId ? '' : 'text-slate-400'}`}
+                      aria-label="Box size"
+                    >
+                      <option value="">{`Select box (${dimUnit})`}</option>
+                      {boxes.map((x) => <option key={x.id} value={x.id}>{x.name} — {dims3(x).replaceAll(' ', '')} {dimUnit}</option>)}
+                      <option value="__create">+ Create new box…</option>
+                    </select>
+                    <span className="truncate text-sm tabular-nums text-slate-500">{box ? `${dims3(box)} ${dimUnit}` : '—'}</span>
+                    <input type="number" min="1" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className={cell} aria-label="Quantity" />
+                    <span className="text-right text-sm tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</span>
+                    <button type="button" onClick={() => removePackageRow(row.id)} disabled={packageRows.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30" aria-label="Remove size"><Icon name="trash" className="h-4 w-4" /></button>
+                  </div>
+                  {creatingBoxFor === row.id && (
+                    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+                      {[['l', 'L'], ['b', 'B'], ['h', 'H']].map(([k, label]) => (
+                        <label key={k} className="block"><span className="mb-1 block text-[11px] text-slate-500">{label} ({dimUnit})</span><input type="number" min="1" value={newBox[k]} onChange={(e) => setNewBox({ ...newBox, [k]: e.target.value })} className={`${cell} w-20`} aria-label={`New box ${label}`} /></label>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={!(Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0)}
+                        onClick={() => {
+                          const x = addBoxToMaster({ l: toCm(newBox.l), b: toCm(newBox.b), h: toCm(newBox.h) })
+                          setBoxes([...BOX_MASTER])
+                          updatePackageRow(row.id, { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h })
+                          setCreatingBoxFor(null)
+                        }}
+                        className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
+                      >
+                        Add box
+                      </button>
+                      <button type="button" onClick={() => setCreatingBoxFor(null)} className="pb-2 text-xs font-medium text-slate-400 hover:text-slate-600">Cancel</button>
+                      {dimUnit === 'in' && Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0 && (
+                        <span className="basis-full text-[11px] text-slate-400">= {toCm(newBox.l)} × {toCm(newBox.b)} × {toCm(newBox.h)} cm (stored in cm)</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            <div className="flex items-center justify-between pt-0.5">
+              <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1 text-xs font-medium text-brand-orange-dark hover:underline">
+                <Icon name="plus" className="h-3.5 w-3.5" /> Another size
+              </button>
+              {totalBoxes > 0 && (
+                <span className={`text-xs font-medium ${boxesCovered === totalBoxes ? 'text-emerald-600' : boxesCovered > totalBoxes ? 'text-red-600' : 'text-amber-600'}`}>
+                  {boxesCovered === totalBoxes ? `✓ All ${totalBoxes} boxes sized` : boxesCovered > totalBoxes ? `${boxesCovered - totalBoxes} too many — ${totalBoxes} boxes` : `${boxesCovered} of ${totalBoxes} sized — ${totalBoxes - boxesCovered} left`}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 divide-x divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/60 text-center">
+            {[
+              ['Volume', `${totalVolumeCft.toFixed(1)} CFT`, false],
+              ['Volumetric', `${volKg.toFixed(1)} kg`, volKg > enteredActualWeight],
+              ['Actual', `${enteredActualWeight} kg`, enteredActualWeight >= volKg],
+              ['Chargeable', `${chargeableWeight.toFixed(1)} kg`, null],
+            ].map(([label, value, applies]) => (
+              <div key={label} className="px-2 py-2">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}{applies === true && <span className="ml-1 normal-case text-brand-orange-dark">· applies</span>}</p>
+                <p className={`text-sm font-semibold tabular-nums ${label === 'Chargeable' ? 'text-brand-orange-dark' : 'text-slate-800'}`}>{value}</p>
+              </div>
+            ))}
           </div>
         </SectionCard>
 

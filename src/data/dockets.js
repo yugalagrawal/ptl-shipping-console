@@ -5,6 +5,8 @@
 // arrived-but-stuck pickups — see CreateDocket.jsx). Either way it's the
 // same action on the same pickup record, so there's exactly one creation
 // path — no separate "manual" docket shape.
+import { allocateDocketNumber, isReservedDocketNumber } from './docketSeries.js'
+
 export const DOCKET_STATUS = {
   PENDING: 'pending',
   READY_FOR_TRIP: 'ready_for_trip',
@@ -52,7 +54,10 @@ function logEntry(label, note = '', at = Date.now()) {
 // Docket numbers are 10-digit numeric. Random placeholder for now — the real
 // 10-digit logic is still to be defined.
 function randomDocketNumber() {
-  return String(Math.floor(1e9 + Math.random() * 9e9))
+  let n
+  do n = String(Math.floor(1e9 + Math.random() * 9e9))
+  while (isReservedDocketNumber(n)) // never hand out a number inside a client's assigned series
+  return n
 }
 let upcomingDocketNumber = randomDocketNumber()
 function nextDocketNumber() {
@@ -96,7 +101,9 @@ export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'H
 // (data/pickups.js), so a docket does too — not a list.
 export function createDocketFromPickup(pickup) {
   const docket = {
-    docketNumber: nextDocketNumber(),
+    // Assigned-series clients draw from their own range; everyone else (and
+    // an exhausted series) falls back to the system auto number.
+    docketNumber: allocateDocketNumber(pickup.clientId) ?? nextDocketNumber(),
     pickupId: pickup.id,
     clientName: pickup.clientName,
     dropMiniHubName: pickup.dropMiniHubName,
