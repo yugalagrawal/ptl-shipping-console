@@ -7,7 +7,7 @@ import { PICKUPS_SEED, PICKUP_STATUS, MINI_HUBS, updatePickupFieldDetails, scanP
 import {
   MODE, MODE_LABEL,
   PAYMENT_TERM, PAYMENT_TERM_LABEL, RISK_COVER, RISK_COVER_LABEL, POD_TYPE, POD_TYPE_LABEL,
-  peekNextDocketNumber, enrichDocketDetails,
+  peekNextDocketNumber, enrichDocketDetails, createDocketFromPickup, DOCKETS_SEED,
 } from '../../data/dockets.js'
 import { INDIAN_STATES } from '../../data/geo.js'
 import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
@@ -99,7 +99,12 @@ function vehicleFor(pickup) {
 }
 
 function candidatePickups() {
-  return PICKUPS_SEED.filter((p) => (p.status === PICKUP_STATUS.GROUPED || p.status === PICKUP_STATUS.ARRIVED) && !p.docketNumber)
+  return PICKUPS_SEED.filter((p) => {
+    if (p.status !== PICKUP_STATUS.GROUPED && p.status !== PICKUP_STATUS.ARRIVED) return false
+    // A multi-consignee pickup stays listed until every consignee has its docket.
+    const dests = p.details?.destinations?.filter((d) => d.consignee?.name) ?? []
+    return dests.length > 1 ? dests.some((d) => !docketForDestination(p.id, d)) : !p.docketNumber
+  })
 }
 
 // Single search-by-Pickup-ID box — replaces a browsable list entirely. A
@@ -356,7 +361,7 @@ function ewayNeedCheck({ value, exempt, special }) {
 const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
 
-function DocketForm({ pickup }) {
+function DocketForm({ pickup, onGenerated }) {
   const hasDetails = pickup.packagesCount != null
 
   // ① / ② Consignor is read straight off the pickup (it's who booked it);
@@ -572,7 +577,10 @@ function DocketForm({ pickup }) {
     const target = pickup.packagesCount ?? Number(packagesCount)
     while (pickup.scannedCount < target) scanPackage(pickup.id)
 
-    const docket = enrichDocketDetails(pickup.docketNumber, {
+    // A consignee picked from a multi-consignee pickup may not have its docket
+    // yet — raise it first, then fill in the details below.
+    const docketNumber = pickup.docketNumber ?? createDocketFromPickup(pickup).docketNumber
+    const docket = enrichDocketDetails(docketNumber, {
       mode,
       ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
       ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
@@ -590,6 +598,7 @@ function DocketForm({ pickup }) {
       pricing,
     })
     setGeneratedDocket(docket)
+    onGenerated?.()
   }
 
   async function handleShare() {
@@ -1056,15 +1065,74 @@ function DocketForm({ pickup }) {
   )
 }
 
+// A pickup can carry several consignees (Create Pickup's consignee list) and a
+// docket is raised for exactly one of them — so with more than one, nothing
+// else is shown until the user picks who this docket is for. The form then
+// works off a copy of the pickup narrowed to that destination (its consignee,
+// boxes, weight and share of the package IDs).
+const docketForDestination = (pickupId, dest) =>
+  DOCKETS_SEED.find((d) => d.pickupId === pickupId && sameText(d.consignee?.name, dest.consignee.name)) ?? null
+
+function destinationView(pickup, destinations, idx) {
+  const dest = destinations[idx]
+  const offset = destinations.slice(0, idx).reduce((n, d) => n + (d.boxes || 0), 0)
+  return {
+    ...pickup,
+    consignee: dest.consignee,
+    packagesCount: dest.boxes,
+    scannedCount: dest.boxes,
+    actualWeightKg: dest.kg,
+    awbNumbers: (pickup.awbNumbers ?? []).slice(offset, offset + dest.boxes),
+    docketNumber: docketForDestination(pickup.id, dest)?.docketNumber,
+  }
+}
+
+function DocketForChooser({ pickup, destinations, value, onChange }) {
+  const raised = destinations.filter((d) => docketForDestination(pickup.id, d)).length
+  return (
+    <div className={`space-y-2 p-3 ${card}`}>
+      <p className="flex items-center justify-between text-xs font-semibold text-slate-700">
+        Docket for
+        <span className="font-normal text-slate-400">{raised} of {destinations.length} dockets raised</span>
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {destinations.map((d, i) => {
+          const docket = docketForDestination(pickup.id, d)
+          const active = value === i
+          return (
+            <button
+              key={d.consignee.name}
+              type="button"
+              onClick={() => onChange(i)}
+              className={`rounded-xl border px-3 py-2 text-left transition ${active ? 'border-brand-orange bg-brand-orange/5' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+            >
+              <p className="truncate text-sm font-medium text-slate-800">{d.consignee.name}</p>
+              <p className="text-xs text-slate-500">{d.consignee.city} · {d.boxes} box{d.boxes === 1 ? '' : 'es'} · {d.kg} kg</p>
+              <p className={`mt-1 text-[11px] font-medium ${docket ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {docket ? `Docket ${docket.docketNumber}` : 'Docket not raised'}
+              </p>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function CreateDocket() {
   const [, bump] = useState(0)
   const refresh = () => bump((n) => n + 1)
   const [selectedId, setSelectedId] = useState(null)
+  const [destIdx, setDestIdx] = useState(null)
 
   const selected = selectedId ? PICKUPS_SEED.find((p) => p.id === selectedId) ?? null : null
+  const destinations = selected?.details?.destinations?.filter((d) => d.consignee?.name) ?? []
+  const multi = destinations.length > 1
+  const formPickup = !selected ? null : multi ? (destIdx != null ? destinationView(selected, destinations, destIdx) : null) : selected
 
   function handleSelect(pickup) {
     setSelectedId(pickup.id)
+    setDestIdx(null)
     refresh()
   }
 
@@ -1076,8 +1144,12 @@ export default function CreateDocket() {
 
       <PickupSearch onSelect={handleSelect} />
 
-      {selected ? (
-        <DocketForm key={selected.id} pickup={selected} />
+      {multi && <DocketForChooser pickup={selected} destinations={destinations} value={destIdx} onChange={(i) => { setDestIdx(i); refresh() }} />}
+
+      {formPickup ? (
+        <DocketForm key={`${selected.id}:${destIdx ?? 'x'}`} pickup={formPickup} onGenerated={refresh} />
+      ) : multi ? (
+        <div className={`p-8 text-center text-sm text-slate-500 ${card}`}>Pick the consignee this docket is for.</div>
       ) : (
         <div className={`flex flex-col items-center justify-center gap-2 p-14 text-center ${card}`}>
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange-dark">

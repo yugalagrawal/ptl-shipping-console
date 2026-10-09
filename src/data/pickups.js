@@ -415,6 +415,11 @@ export const PICKUPS_SEED = [
     estWeightKg: 140, status: PICKUP_STATUS.ARRIVED, prsId: 'PRS-102',
     actualWeightKg: 145, volumetricWeightKg: 150,
     consignee: { name: 'Oriflame Distributor — Vazhuthacaud', city: 'Kochi', pincode: '682001' },
+    // Two consignees on one pickup — a docket is raised per consignee (Create Docket asks which).
+    details: { destinations: [
+      { consignee: { name: 'Oriflame Distributor — Vazhuthacaud', city: 'Kochi', pincode: '682001', state: 'Kerala' }, boxes: 5, kg: 90 },
+      { consignee: { name: 'Oriflame Distributor — T. Nagar', city: 'Chennai', pincode: '600017', state: 'Tamil Nadu' }, boxes: 3, kg: 55 },
+    ] },
     packagesCount: 8, scannedCount: 3,
     awbNumbers: ['PU-3398-AWB-01', 'PU-3398-AWB-02', 'PU-3398-AWB-03'],
     docketNumber: null, createdAt: '1 day ago',
