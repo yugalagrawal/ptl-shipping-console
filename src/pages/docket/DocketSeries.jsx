@@ -1,25 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import { card, thCls, tdCls, rowCls, pill } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
-import { seriesState, SERIES_BLOCKS, blockOfNumber } from '../../data/docketSeries.js'
-import { DOCKETS_SEED, MODE_LABEL } from '../../data/dockets.js'
+import { seriesState, SERIES_LOW_AT, SERIES_BLOCKS, blockOfNumber, consumedSeries, consumedInSeries } from '../../data/docketSeries.js'
+import { DOCKETS_SEED, MODE_LABEL, peekNextDocketNumber } from '../../data/dockets.js'
 import { fmtDocket } from '../../data/docketNumber.js'
 
 const th = thCls.replace('px-6', 'px-3')
 const td = tdCls.replace('px-6', 'px-3')
 const overlaps = (r, lo, hi) => r.from <= hi && r.to >= lo
 const searchBox = 'w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40'
-
-function SearchField({ value, onChange, placeholder, label }) {
-  return (
-    <div className="relative">
-      <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} className={searchBox} />
-    </div>
-  )
-}
 
 // Clients that hold an assigned series. One that's about to run out is flagged
 // right in its row — if nobody assigns more, Automatic numbering takes over.
@@ -60,6 +51,7 @@ function ClientSeries({ query }) {
           <tbody>
             {shown.map(({ client, s }) => {
               const about = s.low
+              const multiMode = new Set(s.ranges.map((r) => blockOfNumber(r.from)?.assigned)).size > 1
               const done = s.exhausted
               return (
                 <tr key={client.id} className={`${rowCls} align-top`}>
@@ -69,7 +61,7 @@ function ClientSeries({ query }) {
                     {s.ranges.length ? (
                       <ul className="space-y-0.5 font-mono text-xs">
                         {s.ranges.map((r) => (
-                          <li key={r.id} className={r.status === 'exhausted' ? 'text-slate-300 line-through' : 'text-slate-700'}>{fmtDocket(r.from)} – {fmtDocket(r.to)}</li>
+                          <li key={r.id} className={r.status === 'exhausted' ? 'text-slate-300 line-through' : 'text-slate-700'}>{multiMode && <span className="mr-2 font-sans text-[10px] font-medium uppercase text-slate-400">{blockOfNumber(r.from)?.assigned}</span>}{fmtDocket(r.from)} – {fmtDocket(r.to)}</li>
                         ))}
                       </ul>
                     ) : <span className="text-xs text-red-500">No valid series</span>}
@@ -79,10 +71,10 @@ function ClientSeries({ query }) {
                   <td className={`${td} whitespace-normal`}>
                     {done || about ? (
                       <div className="max-w-[16rem] space-y-1">
-                        <span className={`${pill} !py-0.5 ${done ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>{done ? 'Consumed' : 'About to be consumed'}</span>
+                        <span className={`${pill} !py-0.5 ${done ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>{done ? 'Consumed' : `<${SERIES_LOW_AT} series left`}</span>
                         <p className="text-[11px] leading-snug text-slate-500">
                           {done ? 'Automatic numbering is in use.' : 'Assign more, or Automatic will be used by default.'}{' '}
-                          <Link to="/client-module/client-configuration" className="font-medium text-brand-orange-dark hover:underline">Assign</Link>
+                          <Link to={`/client-module/client-configuration?client=${client.id}&tab=booking-tracking`} className="font-medium text-brand-orange-dark hover:underline">Assign</Link>
                         </p>
                       </div>
                     ) : <span className={`${pill} !py-0.5 bg-emerald-50 text-emerald-700`}>Active</span>}
@@ -106,6 +98,26 @@ const seriesOf = (docketNumber) => {
   return { mode: blockOfNumber(docketNumber)?.assigned ?? '—', owner: client ? client.name : 'Automatic' }
 }
 
+function ResultLine({ l }) {
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
+      <span className="font-mono font-semibold tracking-wider text-slate-900">{fmtDocket(l.number)}</span>
+      {l.consumed ? (
+        <>
+          <span className={`${pill} !py-0.5 bg-slate-100 text-slate-600`}>Consumed</span>
+          <span className="text-slate-600">{l.parts.join('  ·  ')}</span>
+        </>
+      ) : (
+        <>
+          <span className={`${pill} !py-0.5 bg-emerald-50 text-emerald-700`}>Not consumed yet</span>
+          <span className="text-slate-600">Mode: {l.mode}</span>
+          <span className="text-slate-400">{l.client ? `Client: ${l.client}` : 'No client assigned'}</span>
+        </>
+      )}
+    </p>
+  )
+}
+
 // Typing a docket number answers one thing, live: is it consumed, and if not,
 // which mode and client it is set aside for.
 function DocketResults({ query }) {
@@ -119,28 +131,14 @@ function DocketResults({ query }) {
   // A full number that hasn't been issued: show where it sits.
   if (lines.length === 0 && q.length === 10) {
     const ser = seriesOf(q)
-    lines.push({ key: q, number: q, consumed: false, mode: ser.mode, client: ser.owner === 'Automatic' ? null : ser.owner })
+    const used = consumedInSeries(q)
+    if (used) lines.push({ key: q, number: q, consumed: true, parts: [ser.owner, 'Assigned series', ser.mode] })
+    else lines.push({ key: q, number: q, consumed: false, mode: ser.mode, client: ser.owner === 'Automatic' ? null : ser.owner })
   }
   if (lines.length === 0) return <div className={`${card} px-4 py-4 text-sm text-slate-400`}>No consumed docket starts with “{q}”.</div>
   return (
     <div className={`${card} divide-y divide-slate-100`}>
-      {lines.map((l) => (
-        <p key={l.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
-          <span className="font-mono font-semibold tracking-wider text-slate-900">{fmtDocket(l.number)}</span>
-          {l.consumed ? (
-            <>
-              <span className={`${pill} !py-0.5 bg-slate-100 text-slate-600`}>Consumed</span>
-              <span className="text-slate-600">{l.parts.join('  ·  ')}</span>
-            </>
-          ) : (
-            <>
-              <span className={`${pill} !py-0.5 bg-emerald-50 text-emerald-700`}>Not consumed yet</span>
-              <span className="text-slate-600">Mode: {l.mode}</span>
-              <span className="text-slate-400">{l.client ? `Client: ${l.client}` : 'No client assigned'}</span>
-            </>
-          )}
-        </p>
-      ))}
+      {lines.map((l) => <ResultLine key={l.key} l={l} />)}
     </div>
   )
 }
@@ -160,6 +158,10 @@ function ConsumedSeries({ query }) {
       const g = groups.get(key) ?? { key, owner, mode, from: n, to: n, count: 0, last: 0 }
       g.from = Math.min(g.from, n); g.to = Math.max(g.to, n); g.count++; g.last = Math.max(g.last, d.createdTs)
       groups.set(key, g)
+    })
+    consumedSeries().filter((c) => c.last < startOfToday).forEach((c) => {
+      const owner = ACTIVE_CLIENTS_SEED.find((x) => x.id === c.clientId)?.name ?? c.clientId
+      groups.set(`${owner}|${c.from}`, { key: `${owner}|${c.from}`, owner, mode: blockOfNumber(c.from)?.assigned ?? '—', from: Number(c.from), to: Number(c.to), count: c.count, last: c.last })
     })
     return [...groups.values()].sort((a, b) => b.last - a.last)
   }, [])
@@ -202,6 +204,65 @@ function ConsumedSeries({ query }) {
   )
 }
 
+// The search box with a suggestion dropdown — one real example of every case
+// (consumed, not consumed with and without a client, clients in each state,
+// modes), so it can be tried by clicking. Typing narrows it live.
+function buildSuggestions() {
+  const out = []
+  const issued = DOCKETS_SEED.find((d) => d.status) ?? DOCKETS_SEED[0]
+  const clients = ACTIVE_CLIENTS_SEED.map((c) => ({ c, s: seriesState(c.id) })).filter((x) => x.s.assigned)
+  const used = consumedSeries()[0]
+  const free = clients.find((x) => x.s.next)
+  out.push({ key: 'd1', group: 'Dockets', query: String(issued.docketNumber), number: issued.docketNumber, tag: 'Consumed', rest: `${issued.clientName} · ${issued.pickupId}` })
+  if (used) out.push({ key: 'd2', group: 'Dockets', query: String(used.to), number: used.to, tag: 'Consumed', rest: `${ACTIVE_CLIENTS_SEED.find((x) => x.id === used.clientId)?.name} · assigned series` })
+  if (free) out.push({ key: 'd3', group: 'Dockets', query: free.s.next, number: free.s.next, tag: 'Not consumed yet', rest: `${blockOfNumber(free.s.next)?.assigned} · ${free.c.name}` })
+  const auto = peekNextDocketNumber()
+  out.push({ key: 'd4', group: 'Dockets', query: String(auto), number: auto, tag: 'Not consumed yet', rest: `${blockOfNumber(auto)?.assigned} · No client assigned` })
+  return out
+}
+
+function SearchBox({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const items = useMemo(buildSuggestions, [open])
+  const t = value.trim().toLowerCase()
+  const digits = value.replace(/\D/g, '')
+  const shown = !t ? items : items.filter((i) => (digits && String(i.number).includes(digits)))
+  const groups = ['Dockets'].map((g) => [g, shown.filter((i) => i.group === g)]).filter(([, l]) => l.length)
+  return (
+    <div ref={ref} className="relative">
+      <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}
+        placeholder="Search a docket number"
+        aria-label="Search docket series"
+        className={searchBox}
+        autoComplete="off"
+      />
+      {open && groups.length > 0 && (
+        <div className={`${card} absolute left-0 right-0 top-full z-30 mt-1.5 max-h-96 overflow-y-auto p-1.5`}>
+          {groups.map(([g, list]) => (
+            <div key={g}>
+              <p className="px-2.5 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{g}</p>
+              {list.map((i) => (
+                <button key={i.key} type="button" onMouseDown={(e) => { e.preventDefault(); onChange(i.query); setOpen(false) }} className="flex w-full flex-wrap items-center gap-x-3 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-slate-50">
+                  <span className="font-mono font-semibold tracking-wider text-slate-900">{fmtDocket(i.number)}</span>
+                  {i.tag && <span className={`${pill} !py-0 text-[11px] ${i.tag === 'Consumed' ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>{i.tag}</span>}
+                  <span className="text-xs text-slate-400">{i.rest}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DocketSeries() {
   const [query, setQuery] = useState('')
   const q = query.trim()
@@ -216,8 +277,8 @@ export default function DocketSeries() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="space-y-3">
         <h1 className="text-lg font-semibold tracking-tight text-slate-900">Docket Series</h1>
-        <SearchField value={query} onChange={setQuery} placeholder="Search a docket number, a client or a mode" label="Search docket series" />
-        <DocketResults query={query} />
+        <SearchBox value={query} onChange={setQuery} />
+        {q && <DocketResults query={query} />}
       </div>
 
       <ClientSeries query={query} />

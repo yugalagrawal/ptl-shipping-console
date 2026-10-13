@@ -16,13 +16,15 @@
 // Ranges live with the rest of the client's saved configuration
 // (`docket-series-ranges`); only the consumption pointer is kept here, keyed
 // by client + range id, so using numbers never needs a config Save.
-import { getClientConfigValues, allSavedClientConfigs, DOCKET_SERIES_ASSIGNED } from './clientConfigFields.js'
+import { getClientConfigValues, saveClientConfigValues, allSavedClientConfigs, DOCKET_SERIES_ASSIGNED } from './clientConfigFields.js'
 import { bodyOfDocket, bodyStr, countIssuable, docketOfBody, inspectDocket, isIssuableBody, nextIssuableBody } from './docketNumber.js'
 
 export const SERIES_DIGITS = 10
-export const SERIES_LOW_AT = 10
+export const SERIES_LOW_AT = 500
 const PTR = {} // `${clientId}|${rangeId}` -> next body to try
 const USED = {} // `${clientId}|${rangeId}` -> dockets handed out
+const LASTNO = {} // `${clientId}|${rangeId}` -> last docket handed out
+const LASTAT = {} // `${clientId}|${rangeId}` -> when (ms)
 const keyOf = (clientId, r) => `${clientId}|${r.id}`
 
 const isNum = (s) => new RegExp(`^\\d{${SERIES_DIGITS}}$`).test(String(s ?? ''))
@@ -70,7 +72,7 @@ export function seriesState(clientId) {
     next: active ? active.next : null,
     remaining,
     exhausted: assigned && !active,
-    low: assigned && !!active && remaining <= SERIES_LOW_AT,
+    low: assigned && !!active && remaining < SERIES_LOW_AT,
   }
 }
 
@@ -88,6 +90,8 @@ export function allocateDocketNumber(clientId) {
   const body = bodyOfDocket(active.next)
   PTR[keyOf(clientId, active)] = body + 1
   USED[keyOf(clientId, active)] = (USED[keyOf(clientId, active)] ?? 0) + 1
+  LASTNO[keyOf(clientId, active)] = active.next
+  LASTAT[keyOf(clientId, active)] = Date.now()
   return active.next
 }
 
@@ -201,3 +205,55 @@ export const LEAF_BLOCKS = SERIES_BLOCKS.flatMap((b) => b.divisions ?? [b])
 
 // Which block (and so which mode) a docket number falls in.
 export const blockOfNumber = (n) => LEAF_BLOCKS.find((b) => Number(n) >= b.from && Number(n) <= b.to) ?? null
+
+// What assigned series have already used, one row per range with anything used.
+export function consumedSeries() {
+  return allSavedClientConfigs().flatMap(([clientId]) =>
+    savedRanges(clientId).flatMap((r) => {
+      const k = keyOf(clientId, r)
+      return (USED[k] ?? 0) > 0 ? [{ clientId, from: String(r.from), to: LASTNO[k], count: USED[k], last: LASTAT[k] ?? 0 }] : []
+    }))
+}
+
+// Is this docket number already handed out from a client's assigned series?
+export function consumedInSeries(n) {
+  const num = Number(n)
+  for (const [clientId] of allSavedClientConfigs()) {
+    for (const r of savedRanges(clientId)) {
+      const k = keyOf(clientId, r)
+      if (num >= r.from && num <= r.to && LASTNO[k] && num <= Number(LASTNO[k])) return { clientId }
+    }
+  }
+  return null
+}
+
+// --- Prototype data ----------------------------------------------------------
+// A few clients on assigned series so every case on the Docket Series page can
+// be seen: active, about to be consumed (7 left, under 500), consumed (Automatic takes
+// over), and a client with two series. Replace with the real data later.
+function demoRange(startBody, size) {
+  const first = nextIssuableBody(startBody)
+  let last = first, n = 1
+  for (let b = first + 1; n < size; b++) if (isIssuableBody(bodyStr(b))) { last = b; n++ }
+  return { from: docketOfBody(first), to: docketOfBody(last), firstBody: first }
+}
+function demoClient(clientId, specs) {
+  const ranges = specs.map((sp, i) => ({ id: `demo-${clientId}-${i}`, ...demoRange(sp.start, sp.size), sp }))
+  saveClientConfigValues(clientId, {
+    ...getClientConfigValues(clientId),
+    'docket-series': DOCKET_SERIES_ASSIGNED,
+    'docket-series-ranges': ranges.map(({ id, from, to }) => ({ id, from, to })),
+  })
+  ranges.forEach((r) => {
+    if (!r.sp.used) return
+    const k = `${clientId}|${r.id}`
+    let b = r.firstBody, used = 1
+    while (used < r.sp.used) { b++; if (isIssuableBody(bodyStr(b))) used++ }
+    USED[k] = r.sp.used; PTR[k] = b + 1; LASTNO[k] = docketOfBody(b); LASTAT[k] = Date.now() - r.sp.daysAgo * 86400000
+  })
+}
+demoClient('nykaa', [{ start: 150000000, size: 1000, used: 312, daysAgo: 1 }]) // active
+demoClient('lenskart', [{ start: 600000000, size: 200, used: 193, daysAgo: 1 }]) // Air — about to be consumed
+demoClient('oriflame', [{ start: 650000000, size: 50, used: 50, daysAgo: 2 }]) // Rail — consumed
+demoClient('mamaearth', [{ start: 160000000, size: 100, used: 100, daysAgo: 3 }, { start: 160001000, size: 500, used: 120, daysAgo: 1 }]) // two series
+demoClient('wow-skin-science', [{ start: 170000000, size: 300, used: 60, daysAgo: 1 }, { start: 640000000, size: 100, used: 20, daysAgo: 2 }, { start: 680000000, size: 200, used: 0, daysAgo: 0 }]) // one client, three modes

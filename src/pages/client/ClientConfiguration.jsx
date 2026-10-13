@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
@@ -377,10 +378,10 @@ function ConsignorConsigneeTab({ client, canEdit }) {
   )
 }
 
-function ClientConfigForm({ client, canEdit, onBack }) {
+function ClientConfigForm({ client, canEdit, onBack, initialTab }) {
   const [saved, setSaved] = useState(() => getClientConfigValues(client.id))
   const [values, setValues] = useState(saved)
-  const [activeTab, setActiveTab] = useState(CLIENT_CONFIG_TABS[0].id)
+  const [activeTab, setActiveTab] = useState(CLIENT_CONFIG_TABS.some((t) => t.id === initialTab) ? initialTab : CLIENT_CONFIG_TABS[0].id)
 
   function handleChange(fieldId, value) {
     setValues((v) => ({ ...v, [fieldId]: value }))
@@ -466,7 +467,9 @@ export default function ClientConfiguration() {
   const canEdit = hasFunction('client-configuration.manage')
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState('recent')
-  const [selectedClientId, setSelectedClientId] = useState(null)
+  // Deep link: ?client=<id>&tab=<tab id> opens that client's form on that tab (Docket Series "Assign").
+  const [params] = useSearchParams()
+  const [selectedClientId, setSelectedClientId] = useState(params.get('client'))
 
   // A client shows up here the moment KYC is submitted — not just once fully
   // Active — so Sales Admin can check/set its configuration while it's still
@@ -500,7 +503,7 @@ export default function ClientConfiguration() {
       </div>
 
       {selectedClient ? (
-        <ClientConfigForm client={selectedClient} canEdit={canEdit} onBack={() => setSelectedClientId(null)} />
+        <ClientConfigForm client={selectedClient} canEdit={canEdit} initialTab={params.get('tab')} onBack={() => setSelectedClientId(null)} />
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
