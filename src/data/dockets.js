@@ -56,7 +56,7 @@ function logEntry(label, note = '', at = Date.now()) {
 // weighted mod-11 check digit (data/docketNumber.js). Auto numbers skip bodies
 // that can't be issued and every client's assigned series. In production this
 // is a locked counter / DB sequence — never random, never reissued.
-let autoBody = 456495211
+let autoBody = 99999999 // auto numbering starts at 100000000 (Surface block, see data/docketSeries.js)
 function nextAutoDocketNumber() {
   for (;;) {
     autoBody = nextIssuableBody(autoBody + 1)

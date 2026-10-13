@@ -91,3 +91,11 @@ export const NEGATIVE_VECTORS = [
   { input: '123456789', note: 'Wrong length' },
   { input: '12345678A0', note: 'Non-digit character' },
 ]
+
+// Display form of a docket number — 3 · 4 · 3 digits, so it reads in chunks and
+// units can't be mixed up (1000000014 → 100 0000 014). Display only: stored and
+// searched as plain digits.
+export function fmtDocket(n) {
+  const s = String(n ?? '')
+  return /^\d{10}$/.test(s) ? `${s.slice(0, 3)} ${s.slice(3, 7)} ${s.slice(7)}` : s
+}

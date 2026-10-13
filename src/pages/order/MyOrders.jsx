@@ -6,6 +6,7 @@ import {
   markPickupArrived, updatePickupFieldDetails, scanPackage, dropScanPickup,
 } from '../../data/pickups.js'
 import { PRS_SEED } from '../../data/prs.js'
+import { fmtDocket } from '../../data/docketNumber.js'
 
 const STATUS_ORDER = [PICKUP_STATUS.CREATED, PICKUP_STATUS.GROUPED, PICKUP_STATUS.ARRIVED, PICKUP_STATUS.SCANNED, PICKUP_STATUS.DROPPED]
 
@@ -120,7 +121,7 @@ function PickupDetail({ pickup, onChanged }) {
         {(pickup.status === PICKUP_STATUS.SCANNED || pickup.status === PICKUP_STATUS.DROPPED) && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-medium text-slate-700">Docket {pickup.docketNumber}</span>
+              <span className="font-medium text-slate-700">Docket {fmtDocket(pickup.docketNumber)}</span>
               <span className="text-slate-400">· {pickup.awbNumbers.length} AWBs raised · {pickup.actualWeightKg} kg actual</span>
             </div>
             <div className="flex flex-wrap gap-1.5">

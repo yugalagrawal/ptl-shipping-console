@@ -27,6 +27,7 @@ import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
 import { odaEntryForPincode, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { printDocketSheet } from './docketPrintSheet.js'
 import { shareDocket } from '../../utils/docketShare.js'
+import { fmtDocket } from '../../data/docketNumber.js'
 
 function Field({ label, hint, className = '', dense, ...props }) {
   return (
@@ -807,7 +808,7 @@ function DocketForm({ pickup, onGenerated }) {
         )}
         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
+            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{fmtDocket(draftDocket.docketNumber)}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
               <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
               <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
@@ -1025,7 +1026,7 @@ function DocketForm({ pickup, onGenerated }) {
           <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4">
             <p className="text-sm text-emerald-800">
               <Icon name="approve" className="mr-1.5 inline h-4 w-4" />
-              Docket <span className="font-semibold">{generatedDocket.docketNumber}</span> generated — see Docket Dashboard, or open the Docket preview tab.
+              Docket <span className="font-semibold">{fmtDocket(generatedDocket.docketNumber)}</span> generated — see Docket Dashboard, or open the Docket preview tab.
             </p>
           </div>
         )}
@@ -1460,7 +1461,7 @@ function DocketForChooser({ slots, count, minCount, onCount, value, onChange }) 
                 <p className={`truncate text-sm font-medium ${c?.name ? 'text-slate-800' : 'text-slate-500'}`}>{c?.name || `Consignee ${slot.n}`}</p>
                 <p className="text-xs text-slate-500">{meta || 'Details to be filled'}</p>
                 <p className={`mt-1 text-[11px] font-medium ${slot.docket ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {slot.docket ? `Docket ${slot.docket.docketNumber}` : 'Docket not raised'}
+                  {slot.docket ? `Docket ${fmtDocket(slot.docket.docketNumber)}` : 'Docket not raised'}
                 </p>
               </button>
             )

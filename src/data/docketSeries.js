@@ -112,6 +112,7 @@ export function validateRanges(clientId, ranges, nameOf = (id) => id) {
     const bad = endpointError('From', r.from) || endpointError('To', r.to)
     if (bad) return bad
     if (Number(r.to) < Number(r.from)) return 'To must be after From'
+    if (blockOfNumber(r.from)?.id !== blockOfNumber(r.to)?.id) return 'A series must sit inside one mode block'
     const a = Number(r.from), b = Number(r.to)
     const self = ranges.findIndex((o, j) => j !== i && isDocket(o.from) && isDocket(o.to) && a <= Number(o.to) && b >= Number(o.from))
     if (self >= 0) return `Overlaps series ${self + 1} of this client`
@@ -135,12 +136,9 @@ export function rangeUsage(clientId, r) {
 }
 
 // --- Picking a range without typing numbers -------------------------------
-// Series are carved out of one pool, handed out in order, so ops never has to
-// guess what's free: the editor shows what other clients hold and offers the
-// next free block of a chosen size.
-export const SERIES_POOL_START_BODY = 469000000
-export const SERIES_POOL_START = docketOfBody(SERIES_POOL_START_BODY)
-
+// Series are carved out of the mode blocks below, handed out in order, so ops
+// never has to guess what's free: the editor shows what other clients hold and
+// offers the next free block of a chosen size.
 export function takenRanges(excludeClientId) {
   return allSavedClientConfigs()
     .filter(([clientId]) => clientId !== excludeClientId)
@@ -148,17 +146,58 @@ export function takenRanges(excludeClientId) {
     .sort((a, b) => a.from - b.from)
 }
 
-// Next free block of `size` issuable dockets, starting after everything already
-// held — other clients' saved ranges and this client's own rows (saved or still
-// being typed). Both ends are real dockets, so the editor accepts them as-is.
-export function suggestBlock(clientId, currentRanges, size) {
-  const ends = [
-    SERIES_POOL_START_BODY - 1,
+// Next free block of `size` issuable dockets inside the chosen mode's block
+// (Surface, Air, Rail or Sea), after everything already held there — other
+// clients' saved ranges and this client's own rows (saved or still being
+// typed). Both ends are real dockets, so the editor accepts them as-is.
+// `autoNext` is the docket number auto numbering will issue next. Returns null
+// when that mode's block has no room left.
+export function suggestBlock(clientId, currentRanges, size, mode = 'Surface', autoNext = null) {
+  const held = [
     ...takenRanges(clientId).map((r) => r.toBody),
     ...currentRanges.filter((r) => isDocket(r.from) && isDocket(r.to)).map((r) => bodyOfDocket(r.to)),
   ]
-  const first = nextIssuableBody(Math.max(...ends) + 1)
-  let last = first, n = 1
-  for (let b = first + 1; n < size; b++) if (isIssuableBody(bodyStr(b))) { last = b; n++ }
-  return { from: docketOfBody(first), to: docketOfBody(last) }
+  for (const blk of LEAF_BLOCKS.filter((b) => b.assigned === mode)) {
+    const lo = blk.from / 10, hi = (blk.to - 9) / 10
+    // Surface is also where auto numbering runs — start past what it has reached (and the number it has previewed).
+    const autoBody = autoNext != null ? bodyOfDocket(autoNext) : null
+    const floor = autoBody != null && autoBody >= lo && autoBody <= hi ? autoBody + 1 : lo
+    const inBlock = held.filter((b) => b >= lo && b <= hi)
+    const first = nextIssuableBody(Math.max(floor, inBlock.length ? Math.max(...inBlock) + 1 : lo))
+    if (first == null || first > hi) continue
+    let last = first, n = 1
+    for (let b = first + 1; n < size && b <= hi; b++) if (isIssuableBody(bodyStr(b))) { last = b; n++ }
+    return { from: docketOfBody(first), to: docketOfBody(last) }
+  }
+  return null
 }
+
+// Push a series' To forward by `n` more issuable dockets (the +100 / +500 buttons).
+export function extendTo(to, n) {
+  if (!isDocket(to)) return to
+  let b = bodyOfDocket(to), added = 0
+  while (added < n && b < 999999999) { b++; if (isIssuableBody(bodyStr(b))) added++ }
+  return docketOfBody(b)
+}
+
+// --- Series blocks --------------------------------------------------------
+// The docket-number space split by mode, written as full 10-digit docket
+// numbers (the check digit runs 0–9, so a 9-digit block 1xxxxxxxx spans
+// 1xxxxxxxx0 – 1xxxxxxxx9). First digit 6 is kept for the non-surface modes and
+// divided between Air, Rail and Sea. Auto numbering starts at 1000000000.
+const blk = (id, fromBody, toBody, assigned, divisions) => ({ id, from: fromBody * 10, to: toBody * 10 + 9, assigned, ...(divisions ? { divisions } : {}) })
+export const SERIES_BLOCKS = [
+  blk('surface', 100000000, 599999999, 'Surface'),
+  blk('other-modes', 600000000, 699999999, 'Air, Rail & Sea', [
+    blk('air', 600000000, 649999999, 'Air'),
+    blk('rail', 650000000, 674999999, 'Rail'),
+    blk('sea', 675000000, 699999999, 'Sea'),
+  ]),
+  blk('surface-2', 700000000, 999999999, 'Surface'),
+]
+
+// The blocks that actually carry a mode (Air/Rail/Sea instead of their parent).
+export const LEAF_BLOCKS = SERIES_BLOCKS.flatMap((b) => b.divisions ?? [b])
+
+// Which block (and so which mode) a docket number falls in.
+export const blockOfNumber = (n) => LEAF_BLOCKS.find((b) => Number(n) >= b.from && Number(n) <= b.to) ?? null

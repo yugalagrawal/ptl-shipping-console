@@ -8,14 +8,15 @@
 // and clipboard-write permission still deserves to see what would've been
 // shared, so the caller can fall back to showing/selecting it) so the
 // caller can show the right toast.
+import { fmtDocket } from '../data/docketNumber.js'
 export async function shareDocket(docket) {
-  const text = `Docket ${docket.docketNumber} — ${docket.clientName} → ${docket.dropMiniHubName}` +
+  const text = `Docket ${fmtDocket(docket.docketNumber)} — ${docket.clientName} → ${docket.dropMiniHubName}` +
     (docket.consignee?.name ? ` · ${docket.consignee.name}` : '') +
     (docket.pricing?.total ? ` · ₹${docket.pricing.total.toLocaleString('en-IN')}` : '')
 
   if (navigator.share) {
     try {
-      await navigator.share({ title: `Docket ${docket.docketNumber}`, text })
+      await navigator.share({ title: `Docket ${fmtDocket(docket.docketNumber)}`, text })
       return { status: 'shared', text }
     } catch (err) {
       if (err?.name === 'AbortError') return { status: 'cancelled', text }

@@ -1,11 +1,12 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
 import SortToggle from '../../components/SortToggle.jsx'
 import { card, thCls, tdCls, rowCls, btnPrimary, btnSecondary } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, APPROVAL_STAGE_LABEL, APPROVAL_STAGE_BADGE } from '../../data/clients.js'
 import { CLIENT_CONFIG_TABS, CLIENT_CONFIG_FIELDS_BY_ID, DOCKET_SERIES_ASSIGNED, getClientConfigValues, saveClientConfigValues } from '../../data/clientConfigFields.js'
-import { validateRanges, rangeUsage, takenRanges, suggestBlock, SERIES_DIGITS } from '../../data/docketSeries.js'
+import { fmtDocket } from '../../data/docketNumber.js'
+import { validateRanges, rangeUsage, takenRanges, suggestBlock, blockOfNumber, extendTo, SERIES_DIGITS } from '../../data/docketSeries.js'
 import { peekNextDocketNumber } from '../../data/dockets.js'
 import { getConsignorsForClient, addConsignorForClient, updateConsignorForClient, removeConsignorForClient } from '../../data/consignors.js'
 import { getConsigneesForClient, addConsigneeForClient, updateConsigneeForClient, removeConsigneeForClient } from '../../data/consignees.js'
@@ -63,12 +64,21 @@ const newRange = () => ({ id: `rng-${Date.now()}-${Math.random().toString(36).sl
 function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
   const errors = validateRanges(clientId, ranges, clientName)
   const taken = takenRanges(clientId)
-  // One tap adds the next free block of that size — into an empty row if one is waiting.
-  const addBlock = (size) => {
-    const b = suggestBlock(clientId, ranges, size)
-    const empty = ranges.findIndex((r) => !r.from && !r.to)
-    onChange(empty >= 0 ? ranges.map((r, j) => (j === empty ? { ...r, ...b } : r)) : [...ranges, { ...newRange(), ...b }])
+  // A From–To row is always there, prefilled with the next series that's free in
+  // the chosen mode; "+ Add series" opens another.
+  const [mode, setMode] = useState('Surface')
+  const autoNext = peekNextDocketNumber()
+  const addSeries = () => {
+    const b = suggestBlock(clientId, ranges, 100, mode, autoNext)
+    onChange([...ranges, { ...newRange(), ...(b ?? {}) }])
   }
+  const untouched = ranges.every((r) => !r.from && !r.to)
+  useEffect(() => {
+    if (readOnly || !untouched) return
+    const b = suggestBlock(clientId, [], 100, mode, autoNext)
+    if (b) onChange(ranges.length ? ranges.map((r, j) => (j === 0 ? { ...r, ...b } : r)) : [{ ...newRange(), ...b }])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readOnly, untouched])
   const setRow = (i, patch) => onChange(ranges.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const digits = (v) => v.replace(/\D/g, '').slice(0, SERIES_DIGITS)
   const input = 'w-full rounded-lg border bg-white px-3 py-2 text-sm tabular-nums text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40 disabled:bg-slate-50 disabled:text-slate-500'
@@ -77,19 +87,18 @@ function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-sm font-medium text-slate-700">Series ranges</p>
         {!readOnly && (
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-            <span>Next free <span className="font-mono font-medium text-slate-700">{suggestBlock(clientId, ranges, 1).from}</span> — add</span>
-            {[100, 500, 1000, 5000].map((n) => (
-              <button key={n} type="button" onClick={() => addBlock(n)} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-600 hover:border-brand-orange/40 hover:text-brand-orange-dark">
-                {n.toLocaleString('en-IN')}
-              </button>
-            ))}
-            <button type="button" onClick={() => onChange([...ranges, newRange()])} className="ml-1 font-medium text-brand-orange-dark hover:underline">or type your own</button>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span className="inline-flex rounded-lg bg-slate-100 p-0.5 font-medium">
+              {['Surface', 'Air', 'Rail', 'Sea'].map((m) => (
+                <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-md px-2.5 py-0.5 ${mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{m}</button>
+              ))}
+            </span>
+            <button type="button" onClick={addSeries} className="font-medium text-brand-orange-dark hover:underline">+ Add {mode} series</button>
           </div>
         )}
       </div>
       <p className="text-[11px] text-slate-400">
-        Auto numbering is at <span className="font-mono">{peekNextDocketNumber()}</span> and skips every assigned series.
+        Auto numbering is at <span className="font-mono">{fmtDocket(peekNextDocketNumber())}</span> (Surface) and skips every assigned series.
         {taken.length > 0 && (
           <details className="mt-1 inline-block align-top">
             <summary className="ml-1 inline cursor-pointer font-medium text-slate-500">Taken by other clients ({taken.length})</summary>
@@ -99,7 +108,6 @@ function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
           </details>
         )}
       </p>
-      {ranges.length === 0 && <p className="text-xs text-amber-700">No series yet — add one, or this client's dockets fall back to auto numbers.</p>}
       {ranges.map((r, i) => {
         const usage = rangeUsage(clientId, r)
         const err = errors[i]
@@ -114,16 +122,26 @@ function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
                   <>
                     <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-brand-orange" style={{ width: `${Math.round((usage.used / usage.total) * 100)}%` }} /></div>
                     <span>{usage.total.toLocaleString('en-IN')} numbers · {usage.used.toLocaleString('en-IN')} used · <span className={usage.remaining === 0 ? 'font-medium text-red-600' : 'font-medium text-slate-700'}>{usage.remaining.toLocaleString('en-IN')} left</span></span>
+                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">{blockOfNumber(r.from)?.assigned}</span>
                     <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${status === 'Active' ? 'bg-emerald-100 text-emerald-700' : status === 'Exhausted' ? 'bg-red-100 text-red-700' : 'bg-slate-200 text-slate-600'}`}>{status}</span>
                   </>
                 ) : null}
               </div>
-              {!readOnly && (
+              {!readOnly && ranges.length > 1 && (
                 <button type="button" onClick={() => onChange(ranges.filter((_, j) => j !== i))} disabled={!!usage && usage.used > 0} title={usage && usage.used > 0 ? 'Numbers already used — can\'t remove' : 'Remove series'} className="text-slate-400 hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-30">
                   <Icon name="trash" className="h-4 w-4" />
                 </button>
               )}
             </div>
+            {!readOnly && usage && !err && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                {[100, 500, 1000, 5000].map((n) => (
+                  <button key={n} type="button" onClick={() => setRow(i, { to: extendTo(r.to, n) })} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium text-slate-600 hover:border-brand-orange/40 hover:text-brand-orange-dark">
+                    +{n.toLocaleString('en-IN')}
+                  </button>
+                ))}
+              </div>
+            )}
             {err && ranges[i].from && ranges[i].to && <p className="text-xs text-red-600">{err}</p>}
           </div>
         )

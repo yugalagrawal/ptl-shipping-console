@@ -10,6 +10,7 @@ import {
   markDocketReadyForTrip, raiseDocketException, resolveDocketException,
 } from '../../data/dockets.js'
 import { listEwayBills } from '../../data/ewayBills.js'
+import { fmtDocket } from '../../data/docketNumber.js'
 
 const HOUR = 3600 * 1000
 const EWB_THRESHOLD = 50000
@@ -80,7 +81,7 @@ function DocketDrawer({ docket, bills, onClose, onChanged, onPrint }) {
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
             <p className="text-xs text-slate-400">Docket</p>
-            <p className="text-xl font-semibold tabular-nums tracking-tight text-slate-900">{docket.docketNumber}</p>
+            <p className="text-xl font-semibold tabular-nums tracking-tight text-slate-900">{fmtDocket(docket.docketNumber)}</p>
             <div className="mt-1.5 flex items-center gap-2">
               <StatusBadge status={docket.status} />
               <span className="text-xs text-slate-400">{docket.clientName}</span>
@@ -436,7 +437,7 @@ export default function DocketDashboard() {
                       <input type="checkbox" checked={selected.has(d.docketNumber)} onChange={() => toggle(d.docketNumber)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
                     </td>
                     <td className={td}>
-                      <p className="font-medium tabular-nums text-slate-900">{d.docketNumber}</p>
+                      <p className="font-medium tabular-nums text-slate-900">{fmtDocket(d.docketNumber)}</p>
                       <p className="text-[11px] text-slate-400">{d.pickupId} · {d.createdAt}</p>
                     </td>
                     <td className={td}>{d.clientName}</td>
