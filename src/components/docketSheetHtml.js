@@ -162,10 +162,10 @@ export function buildDocketSheetBody(docket) {
     <td class="np" style="width:42%">
       <table class="mini">
         <tr><td class="k" style="width:38%">Package Type</td><td class="v"></td></tr>
-        <tr><td class="k">Said to Contain</td><td class="v">${dash(docket.goodsDescription)}${docket.handling?.length ? ` <span class="mut">· ${esc(docket.handling.join(', '))}</span>` : ''}</td></tr>
+        <tr><td class="k">Said to Contain</td><td class="v">${dash(docket.goodsDescription || docket.contentDescription || docket.contentType)}${docket.handling?.length ? ` <span class="mut">· ${esc(docket.handling.join(', '))}</span>` : ''}</td></tr>
         <tr><td class="k">Insured Value</td><td class="v">${docket.insuredValue ? `₹${money(docket.insuredValue)}` : ''}</td></tr>
         <tr><td class="k">Invoice Value</td><td class="v">${docket.invoiceValue ? `₹${money(docket.invoiceValue)}` : ''}</td></tr>
-        <tr><td class="k">GST payable by</td><td class="v">${cb(false)}Consignor ${cb(false)}Consignee</td></tr>
+        <tr><td class="k">GST payable by</td><td class="v">${cb(docket.gstPayableBy === 'consignor')}Consignor ${cb(docket.gstPayableBy === 'consignee')}Consignee ${cb(docket.gstPayableBy === 'lt')}LT</td></tr>
         <tr><td class="k">Vehicle Registration No</td><td class="v">${dash(docket.vehicleNo)}</td></tr>
       </table>
     </td>
@@ -190,7 +190,7 @@ export function buildDocketSheetBody(docket) {
   <table><tr>
     <td class="np" style="width:42%">
       <table class="mini">
-        <tr><td colspan="2"><span class="k">The Shipper has to state:</span>${cb(pay === PAYMENT_TERM.PAID)}Paid ${cb(pay === PAYMENT_TERM.TO_PAY_FOD)}To Pay ${cb(pay === PAYMENT_TERM.TBB)}TBB ${pay === PAYMENT_TERM.COD ? `${cb(true)}COD` : ''}</td></tr>
+        <tr><td colspan="2"><span class="k">The Shipper has to state:</span>${cb(pay === PAYMENT_TERM.PAID)}Paid ${cb(pay === PAYMENT_TERM.TO_PAY)}To Pay ${cb(pay === PAYMENT_TERM.TBB)}TBB</td></tr>
         <tr><td colspan="2"><span class="k">Risk:</span>${cb(docket.riskCover === 'owners_risk')}Owner Risk ${cb(docket.riskCover === 'carriers_risk')}Carriers Risk</td></tr>
         <tr><td class="k" style="width:38%">Ins Policy No</td><td class="v">${dash(docket.policyNo)}</td></tr>
         <tr><td class="k">Insurance Company</td><td class="v">${dash(docket.insuranceCompany)}</td></tr>
@@ -199,11 +199,11 @@ export function buildDocketSheetBody(docket) {
     </td>
     <td class="np" style="width:58%">
       <table class="mini">
-        <tr><td class="k" style="width:27%">Basic Freight</td><td class="num" style="width:23%">${charge('Basic freight')}</td><td class="k" style="width:27%">Door Delivery</td><td class="num" style="width:23%">${charge('Door delivery')}</td></tr>
-        <tr><td class="k">Service Charge</td><td class="num">${charge('Fuel surcharge')}</td><td class="k">Door Pick Up</td><td class="num">${charge('Door pick-up')}</td></tr>
-        <tr><td class="k">RXB Charges</td><td class="num">${charge('Docket')}</td><td class="k">Handling Charges</td><td class="num">${charge('Handling')}</td></tr>
-        <tr><td class="k">ODA Charges</td><td class="num">${charge('ODA')}</td><td class="k">Misc</td><td class="num">${charge('Misc')}</td></tr>
-        <tr><td class="k">DACC Charges</td><td class="num">${charge('DACC')}</td><td class="k">ROV</td><td class="num">${charge('ROV')}</td></tr>
+        <tr><td class="k" style="width:27%">Basic Freight</td><td class="num" style="width:23%">${charge('Basic freight')}</td><td class="k" style="width:27%">FSC</td><td class="num" style="width:23%">${charge('FSC')}</td></tr>
+        <tr><td class="k">Docket Charges</td><td class="num">${charge('Docket charges')}</td><td class="k">ESS</td><td class="num">${charge('ESS')}</td></tr>
+        <tr><td class="k">Exception Charges</td><td class="num">${charge('Exception')}</td><td class="k">Appointment</td><td class="num">${charge('Appointment')}</td></tr>
+        <tr><td class="k">FOV: Owner Risk</td><td class="num">${charge('FOV')}</td><td class="k">Handling</td><td class="num">${charge('Handling')}</td></tr>
+        <tr><td class="k">ODA</td><td class="num">${charge('ODA')}</td><td class="k">Others</td><td class="num">${charge('Others')}</td></tr>
         <tr><td class="k">GST</td><td class="num">${money(pricing?.gst)}</td><td class="k">Total Charges</td><td class="num" style="font-size:12.5px">${pricing?.total != null ? `₹${money(pricing.total)}` : ''}</td></tr>
       </table>
     </td>

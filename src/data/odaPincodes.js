@@ -67,3 +67,12 @@ export function cloneDefaultOdaEntries() {
 export function cloneDefaultOdaOverrides() {
   return { ...defaultOdaOverrides }
 }
+
+// Is this pincode on the ODA list (and in which ODA category)? Used by Create
+// Docket to decide ODA delivery from the consignee's pincode. Reads the
+// default list every client's own list starts from — per-client lists aren't
+// stored anywhere yet.
+export function odaEntryForPincode(pincode) {
+  const pin = String(pincode ?? '').trim()
+  return /^\d{6}$/.test(pin) ? defaultOdaEntries.find((e) => e.pincode === pin) ?? null : null
+}

@@ -98,15 +98,44 @@ export function zonesInRegion(region) {
 // miniHubs shape so it can use the exact same flat-sheet editing pattern
 // (independent rows, column filters, Select columns, Export) as Geography
 // Master's PINCODES.
+// Every Hub / Mini Hub starts with this point of contact (Location Master's
+// POC columns) until someone with a more specific contact edits the row.
+export const DEFAULT_LOCATION_POC = { pocName: 'Asgar Raja', pocPhone: '9628031709', pocEmail: 'asgar.raja@letstransport.team' }
+
+// Service Summary — plain-text description of what each Mini Hub serves, keyed by
+// Mini Hub name (or Hub name when the Hub is its own Mini Hub). Example text from
+// the ops sheet; the real summaries get filled in later. Locations without an
+// example start blank.
+export const SERVICE_SUMMARY_EXAMPLES = {
+  'Ahmedabad': 'Rest of Gujarat (Exclude Bilimora, Jalalpore, Navsari, Udvada, Umargam, Valsad)',
+  'Aurangabad - Chauparan': 'Bihar; Jharkhand',
+  'Bangalore - Hoskote': 'City: Bengaluru (Karnataka)',
+  'Bangalore - Makali': 'Rest of Karnataka (Exclude Bengaluru)',
+  'Bhiwandi': 'City: Mumbai, Palghar, Thane (Maharashtra); Rest of Dadra & Nagar Haveli and Daman & Diu (Exclude DIU, Daman)',
+  'Chennai': 'Tamil Nadu; Kerala; Puducherry; Lakshadweep',
+  'Gurgaon': 'Delhi; City: Bhainswal Kalan, Faridabad, Gurugram, Sonipat (Haryana)',
+  'Guwahati': 'Assam; Arunachal Pradesh; Meghalaya; Manipur; Tripura; Mizoram; Nagaland; Sikkim',
+  'Dehradun': 'City: Clement Town, Dehradun, Mehunwala, Rishikesh, Virbhadra (Uttarakhand)',
+  'Roorkee': 'City: Haridwar (Uttarakhand)',
+  'Rudrapur': 'City: Almora, Bageshwar, Champawat, Chaubattia, Garbyang, Jhulaghat, Lalkua, Nainital, Pithoragarh, Tanakpur, Udham Singh Nagar (Uttarakhand)',
+  'Hyderabad': 'Andhra Pradesh; Telangana',
+  'Indore': 'Madhya Pradesh',
+  'Jaipur': 'Rajasthan',
+  'Kolkata': 'West Bengal; Rest of Odisha (Exclude Balianta, Bhubaneswar, Khandagiri, Khordha); Andaman and Nicobar Islands',
+  'Agra': 'City: Agra, Aligarh, Etah, Firozabad, Gokul, Hathras, Kasganj, Mainpuri, Mathura, Tindauli (Uttar Pradesh)',
+  'Kanpur': 'City: Auraiya, Etawah, Farrukhabad, Fatehgarh, Fatehpur, Kannauj, Kanpur, Kanpur Dehat (Uttar Pradesh)',
+  'Varanasi': 'City: Ambedkar Nagar, Ayodhya, Azamgarh, Bahraich, Ballia, Balrampur, Basti, Bhadohi, Birdpur, Chandauli, Chhitauni, Chunar, Churk, Deoria, Faizabad, Gainsari, Ghazipur, Gonda, Gorakhpur, Jaunpur, Kaushambi, Kushi Nagar, MAU, Maharajganj, Malikpura, Meja, Mirzapur, Padrauna, Patti, Pratapgarh, Prayagraj, Rudauli, Sant Kabeer Nagar, Shravasti, Siddharth Nagar, Sonbhadra, Subedarganj, Varanasi (Uttar Pradesh)',
+}
+
 export function flattenZones(zones) {
   const rows = []
   zones.forEach((z) => {
     if (z.branches.length === 0) {
-      rows.push({ region: z.region, zone: z.zone, hubName: z.hubName, hubCode: z.hubCode, branch: '', miniHub: '', miniHubCode: '' })
+      rows.push({ region: z.region, zone: z.zone, hubName: z.hubName, hubCode: z.hubCode, branch: '', miniHub: '', miniHubCode: '', serviceSummary: SERVICE_SUMMARY_EXAMPLES[z.hubName] ?? '', ...DEFAULT_LOCATION_POC })
     } else {
       z.branches.forEach((b) => {
         b.miniHubs.forEach((m) => {
-          rows.push({ region: z.region, zone: z.zone, hubName: z.hubName, hubCode: z.hubCode, branch: b.name, miniHub: m.name, miniHubCode: m.code })
+          rows.push({ region: z.region, zone: z.zone, hubName: z.hubName, hubCode: z.hubCode, branch: b.name, miniHub: m.name, miniHubCode: m.code, serviceSummary: SERVICE_SUMMARY_EXAMPLES[m.name] ?? '', ...DEFAULT_LOCATION_POC })
         })
       })
     }

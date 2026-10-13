@@ -15,10 +15,13 @@ import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
 import { goodsByHsn, searchGoods } from '../../data/goodsCatalog.js'
 import { seriesState, peekSeriesNumber } from '../../data/docketSeries.js'
 import { BOX_MASTER, addBoxToMaster } from '../../data/boxMaster.js'
+import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
 import { PRS_SEED } from '../../data/prs.js'
 import { FLEET_SEED } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
 import { priceDocket, volumetricWeightKg } from '../../data/docketPricing.js'
+import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
+import { odaEntryForPincode, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { printDocketSheet } from './docketPrintSheet.js'
 import { shareDocket } from '../../utils/docketShare.js'
 
@@ -42,8 +45,8 @@ function Field({ label, hint, className = '', dense, ...props }) {
 function SectionCard({ title, action, children }) {
   return (
     <div className={`space-y-3 p-4 ${card}`}>
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h3 className="whitespace-nowrap text-sm font-semibold text-slate-900">{title}</h3>
         {action}
       </div>
       {children}
@@ -51,29 +54,20 @@ function SectionCard({ title, action, children }) {
   )
 }
 
-function SegmentedControl({ options, value, onChange }) {
+function SegmentedControl({ options, value, onChange, compact }) {
   return (
-    <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 text-sm">
+    <div className={`flex gap-1 rounded-xl bg-slate-100 p-1 text-sm ${compact ? 'w-fit' : 'flex-wrap'}`}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${value === o.value ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`whitespace-nowrap rounded-lg ${compact ? 'px-2.5' : 'px-3'} py-1.5 font-medium transition-colors ${value === o.value ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
         >
           {o.label}
         </button>
       ))}
     </div>
-  )
-}
-
-function CheckRow({ checked, label }) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-slate-600">
-      <input type="checkbox" checked={checked} readOnly className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
-      {label}
-    </label>
   )
 }
 
@@ -243,6 +237,29 @@ function pad2(n) {
 // surprise between "what I typed" and "what prints". Numbers in comments
 // below (①②…) trace back to the Docket Module planning whiteboard's own
 // numbered field list.
+// ⓘ beside "Others" — click or hover to see which client-pricing charges make up the total.
+function BreakupTip({ items }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative ml-1.5 inline-flex align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button type="button" aria-label="Others breakup" onClick={() => setOpen((v) => !v)} className="text-slate-400 hover:text-slate-600">
+        <Icon name="info" className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <span role="tooltip" className="absolute bottom-full left-1/2 z-20 mb-1.5 w-56 -translate-x-1/2 space-y-1 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg">
+          <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-300">From client pricing</span>
+          {items.map((x) => (
+            <span key={x.label} className="flex justify-between gap-3">
+              <span>{x.label}</span>
+              <span className="tabular-nums">{x.amount == null ? 'at actuals' : `₹${x.amount.toLocaleString('en-IN')}`}</span>
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+}
+
 // Goods description with a pick-list from the goods catalog: choosing an entry
 // fills the description and its HSN together (onPick), while free text is
 // still allowed — "Said to contain" is often more specific than the catalog.
@@ -403,7 +420,6 @@ function DocketForm({ pickup, onGenerated }) {
   const [ewayData, setEwayData] = useState(null)
   const [hsnCode, setHsnCode] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
-  const insuredRef = useRef(null)
   // The "not required" check runs only on what's entered in its own panel —
   // nothing is pulled in from the rest of the form or the pickup.
   const [checkValue, setCheckValue] = useState('')
@@ -422,7 +438,11 @@ function DocketForm({ pickup, onGenerated }) {
   // computed here (auto), chargeable weight = MAX(actual, volumetric).
   const [packageRows, setPackageRows] = useState([emptyPackageRow()])
   const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
-  const pickupFlags = [...(pickup.details?.fragile ? ['Fragile'] : []), ...(pickup.details?.hazardous ? ['Hazardous'] : [])]
+  // Shipment details from Create Pickup — start as booked, editable.
+  const [contentType, setContentType] = useState(pickup.details?.contentType ?? '')
+  const [contentDescription, setContentDescription] = useState(pickup.details?.contentDescription ?? '')
+  const [hazardClass, setHazardClass] = useState(pickup.details?.hazardClass ?? '')
+  const [unNumber, setUnNumber] = useState(pickup.details?.unNumber ?? '')
   const [handling, setHandling] = useState(() => [
     ...(pickup.details?.fragile ? ['Fragile'] : []),
     ...(pickup.details?.hazardous ? ['Hazardous'] : []),
@@ -450,12 +470,18 @@ function DocketForm({ pickup, onGenerated }) {
   // ⑧ ODA — real build resolves this from Location Master's Serviceability
   // (is the consignee's pincode inside a mapped Hub/Mini Hub's coverage?);
   // manual toggle here since that wiring doesn't reach this screen yet.
-  const [isOda, setIsOda] = useState(false)
+  // Both are locked, not typed: ODA follows the consignee's pincode against the ODA
+  // list (so it moves if an e-Way Bill changes the consignee), Appointment is what
+  // the pickup was booked with.
+  const odaEntry = useMemo(() => odaEntryForPincode(consigneePincode), [consigneePincode])
+  const isOda = !!odaEntry
+  const odaRate = odaEntry ? getDefaultOdaRate()[odaEntry.oda] ?? null : null
+  const appointment = !!pickup.details?.appointment
 
   // ⑪ Other fields — payment term (TBB/Paid/To Pay FOD/COD) and risk cover.
-  const [paymentTerm, setPaymentTerm] = useState(PAYMENT_TERM.TO_PAY_FOD)
+  const [paymentTerm, setPaymentTerm] = useState(PAYMENT_TERM.TO_PAY)
+  const [gstPayableBy, setGstPayableBy] = useState('') // consignor | consignee | lt
   const [riskCover, setRiskCover] = useState(RISK_COVER.CARRIERS_RISK)
-  const [insuranceCompany, setInsuranceCompany] = useState('')
   const [policyNo, setPolicyNo] = useState('')
 
   // ⑬ POD Type
@@ -522,8 +548,13 @@ function DocketForm({ pickup, onGenerated }) {
   // insured value, ODA). Not editable here — Client Pricing Configuration
   // owns the rate card this reads from.
   const pricing = useMemo(
-    () => priceDocket({ clientId: pickup.clientId, actualWeightKg: enteredActualWeight, volumetricWeightKg: volKg, insuredValue, isOda }),
-    [pickup.clientId, enteredActualWeight, volKg, insuredValue, isOda]
+    () => priceDocket({
+      clientId: pickup.clientId, actualWeightKg: enteredActualWeight, volumetricWeightKg: volKg,
+      ownersRisk: riskCover === RISK_COVER.OWNERS_RISK, appointment, isOda, odaRate,
+      clientCharges: ACTIVE_CLIENTS_SEED.find((c) => c.id === pickup.clientId)?.charges,
+      paymentTerm, codAmount: Number(invoiceValue) || 0,
+    }),
+    [pickup.clientId, enteredActualWeight, volKg, riskCover, appointment, isOda, odaRate, paymentTerm, invoiceValue]
   )
 
   const ewayRequired = ewayStatus !== 'manual'
@@ -571,15 +602,15 @@ function DocketForm({ pickup, onGenerated }) {
     ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
     ewayUnverified: ewayStatus === 'unverified',
     vehicleNo, transporterGstin,
-    paymentTerm, podType,
+    paymentTerm, gstPayableBy, podType,
     pricing,
     // Fuller field set the physical docket sheet prints (DocketSheet) —
     // same names enrichDocketDetails stores on a generated docket.
     consignor: { ...pickup.consignor, name: consignorName, address: consignorAddress, city: consignorCity, pincode: consignorPincode },
     consigneeGstin,
     invoiceNo, invoiceValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
-    goodsDescription, hsnCode, handling, isOda,
-    riskCover, insuranceCompany, policyNo,
+    goodsDescription, hsnCode, handling, contentType, contentDescription, hazardClass, unNumber, isOda, appointment,
+    riskCover, policyNo,
     packageRows, volumetricWeightKg: volKg,
     documents: { declaration: true },
   }
@@ -624,11 +655,11 @@ function DocketForm({ pickup, onGenerated }) {
       ewayUnverified: ewayStatus === 'unverified',
       vehicleNo, transporterGstin,
       invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
-      goodsDescription, hsnCode, invoiceDate, handling, isOda,
+      goodsDescription, hsnCode, invoiceDate, handling, contentType, contentDescription, hazardClass, unNumber, isOda, appointment,
       awbCount: totalBoxes, totalWeightKg: enteredActualWeight,
       consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
       consignor: { ...pickup.consignor, name: consignorName.trim(), address: consignorAddress.trim(), city: consignorCity.trim(), pincode: consignorPincode.trim() }, consigneeGstin, packageRows, volumetricWeightKg: volKg,
-      paymentTerm, riskCover, insuranceCompany, policyNo,
+      paymentTerm, gstPayableBy, riskCover, policyNo,
       podType,
       documents: {
         invoice: !!invoiceNo, gst: !!consigneeGstin, ewayBill: ewayStatus === 'done', declaration: true,
@@ -952,53 +983,6 @@ function DocketForm({ pickup, onGenerated }) {
           </div>
         </SectionCard>
 
-        <SectionCard
-          title="Invoice"
-          action={(
-            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
-              <input type="checkbox" checked={isOda} onChange={(e) => setIsOda(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
-              ODA delivery
-            </label>
-          )}
-        >
-          {ewayStatus === 'done' && <p className="-mt-1 text-[11px] font-medium text-brand-orange-dark">Filled from the e-Way Bill — edit if needed.</p>}
-          <div className="grid grid-cols-12 gap-2.5">
-            <Field label="1 · Invoice no." className="col-span-12 sm:col-span-5" dense value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
-            <Field label="2 · Invoice date" type="date" className="col-span-6 sm:col-span-3" dense value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
-            <Field label="3 · Value incl. GST (₹)" type="number" min="0" className="col-span-6 sm:col-span-4" dense value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
-
-            <label className="col-span-12 block sm:col-span-6">
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">4 · Goods description <span className="font-normal text-slate-400">— pick to fill HSN</span></span>
-              <GoodsPicker
-                value={goodsDescription}
-                onChange={setGoodsDescription}
-                onPick={(g) => { setGoodsDescription(g.name); setHsnCode(g.hsn); insuredRef.current?.focus() }}
-              />
-            </label>
-            <Field
-              label="HSN" className="col-span-5 sm:col-span-2" dense value={hsnCode} inputMode="numeric" placeholder="3304"
-              onChange={(e) => {
-                const code = e.target.value.replace(/[^\d]/g, '').slice(0, 8)
-                setHsnCode(code)
-                const hit = goodsByHsn(code)
-                if (hit && (!goodsDescription.trim() || goodsByHsn(hsnCode)?.name === goodsDescription)) setGoodsDescription(hit.name)
-              }}
-            />
-            <label className="col-span-7 block sm:col-span-4">
-              <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500">
-                5 · Insured (₹)
-                <button type="button" onClick={() => setInsuredValue(invoiceValue)} disabled={!invoiceValue} className="font-normal text-brand-orange-dark hover:underline disabled:opacity-40">= invoice</button>
-              </span>
-              <input
-                ref={insuredRef}
-                type="number" min="0" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </label>
-          </div>
-
-        </SectionCard>
-
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <SectionCard
           title="Goods details"
@@ -1019,10 +1003,21 @@ function DocketForm({ pickup, onGenerated }) {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-2.5">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">3 · Content type</span>
+              <select value={contentType} onChange={(e) => setContentType(e.target.value)} aria-label="Content type" className={`w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-1.5 text-sm focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 ${contentType ? 'text-slate-800' : 'text-slate-400'}`}>
+                <option value="">Select the nature of goods</option>
+                {CONTENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <Field dense label="4 · Content description" aria-label="Content description" value={contentDescription} onChange={(e) => setContentDescription(e.target.value)} placeholder="e.g. Cosmetics" />
+          </div>
+
           <div className="space-y-2">
             <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
               <span className="flex items-center gap-2 normal-case">
-                <span className="text-xs font-medium text-slate-500">3 · Box size <span className="font-normal text-slate-400">(L × B × H)</span></span>
+                <span className="text-xs font-medium text-slate-500">5 · Box size <span className="font-normal text-slate-400">(L × B × H)</span></span>
                 <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold">
                   {['cm', 'in'].map((u) => (
                     <button key={u} type="button" onClick={() => setDimUnit(u)} className={`rounded px-1.5 py-0.5 ${dimUnit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
@@ -1093,48 +1088,68 @@ function DocketForm({ pickup, onGenerated }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {HANDLING_FLAGS.map((f) => {
-              const on = handling.includes(f)
-              const fromPickup = pickupFlags.includes(f)
-              const tone = f === 'Hazardous' ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-amber-300 bg-amber-50 text-amber-800'
-              return (
-                <label key={f} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${on ? tone : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={(e) => setHandling((h) => (e.target.checked ? [...h, f] : h.filter((x) => x !== f)))}
-                    className={`h-4 w-4 rounded border-slate-300 ${f === 'Hazardous' ? 'accent-rose-500' : 'accent-amber-500'}`}
-                  />
-                  {f}
-                  {f === 'Hazardous' && on && (pickup.details?.hazardClass || pickup.details?.unNumber) && (
-                    <span className="text-xs font-normal opacity-80">{[pickup.details?.hazardClass?.split(' — ')[0], pickup.details?.unNumber].filter(Boolean).join(' · ')}</span>
-                  )}
-                  {fromPickup && on && <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide opacity-80">from pickup</span>}
-                </label>
-              )
-            })}
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+            <div className="flex shrink-0 flex-col gap-1.5">
+              {HANDLING_FLAGS.map((f) => {
+                const on = handling.includes(f)
+                return (
+                  <label key={f} className={`flex cursor-pointer items-center gap-2 text-sm font-medium ${on ? (f === 'Hazardous' ? 'text-rose-700' : 'text-amber-700') : 'text-slate-600'}`}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={(e) => setHandling((h) => (e.target.checked ? [...h, f] : h.filter((x) => x !== f)))}
+                      className={`h-4 w-4 rounded border-slate-300 ${f === 'Hazardous' ? 'accent-rose-500' : 'accent-amber-500'}`}
+                    />
+                    {f}
+                  </label>
+                )
+              })}
+            </div>
             <div className="flex gap-6 text-xs text-slate-500">
               <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Volumetric</p><p className="tabular-nums text-slate-700">{volKg.toFixed(1)} kg</p></div>
               <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Actual</p><p className="tabular-nums text-slate-700">{enteredActualWeight} kg</p></div>
             </div>
-            <div className="text-right">
+            <div className="ml-auto text-right">
               <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Chargeable weight</p>
               <p className="text-2xl font-semibold tabular-nums leading-tight text-brand-orange-dark">{chargeableWeight.toFixed(1)} <span className="text-sm font-medium">kg</span></p>
               {chargeableWeight > 0 && <p className="text-[10px] text-slate-400">by {volKg > enteredActualWeight ? 'volumetric' : 'actual'} weight</p>}
             </div>
           </div>
+          {handling.includes('Hazardous') && (
+            <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-rose-100 bg-rose-50/50 p-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">Hazard class</span>
+                <select value={hazardClass} onChange={(e) => setHazardClass(e.target.value)} aria-label="Hazard class" className={`w-full rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40 ${hazardClass ? 'text-slate-800' : 'text-slate-400'}`}>
+                  <option value="">Select class</option>
+                  {HAZARD_CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <Field dense label="UN number" aria-label="UN number" value={unNumber} onChange={(e) => setUnNumber(e.target.value)} placeholder="e.g. UN3481" />
+            </div>
+          )}
         </SectionCard>
 
-        <SectionCard title="Pricing (auto)">
+        <SectionCard
+          title="Pricing (auto)"
+          action={(
+            <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
+              <label className="flex items-center gap-1.5" title={isOda ? `Consignee pincode ${consigneePincode} is on the ODA list (ODA ${odaEntry.oda})` : 'Consignee pincode is not on the ODA list'}>
+                <input type="checkbox" checked={isOda} disabled readOnly className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                ODA delivery
+              </label>
+              <label className="flex items-center gap-1.5" title="From the pickup booking">
+                <input type="checkbox" checked={appointment} disabled readOnly className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                Appointment delivery
+              </label>
+            </div>
+          )}
+        >
           <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+            {/* The charge list is fixed — a charge that doesn't apply shows ₹0 (muted) instead of disappearing. */}
             {pricing.lines.map((l) => (
               <div key={l.label} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                <span className="text-slate-500">{l.label}</span>
-                <span className="font-medium tabular-nums text-slate-800">₹{l.value.toLocaleString('en-IN')}</span>
+                <span className="text-slate-500">{l.label}{l.breakup?.length > 0 && <BreakupTip items={l.breakup} />}</span>
+                <span className={`font-medium tabular-nums ${l.value > 0 ? 'text-slate-800' : 'text-slate-300'}`}>₹{l.value.toLocaleString('en-IN')}</span>
               </div>
             ))}
             <div className="flex items-center justify-between bg-slate-50/60 px-3 py-1.5 text-sm">
@@ -1153,33 +1168,67 @@ function DocketForm({ pickup, onGenerated }) {
         </SectionCard>
         </div>
 
-        <SectionCard title="Payment, risk & POD">
-          <div className="grid gap-3.5 lg:grid-cols-3">
+        <SectionCard
+          title="Document"
+        >
+          {ewayStatus === 'done' && <p className="-mt-1 text-[11px] font-medium text-brand-orange-dark">Filled from the e-Way Bill — edit if needed.</p>}
+          <div className="grid grid-cols-12 gap-2.5">
+            <Field label="1 · Invoice no." className="col-span-12 sm:col-span-5" dense value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
+            <Field label="2 · Invoice date" type="date" className="col-span-6 sm:col-span-3" dense value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            <Field label="3 · Value incl. GST (₹)" type="number" min="0" className="col-span-6 sm:col-span-4" dense value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
+
+            <label className="col-span-12 block sm:col-span-9">
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">4 · Goods description <span className="font-normal text-slate-400">— pick to fill HSN</span></span>
+              <GoodsPicker
+                value={goodsDescription}
+                onChange={setGoodsDescription}
+                onPick={(g) => { setGoodsDescription(g.name); setHsnCode(g.hsn) }}
+              />
+            </label>
+            <Field
+              label="HSN" className="col-span-12 sm:col-span-3" dense value={hsnCode} inputMode="numeric" placeholder="3304"
+              onChange={(e) => {
+                const code = e.target.value.replace(/[^\d]/g, '').slice(0, 8)
+                setHsnCode(code)
+                const hit = goodsByHsn(code)
+                if (hit && (!goodsDescription.trim() || goodsByHsn(hsnCode)?.name === goodsDescription)) setGoodsDescription(hit.name)
+              }}
+            />
+          </div>
+
+        </SectionCard>
+
+        <SectionCard title="Docket Terms">
+          <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Payment term</span>
-              <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} />
+              <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} compact />
             </div>
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Risk cover</span>
-              <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} />
+              <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} compact />
+            </div>
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">GST payable by</span>
+              <SegmentedControl options={[{ value: 'consignor', label: 'Consignor' }, { value: 'consignee', label: 'Consignee' }, { value: 'lt', label: 'LT' }]} value={gstPayableBy} onChange={setGstPayableBy} compact />
             </div>
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Proof of Delivery</span>
-              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} />
+              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} compact />
             </div>
           </div>
-          {riskCover === RISK_COVER.OWNERS_RISK && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <Field label="Insurance company" value={insuranceCompany} onChange={(e) => setInsuranceCompany(e.target.value)} placeholder="Optional" />
-              <Field label="Policy no." value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} placeholder="Optional" />
-            </div>
-          )}
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-slate-100 pt-3">
-            <span className="text-xs font-medium text-slate-400">Documents</span>
-            <CheckRow checked={!!invoiceNo} label="Invoice #" />
-            <CheckRow checked={!!consigneeGstin} label="GST no." />
-            <CheckRow checked={ewayStatus === 'done'} label="e-Way bill" />
-            <CheckRow checked={true} label="Declaration" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field dense label="Insurance · policy name / no." value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} placeholder="e.g. HDFC ERGO / P/123456" />
+            <label className="block">
+              <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500">
+                Amount covered (₹)
+                <button type="button" onClick={() => setInsuredValue(invoiceValue)} disabled={!invoiceValue} className="font-normal text-brand-orange-dark hover:underline disabled:opacity-40">= invoice</button>
+              </span>
+              <input
+                type="number" min="0" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </label>
           </div>
         </SectionCard>
 
