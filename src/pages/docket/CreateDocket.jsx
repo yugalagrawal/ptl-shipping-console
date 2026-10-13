@@ -17,6 +17,9 @@ import { seriesState, peekSeriesNumber } from '../../data/docketSeries.js'
 import { BOX_MASTER, addBoxToMaster } from '../../data/boxMaster.js'
 import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
 import { PRS_SEED } from '../../data/prs.js'
+import PartyModal from '../../components/PartyModal.jsx'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import { getAllConsignees, addConsigneeForClient } from '../../data/consignees.js'
 import { FLEET_SEED } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
 import { priceDocket, volumetricWeightKg } from '../../data/docketPricing.js'
@@ -86,11 +89,16 @@ function vehicleFor(pickup) {
   return { label: prs.vehicleLabel, regNo: veh?.regNo ?? '', driver: prs.driverName, prsId: prs.id, partner }
 }
 
+// Dockets this pickup needs when ops sets the count by hand (pickup id → n).
+const DOCKET_COUNTS = new Map()
+
 function candidatePickups() {
   return PICKUPS_SEED.filter((p) => {
     if (p.status !== PICKUP_STATUS.GROUPED && p.status !== PICKUP_STATUS.ARRIVED) return false
     // A multi-consignee pickup stays listed until every consignee has its docket.
     const dests = p.details?.destinations?.filter((d) => d.consignee?.name) ?? []
+    // An ops-set docket count (consignee info missing) overrides the consignee list.
+    if (DOCKET_COUNTS.has(p.id)) return DOCKETS_SEED.filter((d) => d.pickupId === p.id).length < DOCKET_COUNTS.get(p.id)
     return dests.length > 1 ? dests.some((d) => !docketForDestination(p.id, d)) : !p.docketNumber
   })
 }
@@ -376,6 +384,79 @@ function ewayNeedCheck({ value, exempt, special }) {
 const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
 
+// Consignee name field with a typeahead over the Consignee master (the same
+// store behind Master Module and Client Configuration). Picking a row fills the
+// whole card; "+ Add new consignee" opens the shared party modal, which saves
+// back to that master. Typing a free name still works — nothing is forced.
+function ConsigneeNameInput({ value, clientId, clientName, onChange, onPick, className }) {
+  const [open, setOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [typed, setTyped] = useState(false) // only filter once the user actually types
+  const [coords, setCoords] = useState(null)
+  const inputRef = useRef(null)
+  const panelRef = useRef(null)
+
+  const all = getAllConsignees()
+  const mine = all.filter((c) => c.clientIds.includes(clientId))
+  const q = typed ? value.trim().toLowerCase() : ''
+  const options = (mine.length ? mine : all)
+    .flatMap((party) => party.sites.map((site) => ({ key: `${party.id}|${site.id}`, party, site })))
+    .filter((o) => !q || `${o.party.partyName} ${o.site.label} ${o.site.city}`.toLowerCase().includes(q))
+
+  useEffect(() => {
+    if (!open) return
+    const place = () => {
+      const r = inputRef.current?.getBoundingClientRect()
+      if (r) setCoords({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 280) })
+    }
+    place()
+    const onDown = (e) => { if (!panelRef.current?.contains(e.target) && !inputRef.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place) }
+  }, [open])
+
+  const fill = (party, site) => onPick({
+    name: party.sites.length > 1 && site.label && site.label !== 'Main' ? `${party.partyName} — ${site.label}` : party.partyName,
+    address: site.address, city: site.city, pincode: site.pincode,
+  })
+
+  return (
+    <>
+      <input ref={inputRef} className={className} value={value} onChange={(e) => { onChange(e.target.value); setTyped(true); setOpen(true) }} onFocus={() => { setTyped(false); setOpen(true) }} placeholder="Search or type consignee name" aria-label="consignee name" autoComplete="off" />
+      {open && coords && createPortal(
+        <div ref={panelRef} style={{ top: coords.top, left: coords.left, width: coords.width }} className="fixed z-[60] rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-lg">
+          <div className="max-h-56 overflow-y-auto">
+            {options.map((o) => (
+              <button key={o.key} type="button" onClick={() => { fill(o.party, o.site); setOpen(false) }} className="block w-full rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-50">
+                <span className="block truncate text-sm text-slate-800">{o.party.partyName}{o.party.sites.length > 1 ? ` · ${o.site.label}` : ''}</span>
+                <span className="block truncate text-[11px] text-slate-400">{o.site.address}, {o.site.city} {o.site.pincode}</span>
+              </button>
+            ))}
+            {options.length === 0 && <p className="px-2.5 py-2 text-xs text-slate-400">No match in the consignee master</p>}
+          </div>
+          <button type="button" onClick={() => { setOpen(false); setAdding(true) }} className="mt-1 block w-full rounded-lg border-t border-slate-100 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-orange-dark hover:bg-slate-50">+ Add new consignee</button>
+        </div>,
+        document.body
+      )}
+      {adding && (
+        <PartyModal
+          kind="consignee"
+          companyDefault={clientName}
+          onClose={() => setAdding(false)}
+          onSave={(form) => {
+            const { clientIds: _ignored, ...data } = form
+            const row = addConsigneeForClient(clientId, data)
+            fill(row, row.sites[0])
+            setAdding(false)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
 function DocketForm({ pickup, onGenerated }) {
   const navigate = useNavigate()
   // Assigned docket series (Client Configuration): once a client's numbers run
@@ -397,6 +478,9 @@ function DocketForm({ pickup, onGenerated }) {
   const [consignorCity, setConsignorCity] = useState(pickup.consignor?.city ?? '')
   const [consignorPincode, setConsignorPincode] = useState(pickup.consignor?.pincode ?? '')
   const [consigneeGstin, setConsigneeGstin] = useState('')
+  // Consignor is the pickup's own party — locked unless ops confirms the override.
+  const [consignorEditable, setConsignorEditable] = useState(false)
+  const [confirmConsignorEdit, setConfirmConsignorEdit] = useState(false)
 
   // Actual weight and package count are always typed fresh — the pickup's
   // figures are only an estimate, shown as a watermark, so the entry is a real
@@ -967,21 +1051,52 @@ function DocketForm({ pickup, onGenerated }) {
               const line = 'min-w-0 border-0 border-b border-dotted border-slate-300 bg-transparent px-0 py-0.5 placeholder:text-slate-400 hover:border-slate-400 focus:border-brand-orange focus:outline-none'
               return (
                 <div key={p.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    {p.label} <span className={p.warn ? 'text-amber-600' : 'text-brand-orange-dark'}>({p.source})</span>
+                  <p className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    <span>{p.label} <span className={p.warn ? 'text-amber-600' : 'text-brand-orange-dark'}>({p.source})</span></span>
+                    {p.key === 'consignor' && (consignorEditable
+                      ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold normal-case text-amber-700">Editing — not recommended</span>
+                      : <button type="button" onClick={() => setConfirmConsignorEdit(true)} className="inline-flex items-center gap-1 text-[11px] font-medium normal-case text-slate-400 hover:text-brand-orange-dark"><Icon name="edit" className="h-3 w-3" />Edit</button>)}
                   </p>
-                  <input className={`${line} w-full text-sm font-medium text-slate-800`} value={p.name} onChange={(e) => p.setName(e.target.value)} placeholder="Name" aria-label={`${p.key} name`} />
-                  <input className={`${line} mt-1 w-full text-xs text-slate-500`} value={p.address} onChange={(e) => p.setAddress(e.target.value)} placeholder="Address" aria-label={`${p.key} address`} />
-                  <div className="mt-1 flex items-center gap-2">
-                    <input className={`${line} flex-1 text-xs text-slate-500`} value={p.city} onChange={(e) => p.setCity(e.target.value)} placeholder="City" aria-label={`${p.key} city`} />
-                    <span className="text-slate-300">·</span>
-                    <input className={`${line} w-20 shrink-0 text-xs text-slate-500`} value={p.pincode} onChange={(e) => p.setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Pincode" inputMode="numeric" aria-label={`${p.key} pincode`} />
-                  </div>
+                  {(() => {
+                    const ro = p.key === 'consignor' && !consignorEditable
+                    const ln = ro ? 'min-w-0 border-0 bg-transparent px-0 py-0.5 focus:outline-none cursor-default' : line
+                    return (
+                      <>
+                        {p.key === 'consignee' ? (
+                          <ConsigneeNameInput
+                            className={`${line} w-full text-sm font-medium text-slate-800`}
+                            value={p.name}
+                            onChange={p.setName}
+                            clientId={pickup.clientId}
+                            clientName={pickup.clientName}
+                            onPick={(c) => { setConsigneeName(c.name); setConsigneeAddress(c.address ?? ''); setConsigneeCity(c.city ?? ''); setConsigneePincode(c.pincode ?? '') }}
+                          />
+                        ) : (
+                          <input className={`${ln} w-full text-sm font-medium text-slate-800`} value={p.name} onChange={(e) => p.setName(e.target.value)} readOnly={ro} placeholder="Name" aria-label={`${p.key} name`} />
+                        )}
+                        <input className={`${ln} mt-1 w-full text-xs text-slate-500`} value={p.address} onChange={(e) => p.setAddress(e.target.value)} readOnly={ro} placeholder="Address" aria-label={`${p.key} address`} />
+                        <div className="mt-1 flex items-center gap-2">
+                          <input className={`${ln} flex-1 text-xs text-slate-500`} value={p.city} onChange={(e) => p.setCity(e.target.value)} readOnly={ro} placeholder="City" aria-label={`${p.key} city`} />
+                          <span className="text-slate-300">·</span>
+                          <input className={`${ln} w-20 shrink-0 text-xs text-slate-500`} value={p.pincode} onChange={(e) => p.setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} readOnly={ro} placeholder="Pincode" inputMode="numeric" aria-label={`${p.key} pincode`} />
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               )
             })}
           </div>
         </SectionCard>
+        <ConfirmDialog
+          open={confirmConsignorEdit}
+          title="Edit consignor?"
+          message="The consignor comes from the pickup, so editing it here is not recommended. Continue only if the pickup details are wrong."
+          confirmLabel="Edit anyway"
+          cancelLabel="Keep locked"
+          onConfirm={() => { setConsignorEditable(true); setConfirmConsignorEdit(false) }}
+          onCancel={() => setConfirmConsignorEdit(false)}
+        />
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <SectionCard
@@ -1260,48 +1375,98 @@ function DocketForm({ pickup, onGenerated }) {
 const docketForDestination = (pickupId, dest) =>
   DOCKETS_SEED.find((d) => d.pickupId === pickupId && sameText(d.consignee?.name, dest.consignee.name)) ?? null
 
-function destinationView(pickup, destinations, idx) {
-  const dest = destinations[idx]
-  const offset = destinations.slice(0, idx).reduce((n, d) => n + (d.boxes || 0), 0)
+const sumOf = (list, k) => list.reduce((n, d) => n + (Number(d[k]) || 0), 0)
+
+// Slots = one per docket this pickup needs. Named consignees come first; the
+// rest are "pending" — consignee unknown (or only partly known) until typed in
+// the form. A pending slot's raised docket is found by elimination: dockets of
+// this pickup that match none of the named consignees, oldest first.
+function buildSlots(pickup, named, partial, count) {
+  const extras = DOCKETS_SEED.filter((d) => d.pickupId === pickup.id && !named.some((n) => sameText(n.consignee.name, d.consignee?.name))).reverse()
+  const slots = named.map((dest) => ({ kind: 'known', dest, docket: docketForDestination(pickup.id, dest) }))
+  for (let i = 0; i < count - named.length; i++) {
+    slots.push({ kind: 'pending', n: named.length + i + 1, i, prefill: partial[i] ?? null, docket: extras[i] ?? null })
+  }
+  return slots
+}
+
+function slotView(pickup, slots, idx) {
+  const slot = slots[idx]
+  const known = slots.filter((s) => s.kind === 'known').map((s) => s.dest)
+  if (slot.kind === 'known') {
+    const dest = slot.dest
+    const offset = known.slice(0, known.indexOf(dest)).reduce((n, d) => n + (d.boxes || 0), 0)
+    return {
+      ...pickup,
+      consignee: dest.consignee,
+      packagesCount: dest.boxes,
+      scannedCount: dest.boxes,
+      actualWeightKg: dest.kg,
+      awbNumbers: (pickup.awbNumbers ?? []).slice(offset, offset + dest.boxes),
+      docketNumber: slot.docket?.docketNumber,
+    }
+  }
+  // Pending: split whatever the known consignees leave over, evenly, as an estimate.
+  const pending = slots.filter((s) => s.kind === 'pending').length
+  const knownBoxes = sumOf(known, 'boxes')
+  const boxes = slot.prefill?.boxes ?? (pickup.packagesCount != null ? Math.max(1, Math.floor(Math.max(0, pickup.packagesCount - knownBoxes) / pending)) : null)
+  const kgLeft = (pickup.actualWeightKg ?? pickup.estWeightKg) != null ? Math.max(0, (pickup.actualWeightKg ?? pickup.estWeightKg) - sumOf(known, 'kg')) : null
+  const kg = slot.prefill?.kg ?? (kgLeft != null ? Math.round(kgLeft / pending) : null)
+  const offset = knownBoxes + slot.i * (boxes ?? 0)
   return {
     ...pickup,
-    consignee: dest.consignee,
-    packagesCount: dest.boxes,
-    scannedCount: dest.boxes,
-    actualWeightKg: dest.kg,
-    awbNumbers: (pickup.awbNumbers ?? []).slice(offset, offset + dest.boxes),
-    docketNumber: docketForDestination(pickup.id, dest)?.docketNumber,
+    consignee: slot.prefill?.consignee ?? null,
+    packagesCount: boxes,
+    scannedCount: boxes ?? pickup.scannedCount,
+    actualWeightKg: kg,
+    estWeightKg: kg,
+    awbNumbers: boxes != null ? (pickup.awbNumbers ?? []).slice(offset, offset + boxes) : pickup.awbNumbers,
+    docketNumber: slot.docket?.docketNumber,
   }
 }
 
-function DocketForChooser({ pickup, destinations, value, onChange }) {
-  const raised = destinations.filter((d) => docketForDestination(pickup.id, d)).length
+function DocketForChooser({ slots, count, minCount, onCount, value, onChange }) {
+  const raised = slots.filter((s) => s.docket).length
+  const stepBtn = 'flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-base leading-none text-slate-600 hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-40'
   return (
     <div className={`space-y-2 p-3 ${card}`}>
-      <p className="flex items-center justify-between text-xs font-semibold text-slate-700">
-        Docket for
-        <span className="font-normal text-slate-400">{raised} of {destinations.length} dockets raised</span>
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {destinations.map((d, i) => {
-          const docket = docketForDestination(pickup.id, d)
-          const active = value === i
-          return (
-            <button
-              key={d.consignee.name}
-              type="button"
-              onClick={() => onChange(i)}
-              className={`rounded-xl border px-3 py-2 text-left transition ${active ? 'border-brand-orange bg-brand-orange/5' : 'border-slate-200 bg-white hover:border-slate-300'}`}
-            >
-              <p className="truncate text-sm font-medium text-slate-800">{d.consignee.name}</p>
-              <p className="text-xs text-slate-500">{d.consignee.city} · {d.boxes} box{d.boxes === 1 ? '' : 'es'} · {d.kg} kg</p>
-              <p className={`mt-1 text-[11px] font-medium ${docket ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {docket ? `Docket ${docket.docketNumber}` : 'Docket not raised'}
-              </p>
-            </button>
-          )
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-slate-700">Docket for</p>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-slate-400">{raised} of {count} dockets raised</span>
+          <span className="flex items-center gap-1.5" title="How many dockets (consignees) this pickup needs. Raise it if the consignee list is missing or incomplete.">
+            <span className="font-medium text-slate-600">No. of dockets</span>
+            <button type="button" className={stepBtn} disabled={count <= minCount} onClick={() => onCount(count - 1)} aria-label="Fewer dockets">−</button>
+            <span className="w-5 text-center text-sm font-semibold tabular-nums text-slate-800">{count}</span>
+            <button type="button" className={stepBtn} onClick={() => onCount(count + 1)} aria-label="More dockets">+</button>
+          </span>
+        </div>
       </div>
+      {count > 1 && (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {slots.map((slot, i) => {
+            const active = value === i
+            const c = slot.kind === 'known' ? slot.dest.consignee : slot.prefill?.consignee
+            const boxes = slot.kind === 'known' ? slot.dest.boxes : slot.prefill?.boxes
+            const kg = slot.kind === 'known' ? slot.dest.kg : slot.prefill?.kg
+            const meta = [c?.city, boxes != null ? `${boxes} box${boxes === 1 ? '' : 'es'}` : null, kg != null ? `${kg} kg` : null].filter(Boolean).join(' · ')
+            return (
+              <button
+                key={slot.kind === 'known' ? slot.dest.consignee.name : `pending-${slot.i}`}
+                type="button"
+                onClick={() => onChange(i)}
+                className={`rounded-xl border px-3 py-2 text-left transition ${active ? 'border-brand-orange bg-brand-orange/5' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+              >
+                <p className={`truncate text-sm font-medium ${c?.name ? 'text-slate-800' : 'text-slate-500'}`}>{c?.name || `Consignee ${slot.n}`}</p>
+                <p className="text-xs text-slate-500">{meta || 'Details to be filled'}</p>
+                <p className={`mt-1 text-[11px] font-medium ${slot.docket ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {slot.docket ? `Docket ${slot.docket.docketNumber}` : 'Docket not raised'}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -1313,9 +1478,23 @@ export default function CreateDocket() {
   const [destIdx, setDestIdx] = useState(null)
 
   const selected = selectedId ? PICKUPS_SEED.find((p) => p.id === selectedId) ?? null : null
-  const destinations = selected?.details?.destinations?.filter((d) => d.consignee?.name) ?? []
-  const multi = destinations.length > 1
-  const formPickup = !selected ? null : multi ? (destIdx != null ? destinationView(selected, destinations, destIdx) : null) : selected
+  const allDests = selected?.details?.destinations ?? []
+  const named = allDests.filter((d) => d.consignee?.name)
+  const partial = allDests.filter((d) => !d.consignee?.name && (d.consignee?.city || d.consignee?.pincode))
+  const knownCount = named.length + partial.length
+  const raisedTotal = selected ? DOCKETS_SEED.filter((d) => d.pickupId === selected.id).length : 0
+  const minCount = Math.max(1, knownCount, raisedTotal)
+  const count = selected ? Math.max(minCount, DOCKET_COUNTS.get(selected.id) ?? knownCount) : 1
+  const slots = selected ? buildSlots(selected, named, partial, count) : []
+  const multi = count > 1
+  const slotIdx = destIdx != null && destIdx < slots.length ? destIdx : null
+  const formPickup = !selected ? null : multi ? (slotIdx != null ? slotView(selected, slots, slotIdx) : null) : selected
+
+  function setCount(n) {
+    DOCKET_COUNTS.set(selected.id, Math.max(minCount, n))
+    if (destIdx != null && destIdx >= n) setDestIdx(null)
+    refresh()
+  }
 
   function handleSelect(pickup) {
     setSelectedId(pickup.id)
@@ -1331,12 +1510,12 @@ export default function CreateDocket() {
 
       <PickupSearch onSelect={handleSelect} />
 
-      {multi && <DocketForChooser pickup={selected} destinations={destinations} value={destIdx} onChange={(i) => { setDestIdx(i); refresh() }} />}
+      {selected && <DocketForChooser slots={slots} count={count} minCount={minCount} onCount={setCount} value={slotIdx} onChange={(i) => { setDestIdx(i); refresh() }} />}
 
       {formPickup ? (
-        <DocketForm key={`${selected.id}:${destIdx ?? 'x'}`} pickup={formPickup} onGenerated={refresh} />
+        <DocketForm key={`${selected.id}:${slotIdx ?? 'x'}`} pickup={formPickup} onGenerated={refresh} />
       ) : multi ? (
-        <div className={`p-8 text-center text-sm text-slate-500 ${card}`}>Pick the consignee this docket is for.</div>
+        <div className={`p-8 text-center text-sm text-slate-500 ${card}`}>Pick the docket to fill.</div>
       ) : (
         <div className={`flex flex-col items-center justify-center gap-2 p-14 text-center ${card}`}>
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange-dark">

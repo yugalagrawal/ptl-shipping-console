@@ -6,6 +6,7 @@
 // same action on the same pickup record, so there's exactly one creation
 // path — no separate "manual" docket shape.
 import { allocateDocketNumber, isReservedDocketNumber } from './docketSeries.js'
+import { docketOfBody, nextIssuableBody } from './docketNumber.js'
 
 export const DOCKET_STATUS = {
   PENDING: 'pending',
@@ -51,18 +52,22 @@ function logEntry(label, note = '', at = Date.now()) {
   return { at, label, note }
 }
 
-// Docket numbers are 10-digit numeric. Random placeholder for now — the real
-// 10-digit logic is still to be defined.
-function randomDocketNumber() {
-  let n
-  do n = String(Math.floor(1e9 + Math.random() * 9e9))
-  while (isReservedDocketNumber(n)) // never hand out a number inside a client's assigned series
-  return n
+// Docket numbers are 10 digits: a 9-digit body from one running sequence plus a
+// weighted mod-11 check digit (data/docketNumber.js). Auto numbers skip bodies
+// that can't be issued and every client's assigned series. In production this
+// is a locked counter / DB sequence — never random, never reissued.
+let autoBody = 456495211
+function nextAutoDocketNumber() {
+  for (;;) {
+    autoBody = nextIssuableBody(autoBody + 1)
+    const n = docketOfBody(autoBody)
+    if (!isReservedDocketNumber(n)) return n
+  }
 }
-let upcomingDocketNumber = randomDocketNumber()
+let upcomingDocketNumber = nextAutoDocketNumber()
 function nextDocketNumber() {
   const n = upcomingDocketNumber
-  upcomingDocketNumber = randomDocketNumber()
+  upcomingDocketNumber = nextAutoDocketNumber()
   return n
 }
 

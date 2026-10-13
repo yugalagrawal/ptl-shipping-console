@@ -174,6 +174,24 @@ export default function SystemInfo() {
           </table>
         </div>
       </div>
+      <div className={`space-y-3 p-6 ${card}`}>
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">Reference notes</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Internal logic written down in plain English — not shown to users.</p>
+        </div>
+        <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+          <h3 className="text-sm font-medium text-slate-800">Docket number — 9 + C</h3>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-600">
+            <li>A docket number is 10 digits: a 9-digit running number, then 1 check digit at the end (9 + C). Always stored as text, so leading zeros stay.</li>
+            <li>Take the 9 digits and double every odd-place digit — the 1st, 3rd, 5th, 7th and 9th. If a doubled digit comes to 10 or more, subtract 9 from it.</li>
+            <li>Leave the even-place digits (2nd, 4th, 6th, 8th) as they are.</li>
+            <li>Add all nine results together.</li>
+            <li>Divide that total by 11 and keep the remainder (0 to 10).</li>
+            <li>The remainder is the check digit. If the remainder is 10, the check digit is 0.</li>
+          </ol>
+          <p className="mt-2 text-xs text-slate-500">To check a typed docket, redo this on its first 9 digits and compare with the 10th. If they differ, it is invalid — never auto-correct it.</p>
+        </div>
+      </div>
     </div>
   )
 }

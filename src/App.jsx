@@ -23,6 +23,7 @@ import MyOrders from './pages/order/MyOrders.jsx'
 import PRS from './pages/order/PRS.jsx'
 import CreateDocket from './pages/docket/CreateDocket.jsx'
 import EwayBill from './pages/docket/EwayBill.jsx'
+import DocketSeries from './pages/docket/DocketSeries.jsx'
 import DocketDashboard from './pages/docket/DocketDashboard.jsx'
 import GeographyMaster from './pages/master/GeographyMaster.jsx'
 import LogisticsMaster from './pages/master/LogisticsMaster.jsx'
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/order-module/prs" element={<PRS />} />
         <Route path="/docket-module/create-docket" element={<CreateDocket />} />
         <Route path="/docket-module/eway-bill" element={<EwayBill />} />
+        <Route path="/docket-module/docket-series" element={<DocketSeries />} />
         <Route path="/docket-module/dashboard" element={<DocketDashboard />} />
         <Route path="/master-module/geography-master" element={<GeographyMaster />} />
         <Route path="/master-module/logistics-master" element={<LogisticsMaster />} />
