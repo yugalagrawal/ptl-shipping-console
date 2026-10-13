@@ -1,3 +1,4 @@
+import { BOX_MASTER } from '../../data/boxMaster.js'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
@@ -96,15 +97,36 @@ const RATE_METHOD_UNIT = {
   [RATE_METHOD.PER_TRIP]: '₹ / Trip',
   [RATE_METHOD.KM_ONLY]: '₹ / Km',
 }
-// Payout is two independent choices (Yugal): a rate basis (this list — pick one
-// or more per leg) plus an optional Monthly fixed payout (MonthlyFixedRow,
-// below). Every leg offers the same bases; what differs per leg is only which
-// one is flagged Recommended in the dropdown.
-const ALL_RATE_METHODS = [
+// Payout = one "Pricing type" dropdown per leg (multi-select, each ticked type
+// becomes a row). Two families: Variable (a rate on one basis) and Monthly fixed
+// (a fixed ₹/month, alone or combined with any basis — the fixed amount covers
+// up to N of that basis, only the excess earns the rate; 0 = no cover limit).
+const BASIS_COVER_UNIT = {
+  [RATE_METHOD.PER_KG]: 'Kg',
+  [RATE_METHOD.PER_DOCKET]: 'Dockets',
+  [RATE_METHOD.PER_BOX]: 'Boxes',
+  [RATE_METHOD.PER_TRIP]: 'Trips',
+  [RATE_METHOD.KM_ONLY]: 'Km',
+  [RATE_METHOD.PCT_FREIGHT]: '₹ Freight',
+  [RATE_METHOD.PCT_INVOICE]: '₹ Invoice value',
+}
+const BASES = [
   RATE_METHOD.PER_KG, RATE_METHOD.PER_DOCKET, RATE_METHOD.PER_BOX,
   RATE_METHOD.PER_TRIP, RATE_METHOD.KM_ONLY,
   RATE_METHOD.PCT_FREIGHT, RATE_METHOD.PCT_INVOICE,
 ]
+const FIXED_ONLY = 'fixed'
+const fixedKey = (basis) => `fixed_${basis}`
+const isFixedMethod = (m) => m === FIXED_ONLY || m?.startsWith('fixed_')
+const basisOf = (m) => (m?.startsWith('fixed_') ? m.slice(6) : m === FIXED_ONLY ? null : m)
+const SHORT_BASIS = { [RATE_METHOD.PCT_FREIGHT]: '% of Freight', [RATE_METHOD.PCT_INVOICE]: '% of Invoice' }
+RATE_METHOD_LABEL[FIXED_ONLY] = 'Monthly fixed'
+for (const b of BASES) RATE_METHOD_LABEL[fixedKey(b)] = `Fixed + ${SHORT_BASIS[b] ?? RATE_METHOD_LABEL[b]}`
+const METHOD_GROUP = {}
+for (const b of BASES) METHOD_GROUP[RATE_METHOD_LABEL[b]] = 'Variable — rate only'
+METHOD_GROUP[RATE_METHOD_LABEL[FIXED_ONLY]] = 'Monthly fixed'
+for (const b of BASES) METHOD_GROUP[RATE_METHOD_LABEL[fixedKey(b)]] = 'Monthly fixed + rate after cover'
+const ALL_RATE_METHODS = [...BASES, FIXED_ONLY, ...BASES.map(fixedKey)]
 const RATE_METHODS_BY_SERVICE = {
   'FirstMile - Pickup': ALL_RATE_METHODS,
   MidMile: ALL_RATE_METHODS,
@@ -115,15 +137,9 @@ const RECOMMENDED_RATE_METHOD = {
   MidMile: RATE_METHOD.KM_ONLY,
   'LastMile - Delivery': RATE_METHOD.PER_KG,
 }
-const isPercentMethod = (method) => method?.startsWith('pct_')
+const isPercentMethod = (method) => basisOf(method)?.startsWith('pct_')
 function emptyRateConfig(method) {
-  return { method, rateValue: '' }
-}
-// Optional Monthly fixed payout, one per leg. `coverKm` is mandatory — 0 =
-// no Km condition (the Per Km rate applies from Km 1); N = the fixed amount
-// covers that many Km and only the Km beyond it earn the Per Km rate.
-function emptyMonthlyFixed() {
-  return { enabled: false, fixedMonthly: '', coverKm: '', ratePerKm: '', tollParkingExtra: false }
+  return { method, rateValue: '', fixedMonthly: '', coverQty: '', tollParkingExtra: false, boxRates: [] }
 }
 
 // IFSC already encodes bank + branch, so a separate "Bank name"/"Bank
@@ -450,30 +466,120 @@ function InfoTip({ text }) {
     </span>
   )
 }
-const rateInputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
-function RateValue({ config, set, unit, placeholder = '18' }) {
+// Compact input with the unit sitting inside the field, so a rate reads as one
+// small control instead of a long empty rectangle.
+const cInputCls = 'w-full rounded-lg border border-slate-200 bg-slate-50/60 py-2 pl-3 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+function CField({ label, value, onChange, suffix, placeholder, hint, required }) {
   return (
-    <div className="flex min-w-[9rem] flex-1 items-center gap-2">
-      <input type="number" min="0" value={config.rateValue} onChange={(e) => set('rateValue', e.target.value)} placeholder={placeholder} className={rateInputCls} />
-      <span className="shrink-0 text-xs text-slate-400">{unit}</span>
-    </div>
-  )
-}
-function RateNumberField({ config, set, label, field, placeholder, width = 'w-32', required, hint }) {
-  return (
-    <label className={`block shrink-0 ${width}`}>
-      <span className="mb-1.5 flex items-center gap-1 whitespace-nowrap text-xs font-medium text-slate-500">
-        {label}
-        {required && <span className="text-brand-orange-dark">*</span>}
-        {hint && <InfoTip text={hint} />}
+    <label className="block min-w-0">
+      {label && (
+        <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-slate-500">
+          {label}
+          {required && <span className="text-brand-orange-dark">*</span>}
+          {hint && <InfoTip text={hint} />}
+        </span>
+      )}
+      <span className="relative block">
+        <input type="number" min="0" value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={`${cInputCls} ${suffix ? 'pr-16' : 'pr-3'}`} />
+        {suffix && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] text-slate-400">{suffix}</span>}
       </span>
-      <input type="number" min="0" value={config[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} className={rateInputCls} />
     </label>
   )
 }
+// Per Box pricing is per Box-master size (same master Create Docket sizes goods
+// with, so partner payout and docket stay in sync). Dimensions aren't shown —
+// just the size name.
+let boxRateSeq = 1
+function BoxRateList({ config, set }) {
+  const rows = config.boxRates ?? []
+  const [unit, setUnit] = useState('cm')
+  const conv = (v) => (unit === 'in' ? Math.round((v / 2.54) * 10) / 10 : v)
+  const dims = (bx) => `${conv(bx.l)}×${conv(bx.b)}×${conv(bx.h)} ${unit}`
+  const used = new Set(rows.map((r) => r.boxId))
+  const free = BOX_MASTER.filter((bx) => !used.has(bx.id))
+  const update = (id, patch) => set('boxRates', rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  const add = (list) => set('boxRates', [...rows, ...list.map((bx) => ({ id: boxRateSeq++, boxId: bx.id, rate: '' }))])
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200">
+      <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        <span>Box size · rate per box</span>
+        <span className="inline-flex rounded-md bg-slate-200/60 p-0.5 text-[10px] font-semibold normal-case">
+          {['cm', 'in'].map((u) => (
+            <button key={u} type="button" onClick={() => setUnit(u)} className={`rounded px-1.5 py-0.5 ${unit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
+          ))}
+        </span>
+      </div>
+      {rows.map((r) => {
+        const bx = BOX_MASTER.find((x) => x.id === r.boxId)
+        return (
+          <div key={r.id} className="flex items-center gap-3 border-t border-slate-100 px-3 py-1.5">
+            <span className="w-9 text-sm font-semibold text-slate-800">{bx?.name}</span>
+            <span className="flex-1 truncate text-xs text-slate-400">{bx && dims(bx)}</span>
+            <div className="w-36 shrink-0"><CField value={r.rate} onChange={(v) => update(r.id, { rate: v })} suffix="₹ / box" placeholder="18" /></div>
+            <button type="button" onClick={() => set('boxRates', rows.filter((x) => x.id !== r.id))} className="text-slate-300 hover:text-rose-500" title="Remove box" aria-label="Remove box">
+              <Icon name="trash" className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )
+      })}
+      {rows.length > 0 && (
+        <p className="border-t border-slate-100 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-400">
+          Note: parcels larger than {BOX_MASTER[BOX_MASTER.length - 1].name} are charged at the {BOX_MASTER[BOX_MASTER.length - 1].name} rate, and smaller than {BOX_MASTER[0].name} at the {BOX_MASTER[0].name} rate.
+        </p>
+      )}
+      {free.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 px-3 py-2">
+          <span className="text-[11px] text-slate-400">Add</span>
+          {free.map((bx) => (
+            <button key={bx.id} type="button" onClick={() => add([bx])} className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:border-brand-orange hover:text-brand-orange-dark">
+              + {bx.name}{bx.name === 'Custom' ? ` ${bx.l}×${bx.b}×${bx.h}` : ''}
+            </button>
+          ))}
+          {free.length > 1 && <button type="button" onClick={() => add(free)} className="ml-1 text-[11px] font-medium text-brand-orange-dark hover:underline">Add all</button>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const InlineLbl = ({ children }) => <span className="whitespace-nowrap text-xs text-slate-500">{children}</span>
+// Controls of one pricing-type row: a single input for variable types, a short
+// sentence of inputs for fixed types, a nested size table for Per Box.
 function RateMethodFields({ config, onChange }) {
   const set = (field, value) => onChange({ ...config, [field]: value })
-  return <RateValue config={config} set={set} unit={RATE_METHOD_UNIT[config.method]} placeholder={isPercentMethod(config.method) ? '2.5' : '18'} />
+  if (isFixedMethod(config.method)) {
+    const basis = basisOf(config.method)
+    return (
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+          <div className="w-36"><CField value={config.fixedMonthly} onChange={(v) => set('fixedMonthly', v)} suffix="₹ / month" placeholder="40000" /></div>
+          {basis && (
+            <>
+              <InlineLbl>covers up to</InlineLbl>
+              <div className="w-32"><CField value={config.coverQty} onChange={(v) => set('coverQty', v)} suffix={BASIS_COVER_UNIT[basis]} placeholder="0" /></div>
+              <InfoTip text="Put 0 if no cover limit" />
+              {basis !== RATE_METHOD.PER_BOX && (
+                <>
+                  <InlineLbl>then</InlineLbl>
+                  <div className="w-32"><CField value={config.rateValue} onChange={(v) => set('rateValue', v)} suffix={isPercentMethod(basis) ? '%' : RATE_METHOD_UNIT[basis]} placeholder={isPercentMethod(basis) ? '2.5' : '8'} /></div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+        {basis === RATE_METHOD.PER_BOX && (
+          <div>
+            <p className="mb-1 text-xs text-slate-500">then, per box size</p>
+            <BoxRateList config={config} set={set} />
+          </div>
+        )}
+        <Toggle label="Toll & parking extra" checked={config.tollParkingExtra} onChange={(v) => set('tollParkingExtra', v)} />
+      </div>
+    )
+  }
+  if (config.method === RATE_METHOD.PER_BOX) return <BoxRateList config={config} set={set} />
+  const pct = isPercentMethod(config.method)
+  return <div className="w-44"><CField value={config.rateValue} onChange={(v) => set('rateValue', v)} suffix={pct ? '%' : RATE_METHOD_UNIT[config.method]} placeholder={pct ? '2.5' : '18'} /></div>
 }
 
 let idRowSeq = 1
@@ -868,13 +974,6 @@ export default function NewPartner() {
   // per method, kept after un-ticking so re-ticking restores what was typed.
   const [serviceMethods, setServiceMethods] = useState({})
   const [serviceRateConfigs, setServiceRateConfigs] = useState({})
-  const [serviceMonthly, setServiceMonthly] = useState({})
-  function monthlyFor(type) {
-    return serviceMonthly[type] ?? emptyMonthlyFixed()
-  }
-  function updateMonthly(type, next) {
-    setServiceMonthly((prev) => ({ ...prev, [type]: next }))
-  }
   function methodsFor(type) {
     return serviceMethods[type] ?? []
   }
@@ -1480,60 +1579,43 @@ export default function NewPartner() {
 
                   <div className="block max-w-md">
                     <span className="mb-1.5 block text-xs font-medium text-slate-500">
-                      Payout rules<span className="text-brand-orange-dark"> *</span>
+                      Pricing type<span className="text-brand-orange-dark"> *</span>
                     </span>
                     <MultiSelect
                       options={Object.keys(labelToMethod)}
                       selected={picked.map((m) => RATE_METHOD_LABEL[m])}
                       onChange={(labels) => setMethodsFor(type, labels.map((l) => labelToMethod[l]))}
                       recommended={[RATE_METHOD_LABEL[RECOMMENDED_RATE_METHOD[type]]]}
-                      placeholder="Select payout rules"
-                      noun="rule"
+                      placeholder="Select pricing type"
+                      noun="pricing type"
+                      groups={METHOD_GROUP}
                     />
                   </div>
 
-                  {picked.map((method, i) => (
-                    <div key={method} className="flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-3">
-                      <div className="flex w-72 shrink-0 items-center gap-2.5 whitespace-nowrap text-sm font-medium text-slate-700">
-                        <span className="shrink-0 rounded-md bg-brand-orange/10 px-2 py-1 text-xs font-semibold text-brand-orange-dark">Mode {i + 1}</span>
-                        <span className="flex-1 truncate" title={RATE_METHOD_LABEL[method]}>{RATE_METHOD_LABEL[method]}</span>
-                        <button
-                          type="button"
-                          onClick={() => setMethodsFor(type, picked.filter((m) => m !== method))}
-                          className="shrink-0 text-slate-400 hover:text-rose-500"
-                          title="Remove rule"
-                        >
-                          <Icon name="trash" className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <RateMethodFields
-                        config={serviceRateConfigFor(type, method)}
-                        onChange={(next) => updateServiceRateConfig(type, method, next)}
-                      />
-                    </div>
-                  ))}
-
-                  {(() => {
-                    const monthly = monthlyFor(type)
-                    const setM = (field, value) => updateMonthly(type, { ...monthly, [field]: value })
-                    return (
-                      <div className="flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-3">
-                        <div className="flex w-72 shrink-0 items-center whitespace-nowrap text-sm font-medium text-slate-700">
-                          <Toggle label="Monthly fixed payout" checked={monthly.enabled} onChange={(v) => setM('enabled', v)} />
-                        </div>
-                        {monthly.enabled && (
-                          <div className="flex flex-1 flex-wrap items-end gap-3">
-                            <RateNumberField config={monthly} set={setM} label="Monthly payout (₹)" field="fixedMonthly" placeholder="40000" width="w-36" />
-                            <RateNumberField config={monthly} set={setM} label="Covers up to (Km)" field="coverKm" placeholder="0" width="w-40" required hint="Put 0 if no km condition" />
-                            <RateNumberField config={monthly} set={setM} label="Per Km after (₹)" field="ratePerKm" placeholder="8" width="w-32" />
-                            <div className="shrink-0 whitespace-nowrap pb-2.5">
-                              <Toggle label="Toll & parking extra" checked={monthly.tollParkingExtra} onChange={(v) => setM('tollParkingExtra', v)} />
-                            </div>
+                  {picked.length > 0 && (
+                    <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                      {picked.map((method, i) => (
+                        <div key={method} className="grid grid-cols-[9.5rem_minmax(0,1fr)_1.25rem] items-start gap-4 px-4 py-3">
+                          <div className="flex min-h-[2.25rem] items-center gap-2">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">{i + 1}</span>
+                            <span className="text-sm font-medium text-slate-800">{RATE_METHOD_LABEL[method]}</span>
                           </div>
-                        )}
-                      </div>
-                    )
-                  })()}
+                          <RateMethodFields
+                            config={serviceRateConfigFor(type, method)}
+                            onChange={(next) => updateServiceRateConfig(type, method, next)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setMethodsFor(type, picked.filter((m) => m !== method))}
+                            className="flex min-h-[2.25rem] items-center text-slate-300 hover:text-rose-500"
+                            title="Remove pricing type"
+                          >
+                            <Icon name="trash" className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })

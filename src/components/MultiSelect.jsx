@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 // Multi-select dropdown with search and a "Select all" row. The panel is
@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 // selected array. Anything selected that isn't in `options` (e.g. a seeded
 // value) is still listed, so it can be seen and unticked. `recommended` is an
 // optional list of option strings that get a "Recommended" tag and are pinned to the top of the list.
-export default function MultiSelect({ options, selected, onChange, disabled, placeholder = 'Select…', noun = 'item', recommended = [] }) {
+export default function MultiSelect({ options, selected, onChange, disabled, placeholder = 'Select…', noun = 'item', recommended = [], groups }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [coords, setCoords] = useState(null)
@@ -18,7 +18,7 @@ export default function MultiSelect({ options, selected, onChange, disabled, pla
   const all = useMemo(() => [...new Set([...options, ...selected])], [options, selected])
   const sel = useMemo(() => new Set(selected), [selected])
   const matches = all.filter((o) => o.toLowerCase().includes(q.trim().toLowerCase()))
-  const shown = [...matches.filter((o) => recommended.includes(o)), ...matches.filter((o) => !recommended.includes(o))]
+  const shown = groups ? matches : [...matches.filter((o) => recommended.includes(o)), ...matches.filter((o) => !recommended.includes(o))]
   const allShownSelected = shown.length > 0 && shown.every((o) => sel.has(o))
 
   useEffect(() => {
@@ -75,19 +75,26 @@ export default function MultiSelect({ options, selected, onChange, disabled, pla
       {open && coords && createPortal(
         <div ref={panelRef} style={{ top: coords.top, left: coords.left, width: Math.max(coords.width, 220) }} className="fixed z-[60] rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-lg">
           <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="mb-1.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs focus:outline focus:outline-2 focus:outline-brand-orange/40" />
+          {!groups && (
           <label className="flex cursor-pointer items-center gap-2 rounded-md border-b border-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
             <input type="checkbox" checked={allShownSelected} onChange={toggleAll} className="h-3.5 w-3.5 rounded border-slate-300" />
             Select all{q.trim() ? ' (filtered)' : ''}
           </label>
-          <div className="mt-1 max-h-48 space-y-0.5 overflow-y-auto">
-            {shown.map((o) => (
-              <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">
+          )}
+          <div className="mt-1 max-h-72 space-y-0.5 overflow-y-auto">
+            {shown.map((o, i) => (
+              <Fragment key={o}>
+              {groups && groups[o] !== groups[shown[i - 1]] && (
+                <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{groups[o]}</p>
+              )}
+              <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">
                 <input type="checkbox" checked={sel.has(o)} onChange={() => toggle(o)} className="h-3.5 w-3.5 rounded border-slate-300" />
                 <span className="truncate">{o}</span>
                 {recommended.includes(o) && (
                   <span className="ml-auto shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">Recommended</span>
                 )}
               </label>
+              </Fragment>
             ))}
             {shown.length === 0 && <p className="px-2 py-3 text-xs text-slate-400">No matches</p>}
           </div>
