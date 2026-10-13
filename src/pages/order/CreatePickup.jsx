@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.jsx'
 import { card } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
 import { initOrdersSeed, savedPickupAddressesForClient, savedDeliveryAddressesForClient } from '../../data/orders.js'
+import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
 import {
   PICKUPS_SEED, PICKUP_STATUS_LABEL, PICKUP_STATUS_BADGE, MINI_HUBS, createPickup,
   PICKUP_TYPE, REPEAT_END_TYPE, createRecurringSeries, refreshPickupLocks, refreshRecurringWindows,
@@ -32,14 +33,6 @@ const PAYMENT_TERMS = ['Credit', 'Retail']
 // carries its own operating window, serving Mini Hub, and site-level contact
 // (Incharge/SOL), on top of the consignor fields the site already had.
 const SITE_TYPES = ['Warehouse', 'Factory', 'Store', 'Other']
-const CONTENT_TYPES = ['General Cargo', 'Cosmetics', 'Electronics', 'Pharmaceuticals', 'Perishables (Non-Frozen)', 'Textiles & Apparel', 'Documents', 'Furniture', 'Other']
-// Standard UN transport hazard classes 1-9.
-const HAZARD_CLASSES = [
-  'Class 1 — Explosives', 'Class 2 — Gases', 'Class 3 — Flammable Liquids', 'Class 4 — Flammable Solids',
-  'Class 5 — Oxidizing Substances', 'Class 6 — Toxic & Infectious Substances', 'Class 7 — Radioactive Material',
-  'Class 8 — Corrosives', 'Class 9 — Miscellaneous Dangerous Goods',
-]
-
 // A Consignor (the business/party) is one thing; the Sites it books pickups
 // from are another, and a consignor can have more than one — this is the
 // devs' own dropdown-then-sites pattern, not the earlier "site card carries
@@ -902,6 +895,7 @@ export default function CreatePickup() {
   const [contentDescription, setContentDescription] = useState('')
   const [fragile, setFragile] = useState(false)
   const [hazardous, setHazardous] = useState(false)
+  const [appointment, setAppointment] = useState(false)
   const [hazardClass, setHazardClass] = useState('')
   const [unNumber, setUnNumber] = useState('')
 
@@ -966,7 +960,7 @@ export default function CreatePickup() {
     // one `details` bag instead of exploding createPickup's own signature
     // further for fields nothing downstream (PRS/MyOrders) reads yet.
     const details = {
-      contentType, contentDescription, fragile, hazardous, hazardClass, unNumber,
+      contentType, contentDescription, fragile, hazardous, hazardClass, unNumber, appointment,
       estimatedBoxes: estimatedBoxes ? Number(estimatedBoxes) : null,
       destinations: destinations.filter((d) => consigneeUnknown || d.consignee).map((d, i) => ({
         consignee: consigneeUnknown ? { name: d.destLabel || String.fromCharCode(65 + i) } : d.consignee,
@@ -1029,6 +1023,7 @@ export default function CreatePickup() {
     setContentType('')
     setContentDescription('')
     setFragile(false)
+    setAppointment(false)
     setHazardous(false)
     setDeclaredValueOver50k(false)
     setHazardClass('')
@@ -1287,6 +1282,10 @@ export default function CreatePickup() {
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={hazardous} onChange={(e) => setHazardous(e.target.checked)} className="h-4 w-4 rounded accent-rose-500" />
                 Hazardous / dangerous goods
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={appointment} onChange={(e) => setAppointment(e.target.checked)} className="h-4 w-4 rounded accent-brand-orange" />
+                Appointment delivery
               </label>
             </div>
             {hazardous && (

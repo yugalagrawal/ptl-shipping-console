@@ -4,12 +4,15 @@
 // (dummy but domain-real, sourced from the legacy Softpal-era client
 // configuration sheet); "Preferred Ideal" is the default every new client
 // starts on until someone picks something else for them.
+export const DOCKET_SERIES_AUTO = 'System Generated (Auto)'
+export const DOCKET_SERIES_ASSIGNED = 'Assigned Series'
+
 export const CLIENT_CONFIG_FIELDS = [
   {
     id: 'docket-series',
     label: 'Docket Series',
-    options: ['Assigned Series', 'National Series'],
-    default: 'Assigned Series',
+    options: [DOCKET_SERIES_AUTO, DOCKET_SERIES_ASSIGNED],
+    default: DOCKET_SERIES_AUTO,
   },
   {
     id: 'booking-data-exchange',
@@ -225,12 +228,16 @@ export const CLIENT_CONFIG_TABS = [
   },
   {
     id: 'booking-tracking',
-    label: 'Booking & Tracking',
+    label: 'Pickup & Docket',
     cards: [
-      { title: 'Docket & Booking Setup', icon: 'invoice', fieldIds: ['docket-series', 'booking-sequence', 'ewb-count-per-docket'] },
+      // Only Docket Series is live for now; Booking Sequence and EWB Count Per
+      // Docket stay defined above but are hidden until their behaviour is built.
+      { title: 'Docket Config', icon: 'invoice', fieldIds: ['docket-series'] },
+      // Not built yet — the card keeps its dropdowns (dimmed, read-only) under a "Yet to be built" tag.
       {
         title: 'Tracking & Data Exchange',
         icon: 'swap',
+        yetToBuild: true,
         fieldIds: ['booking-data-exchange', 'customer-tracking-reference', 'docket-form-submission', 'track-n-trace-data-push'],
       },
     ],
@@ -287,8 +294,12 @@ export const CLIENT_CONFIG_TABS = [
 const CLIENT_CONFIG_STORE = {}
 
 export function defaultClientConfigValues() {
-  return Object.fromEntries(CLIENT_CONFIG_FIELDS.map((f) => [f.id, f.default]))
+  // `docket-series-ranges` isn't a dropdown — it's the From–To ranges shown
+  // under Docket Series when it's set to Assigned Series (see data/docketSeries.js).
+  return { ...Object.fromEntries(CLIENT_CONFIG_FIELDS.map((f) => [f.id, f.default])), 'docket-series-ranges': [] }
 }
+
+export const allSavedClientConfigs = () => Object.entries(CLIENT_CONFIG_STORE)
 
 export function getClientConfigValues(clientId) {
   return { ...defaultClientConfigValues(), ...(CLIENT_CONFIG_STORE[clientId] ?? {}) }

@@ -102,8 +102,12 @@ export function RowSummary({ row }) {
 // Logistics Ladder's Edit Location row modal (see `codeForRow` in
 // LogisticsMaster.jsx, the shared key both pages open this by). `readOnly`
 // just hides every editing control, leaving the plain summary + stats.
-export default function HubServiceabilityModal({ label, coverage, onSave, onClose, readOnly }) {
+export default function HubServiceabilityModal({ label, poc, coverage, onSave, onClose, readOnly }) {
   const [rows, setRows] = useState((coverage ?? emptyServiceability()).rows)
+  // Point of contact for this location — only Location Master passes `poc`; optional, editable here.
+  const [pocDraft, setPocDraft] = useState(poc ?? null)
+  const [pocEdit, setPocEdit] = useState(null) // the in-progress copy while the pencil is open
+  const emailBad = (v) => !!v?.pocEmail && !/^\S+@\S+\.\S+$/.test(v.pocEmail)
   const [editingId, setEditingId] = useState(null)
 
   const usedStates = new Set(rows.filter((r) => r.id !== editingId).map((r) => r.state).filter(Boolean))
@@ -123,17 +127,59 @@ export default function HubServiceabilityModal({ label, coverage, onSave, onClos
     if (editingId === id) setEditingId(null)
   }
   function done() {
-    onSave({ rows: rows.filter((r) => r.state) })
+    if (pocEdit) { if (emailBad(pocEdit)) return; /* still open: take what's typed */ onSave({ rows: rows.filter((r) => r.state) }, pocEdit); onClose(); return }
+    onSave({ rows: rows.filter((r) => r.state) }, pocDraft ?? undefined)
     onClose()
   }
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-soft">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <div>
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+          <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-slate-900">Serviceability</h3>
             <p className="text-xs text-slate-500">{label}</p>
+            {/* Point of contact lives with the Hub / Mini Hub line: one quiet line, pencil to edit. */}
+            {pocDraft && !pocEdit && (
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <Icon name="onboarding" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                {pocDraft.pocName || pocDraft.pocPhone || pocDraft.pocEmail ? (
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium text-slate-700">{pocDraft.pocName || 'Unnamed contact'}</span>
+                    {[pocDraft.pocPhone, pocDraft.pocEmail].filter(Boolean).map((v) => <span key={v}> · {v}</span>)}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">No point of contact</span>
+                )}
+                {!readOnly && (
+                  <button type="button" onClick={() => setPocEdit(pocDraft)} title="Edit point of contact" className="shrink-0 text-slate-400 hover:text-slate-700">
+                    <Icon name="edit" className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </p>
+            )}
+            {pocDraft && pocEdit && (
+              <div className="mt-2 space-y-2">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[['pocName', 'Name', 'text'], ['pocPhone', 'Phone', 'tel'], ['pocEmail', 'Email', 'email']].map(([k, ph, type]) => (
+                    <input
+                      key={k}
+                      type={type}
+                      value={pocEdit[k]}
+                      autoFocus={k === 'pocName'}
+                      onChange={(e) => setPocEdit({ ...pocEdit, [k]: k === 'pocPhone' ? e.target.value.replace(/[^\d+\s-]/g, '').slice(0, 16) : k === 'pocEmail' ? e.target.value.trim() : e.target.value })}
+                      placeholder={ph}
+                      aria-label={`POC ${ph}`}
+                      className={`rounded-lg border px-2.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40 ${k === 'pocEmail' && emailBad(pocEdit) ? 'border-red-300' : 'border-slate-200'}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-2 text-xs font-medium">
+                  <button type="button" disabled={emailBad(pocEdit)} onClick={() => { setPocDraft(pocEdit); setPocEdit(null) }} className="rounded-lg bg-brand-orange px-3 py-1 text-white hover:bg-brand-orange-dark disabled:opacity-40">Save contact</button>
+                  <button type="button" onClick={() => setPocEdit(null)} className="rounded-lg px-3 py-1 text-slate-500 hover:bg-slate-50">Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
           <button type="button" onClick={readOnly ? onClose : done} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <Icon name="close" className="h-4 w-4" />

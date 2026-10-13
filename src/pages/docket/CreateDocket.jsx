@@ -1,78 +1,73 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import DocketSheet from '../../components/DocketSheet.jsx'
 import { card, btnPrimary, btnSecondary } from '../../components/ui.js'
-import { PICKUPS_SEED, PICKUP_STATUS, updatePickupFieldDetails, scanPackage } from '../../data/pickups.js'
+import { PICKUPS_SEED, PICKUP_STATUS, MINI_HUBS, updatePickupFieldDetails, scanPackage } from '../../data/pickups.js'
 import {
   MODE, MODE_LABEL,
   PAYMENT_TERM, PAYMENT_TERM_LABEL, RISK_COVER, RISK_COVER_LABEL, POD_TYPE, POD_TYPE_LABEL,
-  peekNextDocketNumber, enrichDocketDetails,
+  peekNextDocketNumber, enrichDocketDetails, createDocketFromPickup, DOCKETS_SEED,
 } from '../../data/dockets.js'
 import { INDIAN_STATES } from '../../data/geo.js'
+import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
+import { goodsByHsn, searchGoods } from '../../data/goodsCatalog.js'
+import { seriesState, peekSeriesNumber } from '../../data/docketSeries.js'
+import { BOX_MASTER, addBoxToMaster } from '../../data/boxMaster.js'
+import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
 import { PRS_SEED } from '../../data/prs.js'
 import { FLEET_SEED } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
 import { priceDocket, volumetricWeightKg } from '../../data/docketPricing.js'
+import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
+import { odaEntryForPincode, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { printDocketSheet } from './docketPrintSheet.js'
 import { shareDocket } from '../../utils/docketShare.js'
 
-function Field({ label, hint, className = '', ...props }) {
+function Field({ label, hint, className = '', dense, ...props }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-slate-500">{label}</span>
-        {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
-      </span>
+      {(label || hint) && (
+        <span className="mb-1.5 flex items-baseline justify-between gap-2">
+          <span className="text-xs font-medium text-slate-500">{label}</span>
+          {hint && <span className="text-[10px] text-slate-400">{hint}</span>}
+        </span>
+      )}
       <input
         {...props}
-        className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+        className={`w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 ${dense ? 'py-1.5' : 'py-2.5'}`}
       />
     </label>
   )
 }
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, action, children }) {
   return (
     <div className={`space-y-3 p-4 ${card}`}>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h3 className="whitespace-nowrap text-sm font-semibold text-slate-900">{title}</h3>
+        {action}
+      </div>
       {children}
     </div>
   )
 }
 
-function SegmentedControl({ options, value, onChange }) {
+function SegmentedControl({ options, value, onChange, compact }) {
   return (
-    <div className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1 text-sm">
+    <div className={`flex gap-1 rounded-xl bg-slate-100 p-1 text-sm ${compact ? 'w-fit' : 'flex-wrap'}`}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${value === o.value ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`whitespace-nowrap rounded-lg ${compact ? 'px-2.5' : 'px-3'} py-1.5 font-medium transition-colors ${value === o.value ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
         >
           {o.label}
         </button>
       ))}
     </div>
-  )
-}
-
-function AutoChip({ label, value }) {
-  return (
-    <div className="rounded-xl border border-slate-200/70 bg-slate-50/60 px-3.5 py-2.5">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label} <span className="text-brand-orange-dark">(auto)</span></p>
-      <p className="mt-0.5 text-sm font-semibold text-slate-800">{value}</p>
-    </div>
-  )
-}
-
-function CheckRow({ checked, label }) {
-  return (
-    <label className="flex items-center gap-2 text-sm text-slate-600">
-      <input type="checkbox" checked={checked} readOnly className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
-      {label}
-    </label>
   )
 }
 
@@ -92,7 +87,12 @@ function vehicleFor(pickup) {
 }
 
 function candidatePickups() {
-  return PICKUPS_SEED.filter((p) => (p.status === PICKUP_STATUS.GROUPED || p.status === PICKUP_STATUS.ARRIVED) && !p.docketNumber)
+  return PICKUPS_SEED.filter((p) => {
+    if (p.status !== PICKUP_STATUS.GROUPED && p.status !== PICKUP_STATUS.ARRIVED) return false
+    // A multi-consignee pickup stays listed until every consignee has its docket.
+    const dests = p.details?.destinations?.filter((d) => d.consignee?.name) ?? []
+    return dests.length > 1 ? dests.some((d) => !docketForDestination(p.id, d)) : !p.docketNumber
+  })
 }
 
 // Single search-by-Pickup-ID box — replaces a browsable list entirely. A
@@ -213,7 +213,11 @@ function PickupSearch({ onSelect }) {
   )
 }
 
-const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, label: 'STD', l: '', b: '', h: '', qty: 1 })
+const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, boxId: '', label: '', l: '', b: '', h: '', qty: 1 })
+
+// Goods details beyond what the invoice / e-Way Bill already carries.
+// Same two flags Create Pickup captures, so the docket starts from what the booking said.
+const HANDLING_FLAGS = ['Fragile', 'Hazardous']
 
 function packageVolumeCft(row) {
   const l = Number(row.l) || 0, b = Number(row.b) || 0, h = Number(row.h) || 0, qty = Number(row.qty) || 0
@@ -233,16 +237,73 @@ function pad2(n) {
 // surprise between "what I typed" and "what prints". Numbers in comments
 // below (①②…) trace back to the Docket Module planning whiteboard's own
 // numbered field list.
+// ⓘ beside "Others" — click or hover to see which client-pricing charges make up the total.
+function BreakupTip({ items }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative ml-1.5 inline-flex align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button type="button" aria-label="Others breakup" onClick={() => setOpen((v) => !v)} className="text-slate-400 hover:text-slate-600">
+        <Icon name="info" className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <span role="tooltip" className="absolute bottom-full left-1/2 z-20 mb-1.5 w-56 -translate-x-1/2 space-y-1 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg">
+          <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-300">From client pricing</span>
+          {items.map((x) => (
+            <span key={x.label} className="flex justify-between gap-3">
+              <span>{x.label}</span>
+              <span className="tabular-nums">{x.amount == null ? 'at actuals' : `₹${x.amount.toLocaleString('en-IN')}`}</span>
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+}
+
+// Goods description with a pick-list from the goods catalog: choosing an entry
+// fills the description and its HSN together (onPick), while free text is
+// still allowed — "Said to contain" is often more specific than the catalog.
+function GoodsPicker({ value, onChange, onPick, inputRef }) {
+  const [open, setOpen] = useState(false)
+  const results = searchGoods(value)
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        placeholder="Search goods or type — e.g. Cosmetics"
+        className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+        aria-label="Goods description"
+      />
+      {open && results.length > 0 && (
+        <ul className="absolute left-0 right-0 z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+          {results.map((g) => (
+            <li key={g.hsn + g.name}>
+              <button type="button" onMouseDown={(e) => { e.preventDefault(); onPick(g); setOpen(false) }} className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left hover:bg-slate-50">
+                <span className="truncate text-slate-800">{g.name}</span>
+                <span className="shrink-0 font-mono text-xs text-slate-400">{g.hsn}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 // Inline "Generate e-Way Bill" panel — for moves where the consignor hasn't
 // raised one. Collects the Part-A details off the consignor's invoice
 // (pre-filled from whatever the docket form already has) and generates the
 // bill under our own GSTIN. Part B (vehicle) is deliberately not asked here.
 function EwayGenerateForm({ initial, onGenerated, onCancel }) {
   const [v, setV] = useState({
-    invoiceNo: initial.invoiceNo, invoiceDate: new Date().toISOString().slice(0, 10), invoiceValue: initial.invoiceValue,
+    invoiceNo: initial.invoiceNo, invoiceDate: initial.invoiceDate || new Date().toISOString().slice(0, 10), invoiceValue: initial.invoiceValue,
     consigneeName: initial.consigneeName, consigneeGstin: initial.consigneeGstin,
     consigneeCity: initial.consigneeCity, consigneeState: '', consigneePincode: initial.consigneePincode,
-    goodsDescription: initial.goodsDescription, hsn: '', quantity: initial.quantity, unit: 'BOX', distanceKm: '',
+    goodsDescription: initial.goodsDescription, hsn: initial.hsn || '', quantity: initial.quantity, unit: 'BOX', distanceKm: '',
   })
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setV((p) => ({ ...p, [k]: e.target.value }))
@@ -287,7 +348,40 @@ function EwayGenerateForm({ initial, onGenerated, onCancel }) {
   )
 }
 
-function DocketForm({ pickup }) {
+// Is an e-Way Bill legally needed? Follows CGST Rule 138 as I understand it —
+// compliance must confirm before the real build:
+//  • Required when the consignment value (invoice value incl. GST) is above
+//    ₹50,000 — however short the distance. Distance only sets the bill's
+//    validity (1 day per 200 km) and whether Part B can wait (within a state,
+//    consignor → transporter, up to 50 km); it never makes a small
+//    consignment need one.
+//  • Required whatever the value for inter-state job-work movement and
+//    inter-state handicraft goods from unregistered dealers.
+//  • Not required for goods on the exempt list (data/ewayExemptGoods.js) —
+//    matched by HSN code, never by a tick box.
+// A state may set a higher intra-state limit (up to ₹1 lakh); ₹50,000 is used
+// here as the safe national default. Several invoices to one consignee in one
+// vehicle can add up past the limit, so ops should enter the combined value.
+const EWAY_VALUE_LIMIT = 50000
+function ewayNeedCheck({ value, exempt, special }) {
+  if (exempt) return { state: 'ok', reason: `Exempt goods — ${exempt.label}`, note: exempt.note }
+  if (special === 'jobwork') return { state: 'required', msg: 'Inter-state job-work — needed at any value' }
+  if (special === 'handicraft') return { state: 'required', msg: 'Inter-state handicraft — needed at any value' }
+  if (!(value > 0)) return { state: 'pending', msg: 'Enter the invoice value to check' }
+  const rs = (n) => `₹${n.toLocaleString('en-IN')}`
+  if (value > EWAY_VALUE_LIMIT) return { state: 'required', msg: `${rs(value)} is above ${rs(EWAY_VALUE_LIMIT)} — needed at any distance` }
+  return { state: 'ok', reason: `Value ${rs(value)} is within ${rs(EWAY_VALUE_LIMIT)}` }
+}
+
+const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
+
+function DocketForm({ pickup, onGenerated }) {
+  const navigate = useNavigate()
+  // Assigned docket series (Client Configuration): once a client's numbers run
+  // out, ops chooses — auto-generate this docket's number, or assign a new series.
+  const [seriesAuto, setSeriesAuto] = useState(false)
+  const series = seriesState(pickup.clientId)
   const hasDetails = pickup.packagesCount != null
 
   // ① / ② Consignor is read straight off the pickup (it's who booked it);
@@ -296,10 +390,21 @@ function DocketForm({ pickup }) {
   const [consigneeName, setConsigneeName] = useState(pickup.consignee?.name ?? '')
   const [consigneeCity, setConsigneeCity] = useState(pickup.consignee?.city ?? '')
   const [consigneePincode, setConsigneePincode] = useState(pickup.consignee?.pincode ?? '')
+  const [consigneeAddress, setConsigneeAddress] = useState(pickup.consignee?.address ?? '')
+  // Consignor starts as the pickup's own details; every field stays editable.
+  const [consignorName, setConsignorName] = useState(pickup.consignor?.name ?? '')
+  const [consignorAddress, setConsignorAddress] = useState(pickup.consignor?.address ?? '')
+  const [consignorCity, setConsignorCity] = useState(pickup.consignor?.city ?? '')
+  const [consignorPincode, setConsignorPincode] = useState(pickup.consignor?.pincode ?? '')
   const [consigneeGstin, setConsigneeGstin] = useState('')
 
-  const [actualWeightKg, setActualWeightKg] = useState(pickup.actualWeightKg ?? '')
-  const [packagesCount, setPackagesCount] = useState(pickup.packagesCount ?? '')
+  // Actual weight and package count are always typed fresh — the pickup's
+  // figures are only an estimate, shown as a watermark, so the entry is a real
+  // check against it rather than a copy.
+  const [actualWeightKg, setActualWeightKg] = useState('')
+  const [packagesCount, setPackagesCount] = useState('')
+  const estWeight = pickup.actualWeightKg ?? pickup.estWeightKg ?? null
+  const estCount = pickup.packagesCount ?? pickup.packagesEstimate ?? null
 
   // ⑥⑦ Mode + delivery type (the B/L/V shorthand — Solo MH / Direct Hub /
   // Direct MH) — manual, since routing hasn't run yet at docket time.
@@ -313,33 +418,70 @@ function DocketForm({ pickup }) {
   const [ewayStatus, setEwayStatus] = useState('idle') // idle | loading | done | error | notAssigned | unverified | generate | manual
   const [ewayError, setEwayError] = useState('')
   const [ewayData, setEwayData] = useState(null)
+  const [hsnCode, setHsnCode] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
+  // The "not required" check runs only on what's entered in its own panel —
+  // nothing is pulled in from the rest of the form or the pickup.
+  const [checkValue, setCheckValue] = useState('')
+  const [checkCategory, setCheckCategory] = useState('') // '' = none of the exempt categories
+  const [ewayMandatorySpecial, setEwayMandatorySpecial] = useState('none') // none | jobwork | handicraft
   const [vehicleNo, setVehicleNo] = useState(vehicleFor(pickup)?.regNo ?? '') // auto from the pickup's assigned vehicle
   const transporterGstin = OUR_GSTIN // fixed — we are always the transporter; only the vehicle changes
 
   // Invoice & goods
   const [invoiceNo, setInvoiceNo] = useState('')
   const [invoiceValue, setInvoiceValue] = useState('')
-  const [declaredValue, setDeclaredValue] = useState('')
   const [insuredValue, setInsuredValue] = useState('')
   const [goodsDescription, setGoodsDescription] = useState('')
 
   // ⑨⑩ Packages — dimensions per SKU row, actual weight above, volumetric
   // computed here (auto), chargeable weight = MAX(actual, volumetric).
-  const [packageRows, setPackageRows] = useState([{ ...emptyPackageRow(), qty: pickup.packagesCount ?? 1 }])
+  const [packageRows, setPackageRows] = useState([emptyPackageRow()])
+  const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
+  // Shipment details from Create Pickup — start as booked, editable.
+  const [contentType, setContentType] = useState(pickup.details?.contentType ?? '')
+  const [contentDescription, setContentDescription] = useState(pickup.details?.contentDescription ?? '')
+  const [hazardClass, setHazardClass] = useState(pickup.details?.hazardClass ?? '')
+  const [unNumber, setUnNumber] = useState(pickup.details?.unNumber ?? '')
+  const [handling, setHandling] = useState(() => [
+    ...(pickup.details?.fragile ? ['Fragile'] : []),
+    ...(pickup.details?.hazardous ? ['Hazardous'] : []),
+  ])
+  // Box dimensions are stored in cm; this only switches how they're shown and
+  // typed (inches convert automatically both ways).
+  const [dimUnit, setDimUnit] = useState('cm')
+  const toUnit = (cm) => (dimUnit === 'in' ? Math.round((Number(cm) / 2.54) * 10) / 10 : cm)
+  const toCm = (v) => (dimUnit === 'in' ? Math.round(Number(v) * 2.54 * 10) / 10 : Number(v))
+  const dims3 = (x) => `${toUnit(x.l)} × ${toUnit(x.b)} × ${toUnit(x.h)}`
+  const [creatingBoxFor, setCreatingBoxFor] = useState(null) // row id
+  const [newBox, setNewBox] = useState({ l: '', b: '', h: '' })
   const totalVolumeCft = useMemo(() => packageRows.reduce((s, r) => s + packageVolumeCft(r), 0), [packageRows])
   const volKg = useMemo(() => volumetricWeightKg(totalVolumeCft), [totalVolumeCft])
-  const enteredActualWeight = hasDetails ? pickup.actualWeightKg : Number(actualWeightKg) || 0
+  const enteredActualWeight = Number(actualWeightKg) || 0
   const chargeableWeight = Math.max(enteredActualWeight, volKg)
+  // Boxes this docket must account for; the size rows' quantities should add up to it.
+  const totalBoxes = Number(packagesCount) || 0
+  // With a single size, its quantity just follows the package count.
+  useEffect(() => {
+    if (totalBoxes > 0) setPackageRows((rows) => (rows.length === 1 && Number(rows[0].qty) !== totalBoxes ? [{ ...rows[0], qty: totalBoxes }] : rows))
+  }, [totalBoxes])
+  const boxesCovered = packageRows.reduce((n, r) => n + (Number(r.qty) || 0), 0)
 
   // ⑧ ODA — real build resolves this from Location Master's Serviceability
   // (is the consignee's pincode inside a mapped Hub/Mini Hub's coverage?);
   // manual toggle here since that wiring doesn't reach this screen yet.
-  const [isOda, setIsOda] = useState(false)
+  // Both are locked, not typed: ODA follows the consignee's pincode against the ODA
+  // list (so it moves if an e-Way Bill changes the consignee), Appointment is what
+  // the pickup was booked with.
+  const odaEntry = useMemo(() => odaEntryForPincode(consigneePincode), [consigneePincode])
+  const isOda = !!odaEntry
+  const odaRate = odaEntry ? getDefaultOdaRate()[odaEntry.oda] ?? null : null
+  const appointment = !!pickup.details?.appointment
 
   // ⑪ Other fields — payment term (TBB/Paid/To Pay FOD/COD) and risk cover.
-  const [paymentTerm, setPaymentTerm] = useState(PAYMENT_TERM.TO_PAY_FOD)
+  const [paymentTerm, setPaymentTerm] = useState(PAYMENT_TERM.TO_PAY)
+  const [gstPayableBy, setGstPayableBy] = useState('') // consignor | consignee | lt
   const [riskCover, setRiskCover] = useState(RISK_COVER.CARRIERS_RISK)
-  const [insuranceCompany, setInsuranceCompany] = useState('')
   const [policyNo, setPolicyNo] = useState('')
 
   // ⑬ POD Type
@@ -349,19 +491,39 @@ function DocketForm({ pickup }) {
   const [view, setView] = useState('details')
   const [shareStatus, setShareStatus] = useState('idle') // idle | shared | copied
 
+  // Source rules: with an e-Way Bill, its Part A fills the consignee, invoice
+  // and goods (it's the legal document, so it wins) and is cross-checked
+  // against the pickup in the panel below; without one, everything already
+  // comes from the pickup (state is seeded from it) and the rest is typed.
+  // All stay editable.
   function applyEwayResult(result) {
     setEwayData(result)
-    // Fill only what ops haven't typed themselves; all stay editable below.
-    setConsigneeGstin((v) => v || result.consignee.gstin)
-    if (!hasDetails) {
-      setConsigneeName((v) => v || result.consignee.name)
-      setConsigneeCity((v) => v || result.consignee.city)
-      setConsigneePincode((v) => v || result.consignee.pincode)
-    }
-    setInvoiceNo((v) => v || result.invoiceNo)
-    setInvoiceValue((v) => v || String(result.invoiceValue))
-    setGoodsDescription((v) => v || result.goods.description)
+    setConsigneeGstin(result.consignee.gstin)
+    setConsigneeName(result.consignee.name)
+    setConsigneeCity(result.consignee.city)
+    setConsigneePincode(result.consignee.pincode)
+    setInvoiceNo(result.invoiceNo)
+    if (result.invoiceDate) setInvoiceDate(result.invoiceDate)
+    setInvoiceValue(String(result.invoiceValue))
+    setGoodsDescription(result.goods.description)
+    setHsnCode(result.goods.hsn ?? '')
     setEwayStatus('done')
+  }
+
+  // Back to the pickup's own values when the e-Way Bill goes away (number
+  // edited, or "generate a new one instead") — only the fields the bill filled.
+  function restoreFromPickup() {
+    if (!ewayData) return
+    setConsigneeName(pickup.consignee?.name ?? '')
+    setConsigneeCity(pickup.consignee?.city ?? '')
+    setConsigneePincode(pickup.consignee?.pincode ?? '')
+    setConsigneeAddress(pickup.consignee?.address ?? '')
+    setConsigneeGstin('')
+    setInvoiceNo((v) => (v === ewayData.invoiceNo ? '' : v))
+    setInvoiceValue((v) => (v === String(ewayData.invoiceValue) ? '' : v))
+    setGoodsDescription((v) => (v === ewayData.goods.description ? '' : v))
+    setHsnCode((v) => (v === ewayData.goods.hsn ? '' : v))
+    setEwayData(null)
   }
 
   function handleEwayGenerated(result) {
@@ -386,14 +548,20 @@ function DocketForm({ pickup }) {
   // insured value, ODA). Not editable here — Client Pricing Configuration
   // owns the rate card this reads from.
   const pricing = useMemo(
-    () => priceDocket({ clientId: pickup.clientId, actualWeightKg: enteredActualWeight, volumetricWeightKg: volKg, insuredValue, isOda }),
-    [pickup.clientId, enteredActualWeight, volKg, insuredValue, isOda]
+    () => priceDocket({
+      clientId: pickup.clientId, actualWeightKg: enteredActualWeight, volumetricWeightKg: volKg,
+      ownersRisk: riskCover === RISK_COVER.OWNERS_RISK, appointment, isOda, odaRate,
+      clientCharges: ACTIVE_CLIENTS_SEED.find((c) => c.id === pickup.clientId)?.charges,
+      paymentTerm, codAmount: Number(invoiceValue) || 0,
+    }),
+    [pickup.clientId, enteredActualWeight, volKg, riskCover, appointment, isOda, odaRate, paymentTerm, invoiceValue]
   )
 
   const ewayRequired = ewayStatus !== 'manual'
-  const ewayReady = !ewayRequired || ewayStatus === 'done' || ewayStatus === 'unverified'
+  const ewayNeed = ewayNeedCheck({ value: Number(checkValue) || 0, exempt: EWAY_EXEMPT_GOODS.find((g) => g.hsn === checkCategory) ?? null, special: ewayMandatorySpecial })
+  const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok'
   const canSubmit = !generatedDocket &&
-    (hasDetails || (actualWeightKg && packagesCount && consigneeName.trim())) &&
+    actualWeightKg && packagesCount && packageRows.every((r) => r.boxId) && consigneeName.trim() && !(!pickup.docketNumber && series.exhausted && !seriesAuto) &&
     ewayReady
 
   // Draft preview — the same shape a real docket has, built live from
@@ -403,27 +571,60 @@ function DocketForm({ pickup }) {
   const previewAwbNumbers = hasDetails
     ? pickup.awbNumbers
     : Array.from({ length: Number(packagesCount) || 0 }, (_, i) => `${pickup.id}-AWB-${pad2(i + 1)}`)
+  // Destination Mini Hub follows the consignee — so it updates when an
+  // e-Way Bill swaps the consignee. Prototype stand-in: first Mini Hub in the
+  // consignee's city, else a proxy "<City> Depot"; the real build resolves it
+  // from Location Master's Serviceability by pincode.
+  // Where the consignee came from: the pickup, a matching e-Way Bill, an
+  // e-Way Bill that disagrees with the pickup (its values are the ones used),
+  // or typed by hand when neither has it.
+  const pickupConsignee = pickup.consignee
+  const ewayDiffersFromPickup = ewayStatus === 'done' && ewayData && !!pickupConsignee?.name &&
+    !(sameText(ewayData.consignee.name, pickupConsignee.name) && sameText(ewayData.consignee.city, pickupConsignee.city) && String(ewayData.consignee.pincode) === String(pickupConsignee.pincode ?? ''))
+  const consigneeSource = ewayStatus === 'done'
+    ? (ewayDiffersFromPickup ? 'mismatch · e-way bill' : 'e-way bill')
+    : pickupConsignee?.name ? 'pickup' : 'manual'
+  const destCity = consigneeCity.trim()
+  const destinationMiniHubName = MINI_HUBS.find((h) => h.city.toLowerCase() === destCity.toLowerCase())?.name ?? (destCity ? `${destCity} Depot` : '')
   const draftDocket = {
-    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? peekNextDocketNumber(),
+    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId) : peekNextDocketNumber()),
     status: 'pending',
     clientName: pickup.clientName,
     pickupId: pickup.id,
     dropMiniHubName: pickup.dropMiniHubName,
-    consignee: hasDetails ? pickup.consignee : { name: consigneeName, city: consigneeCity, pincode: consigneePincode },
-    awbCount: hasDetails ? pickup.awbCount ?? pickup.packagesCount : Number(packagesCount) || 0,
+    consignee: { name: consigneeName, address: consigneeAddress, city: consigneeCity, pincode: consigneePincode },
+    awbCount: totalBoxes,
     awbNumbers: previewAwbNumbers,
     totalWeightKg: enteredActualWeight,
     createdAt: generatedDocket ? 'Just now' : 'Draft — not yet generated',
     mode,
     ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
+    ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
     ewayUnverified: ewayStatus === 'unverified',
     vehicleNo, transporterGstin,
-    paymentTerm, podType,
+    paymentTerm, gstPayableBy, podType,
     pricing,
+    // Fuller field set the physical docket sheet prints (DocketSheet) —
+    // same names enrichDocketDetails stores on a generated docket.
+    consignor: { ...pickup.consignor, name: consignorName, address: consignorAddress, city: consignorCity, pincode: consignorPincode },
+    consigneeGstin,
+    invoiceNo, invoiceValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
+    goodsDescription, hsnCode, handling, contentType, contentDescription, hazardClass, unNumber, isOda, appointment,
+    riskCover, policyNo,
+    packageRows, volumetricWeightKg: volKg,
+    documents: { declaration: true },
   }
 
   function addPackageRow() {
-    setPackageRows((prev) => [...prev, emptyPackageRow()])
+    // The new size takes the boxes still unassigned; if every box is already
+    // sized, it takes one from the last row that has more than one.
+    setPackageRows((prev) => {
+      const left = totalBoxes - prev.reduce((n, r) => n + (Number(r.qty) || 0), 0)
+      if (left > 0) return [...prev, { ...emptyPackageRow(), qty: left }]
+      const donor = [...prev].reverse().find((r) => Number(r.qty) > 1)
+      const next = donor ? prev.map((r) => (r.id === donor.id ? { ...r, qty: Number(r.qty) - 1 } : r)) : prev
+      return [...next, { ...emptyPackageRow(), qty: 1 }]
+    })
   }
   function updatePackageRow(id, patch) {
     setPackageRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
@@ -438,20 +639,27 @@ function DocketForm({ pickup }) {
         actualWeightKg,
         volumetricWeightKg: volKg,
         packagesCount,
-        consignee: { name: consigneeName.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
+        consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
       })
     }
     const target = pickup.packagesCount ?? Number(packagesCount)
     while (pickup.scannedCount < target) scanPackage(pickup.id)
 
-    const docket = enrichDocketDetails(pickup.docketNumber, {
+    // A consignee picked from a multi-consignee pickup may not have its docket
+    // yet — raise it first, then fill in the details below.
+    const docketNumber = pickup.docketNumber ?? createDocketFromPickup(pickup).docketNumber
+    const docket = enrichDocketDetails(docketNumber, {
       mode,
       ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
+      ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
       ewayUnverified: ewayStatus === 'unverified',
       vehicleNo, transporterGstin,
-      invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(declaredValue) || Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
-      goodsDescription, isOda,
-      paymentTerm, riskCover, insuranceCompany, policyNo,
+      invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
+      goodsDescription, hsnCode, invoiceDate, handling, contentType, contentDescription, hazardClass, unNumber, isOda, appointment,
+      awbCount: totalBoxes, totalWeightKg: enteredActualWeight,
+      consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
+      consignor: { ...pickup.consignor, name: consignorName.trim(), address: consignorAddress.trim(), city: consignorCity.trim(), pincode: consignorPincode.trim() }, consigneeGstin, packageRows, volumetricWeightKg: volKg,
+      paymentTerm, gstPayableBy, riskCover, policyNo,
       podType,
       documents: {
         invoice: !!invoiceNo, gst: !!consigneeGstin, ewayBill: ewayStatus === 'done', declaration: true,
@@ -459,6 +667,7 @@ function DocketForm({ pickup }) {
       pricing,
     })
     setGeneratedDocket(docket)
+    onGenerated?.()
   }
 
   async function handleShare() {
@@ -494,13 +703,35 @@ function DocketForm({ pickup }) {
       </div>
 
       <div className={`min-w-0 space-y-4 ${view === 'details' ? '' : 'hidden'}`}>
+        {!pickup.docketNumber && !generatedDocket && series.exhausted && (
+          <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${seriesAuto ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-red-200 bg-red-50 text-red-800'}`}>
+            {seriesAuto ? (
+              <span>Series exhausted — this docket gets a system-generated number.</span>
+            ) : (
+              <>
+                <span><span className="font-semibold">Docket series exhausted</span> — {series.ranges.length ? 'every number in this client\'s assigned series is used.' : 'this client has no series assigned.'}</span>
+                <span className="flex items-center gap-2">
+                  <button type="button" onClick={() => setSeriesAuto(true)} className={btnSecondary}>Auto-generate</button>
+                  <button type="button" onClick={() => navigate('/client-module/client-configuration')} className={btnPrimary}>Assign new series</button>
+                </span>
+              </>
+            )}
+          </div>
+        )}
+        {!pickup.docketNumber && !generatedDocket && series.low && (
+          <p className="rounded-xl bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Only {series.remaining} number{series.remaining === 1 ? '' : 's'} left in this client's docket series — assign a new one soon.</p>
+        )}
         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber}</span></p>
+            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
               <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
               <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
-              <span>{pickup.consignor.city} <span className="text-slate-300">→</span> <span className="font-medium text-slate-700">{pickup.dropMiniHubName}</span></span>
+              <span>
+                <span className="font-medium text-slate-700">{pickup.dropMiniHubName || 'Source Mini Hub'}</span>
+                <span className="mx-1 text-slate-300">→</span>
+                <span className="font-medium text-slate-700">{destinationMiniHubName || 'Destination Mini Hub'}</span>
+              </span>
               <label className="flex items-center gap-1.5">
                 Mode
                 <select value={mode} onChange={(e) => setMode(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
@@ -511,6 +742,28 @@ function DocketForm({ pickup }) {
           </div>
           <div className="flex flex-col gap-3">
             <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-slate-700">E-Way Bill required</span>
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 text-sm font-medium">
+            {[['has', 'Yes'], ['none', 'No']].map(([k, label]) => {
+              const active = (k === 'none') === (ewayStatus === 'manual')
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    if (active) return
+                    if (k === 'none') { restoreFromPickup(); setEwayStatus('manual'); setEwayError('') }
+                    else { setEwayStatus('idle'); setVehicleNo(''); setCheckValue(''); setCheckCategory(''); setEwayMandatorySpecial('none') }
+                  }}
+                  className={`rounded-lg px-5 py-1.5 transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          </div>
           {ewayStatus !== 'manual' ? (
             <>
               <div className="flex flex-wrap items-end gap-2.5">
@@ -518,7 +771,7 @@ function DocketForm({ pickup }) {
                   label="E-Way Bill number"
                   className="min-w-[220px] flex-1"
                   value={ewayBillNo}
-                  onChange={(e) => { setEwayBillNo(e.target.value); setEwayStatus('idle'); setEwayError(''); setEwayData(null) }}
+                  onChange={(e) => { setEwayBillNo(e.target.value); setEwayStatus('idle'); setEwayError(''); restoreFromPickup() }}
                   placeholder="12-digit EWB number"
                 />
                 <button
@@ -530,9 +783,6 @@ function DocketForm({ pickup }) {
                   <Icon name={ewayStatus === 'loading' ? 'history' : 'search'} className="h-4 w-4" />
                   {ewayStatus === 'loading' ? 'Fetching…' : 'Fetch & validate'}
                 </button>
-                <button type="button" onClick={() => { setEwayStatus('manual'); setEwayError('') }} className="text-xs font-medium text-slate-400 hover:text-slate-600">
-                  Not required for this move
-                </button>
               </div>
               {ewayStatus !== 'generate' && (
                 <button type="button" onClick={() => { setEwayStatus('generate'); setEwayError('') }} className="text-xs font-medium text-brand-orange-dark hover:underline">
@@ -541,7 +791,7 @@ function DocketForm({ pickup }) {
               )}
               {ewayStatus === 'generate' && (
                 <EwayGenerateForm
-                  initial={{ invoiceNo, invoiceValue, consigneeName, consigneeGstin, consigneeCity, consigneePincode, goodsDescription, quantity: packagesCount || pickup.packagesCount || '' }}
+                  initial={{ invoiceNo, invoiceDate, hsn: hsnCode, invoiceValue, consigneeName, consigneeGstin, consigneeCity, consigneePincode, goodsDescription, quantity: packagesCount || pickup.packagesCount || '' }}
                   onGenerated={handleEwayGenerated}
                   onCancel={() => setEwayStatus('idle')}
                 />
@@ -564,7 +814,7 @@ function DocketForm({ pickup }) {
                     <div className="rounded-lg border border-amber-200 bg-white p-3 text-xs text-slate-600">
                       <p className="mb-1 font-semibold text-slate-800">3. Generate a new bill</p>
                       <p>Raise a fresh e-Way Bill under our GSTIN from the consignor's invoice.</p>
-                      <button type="button" onClick={() => { setEwayStatus('generate'); setEwayBillNo('') }} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Generate</button>
+                      <button type="button" onClick={() => { setEwayStatus('generate'); setEwayBillNo(''); restoreFromPickup() }} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Generate</button>
                     </div>
                   </div>
                 </div>
@@ -607,6 +857,40 @@ function DocketForm({ pickup }) {
                       ))}
                     </dl>
                   </div>
+                  {(() => {
+                    const same = sameText
+                    const pickupPackages = pickup.packagesCount ?? (packagesCount === '' ? null : Number(packagesCount))
+                    const checks = [
+                      ['Consignee', ewayData.consignee.name, pickup.consignee?.name, same(ewayData.consignee.name, pickup.consignee?.name)],
+                      ['City', ewayData.consignee.city, pickup.consignee?.city, same(ewayData.consignee.city, pickup.consignee?.city)],
+                      ['Pincode', ewayData.consignee.pincode, pickup.consignee?.pincode, String(ewayData.consignee.pincode) === String(pickup.consignee?.pincode ?? '')],
+                      ['Packages', ewayData.goods.quantity, pickupPackages, pickupPackages != null && Number(ewayData.goods.quantity) === Number(pickupPackages)],
+                    ]
+                    const diffs = checks.filter((c) => !c[3]).length
+                    return (
+                      <div className="border-t border-emerald-200 pt-3">
+                        <p className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                          Cross-check with pickup {pickup.id}
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] normal-case ${diffs ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {diffs ? `${diffs} difference${diffs > 1 ? 's' : ''} — e-Way Bill values used` : 'All match'}
+                          </span>
+                        </p>
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-left text-[10px] uppercase text-emerald-600"><th className="py-1 font-medium">Field</th><th className="font-medium">e-Way Bill</th><th className="font-medium">Pickup</th><th /></tr></thead>
+                          <tbody>
+                            {checks.map(([label, ewb, pu, ok]) => (
+                              <tr key={label} className="border-t border-emerald-100 text-emerald-900">
+                                <td className="py-1 pr-2 text-emerald-700">{label}</td>
+                                <td className="pr-2 font-medium">{ewb}</td>
+                                <td className="pr-2">{pu ?? <span className="text-emerald-500">Not on pickup</span>}</td>
+                                <td className={`text-right font-semibold ${ok ? 'text-emerald-600' : 'text-amber-700'}`}>{ok ? '✓ Match' : '⚠ Differs'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  })()}
                   <div className="border-t border-emerald-200 pt-3">
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Part B <span className="font-normal normal-case text-emerald-600">— vehicle details, filled when goods are loaded</span></p>
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -619,14 +903,34 @@ function DocketForm({ pickup }) {
             </>
           ) : (
             <>
-              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">No e-Way Bill for this move — enter Vehicle No. manually.</p>
+              <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <p className={`rounded-lg px-3 py-2 text-sm font-medium ${ewayNeed.state === 'ok' ? 'bg-emerald-100 text-emerald-800' : ewayNeed.state === 'required' ? 'bg-red-100 text-red-700' : 'bg-white text-slate-500'}`}>
+                    {ewayNeed.state === 'ok' ? `✓ Not required · ${ewayNeed.reason}` : ewayNeed.state === 'required' ? `Required · ${ewayNeed.msg}` : ewayNeed.msg}
+                  </p>
+                {ewayNeed.note && <p className="text-xs text-amber-700">{ewayNeed.note}</p>}
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  <Field label="Invoice value incl. GST (₹)" type="number" min="0" value={checkValue} onChange={(e) => setCheckValue(e.target.value)} placeholder="0" />
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Exempt category</span>
+                    <select value={checkCategory} onChange={(e) => setCheckCategory(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                      <option value="">None</option>
+                      {EWAY_EXEMPT_GOODS.map((g) => <option key={g.hsn} value={g.hsn}>{g.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Special movement</span>
+                    <select value={ewayMandatorySpecial} onChange={(e) => setEwayMandatorySpecial(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                      <option value="none">None</option>
+                      <option value="jobwork">Inter-state job-work</option>
+                      <option value="handicraft">Inter-state handicraft</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <Field label="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="e.g. DL-01-CZ-5567" />
                 <Field label="Transporter GSTIN" value={transporterGstin} readOnly hint="LetsTransport" />
               </div>
-              <button type="button" onClick={() => { setEwayStatus('idle'); setVehicleNo('') }} className="text-xs font-medium text-brand-orange-dark hover:underline">
-                Actually, this move has an e-Way Bill
-              </button>
             </>
           )}
             </div>
@@ -643,103 +947,209 @@ function DocketForm({ pickup }) {
         )}
 
         <SectionCard title="Consignor & consignee">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignor <span className="text-brand-orange-dark">(auto from pickup)</span></p>
-              <p className="text-sm font-medium text-slate-800">{pickup.consignor.name}</p>
-              <p className="text-xs text-slate-500">{pickup.consignor.address}, {pickup.consignor.city}, {pickup.consignor.state} · {pickup.consignor.pincode}</p>
-              <p className="text-xs text-slate-500">{pickup.consignor.phone} · {pickup.consignor.email}</p>
-            </div>
-            <div className="grid grid-cols-6 gap-2.5">
-              {hasDetails ? (
-                <div className="col-span-6 rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5 sm:col-span-4">
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Consignee <span className="text-brand-orange-dark">(auto)</span></p>
-                  <p className="text-sm font-medium text-slate-800">{pickup.consignee?.name ?? '—'}</p>
-                  <p className="text-xs text-slate-500">{pickup.consignee?.city} · {pickup.consignee?.pincode}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              {
+                key: 'consignor', label: 'Consignor', source: 'pickup',
+                name: consignorName, setName: setConsignorName, address: consignorAddress, setAddress: setConsignorAddress,
+                city: consignorCity, setCity: setConsignorCity, pincode: consignorPincode, setPincode: setConsignorPincode,
+              },
+              {
+                key: 'consignee', label: 'Consignee',
+                source: consigneeSource, warn: consigneeSource === 'mismatch · e-way bill',
+                name: consigneeName, setName: setConsigneeName, address: consigneeAddress, setAddress: setConsigneeAddress,
+                city: consigneeCity, setCity: setConsigneeCity, pincode: consigneePincode, setPincode: setConsigneePincode,
+              },
+            ].map((p) => {
+              // Same compact card as before (label + name + address lines) —
+              // each line is just an inline-editable field, underlined so it
+              // reads as editable without turning the card into a form.
+              const line = 'min-w-0 border-0 border-b border-dotted border-slate-300 bg-transparent px-0 py-0.5 placeholder:text-slate-400 hover:border-slate-400 focus:border-brand-orange focus:outline-none'
+              return (
+                <div key={p.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-2.5">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {p.label} <span className={p.warn ? 'text-amber-600' : 'text-brand-orange-dark'}>({p.source})</span>
+                  </p>
+                  <input className={`${line} w-full text-sm font-medium text-slate-800`} value={p.name} onChange={(e) => p.setName(e.target.value)} placeholder="Name" aria-label={`${p.key} name`} />
+                  <input className={`${line} mt-1 w-full text-xs text-slate-500`} value={p.address} onChange={(e) => p.setAddress(e.target.value)} placeholder="Address" aria-label={`${p.key} address`} />
+                  <div className="mt-1 flex items-center gap-2">
+                    <input className={`${line} flex-1 text-xs text-slate-500`} value={p.city} onChange={(e) => p.setCity(e.target.value)} placeholder="City" aria-label={`${p.key} city`} />
+                    <span className="text-slate-300">·</span>
+                    <input className={`${line} w-20 shrink-0 text-xs text-slate-500`} value={p.pincode} onChange={(e) => p.setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="Pincode" inputMode="numeric" aria-label={`${p.key} pincode`} />
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <Field label="Consignee name *" className="col-span-6 sm:col-span-3" value={consigneeName} onChange={(e) => setConsigneeName(e.target.value)} placeholder="Business or store name" />
-                  <Field label="City" className="col-span-3 sm:col-span-2" value={consigneeCity} onChange={(e) => setConsigneeCity(e.target.value)} placeholder="City" />
-                  <Field label="Pincode" className="col-span-3 sm:col-span-1" value={consigneePincode} onChange={(e) => setConsigneePincode(e.target.value)} placeholder="Pincode" />
-                </>
-              )}
-              <Field label="Consignee GSTIN" className={hasDetails ? 'col-span-6 sm:col-span-2' : 'col-span-6'} value={consigneeGstin} onChange={(e) => setConsigneeGstin(e.target.value)} placeholder="Optional" />
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Invoice & goods">
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <Field label="Invoice no." value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
-            <Field label="Invoice value (₹)" type="number" value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
-            <Field label="Declared value (₹)" hint="= invoice" type="number" value={declaredValue} onChange={(e) => setDeclaredValue(e.target.value)} placeholder={invoiceValue || '0'} />
-            <Field label="Insured value (₹)" type="number" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0" />
-          </div>
-          <div className="flex flex-wrap items-end gap-x-5 gap-y-2.5">
-            <Field label="Goods description" className="min-w-[260px] flex-1" value={goodsDescription} onChange={(e) => setGoodsDescription(e.target.value)} placeholder="Said to contain — e.g. Crate · Fragile" />
-            <label className="mb-2.5 flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={isOda} onChange={(e) => setIsOda(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
-              ODA delivery
-            </label>
+              )
+            })}
           </div>
         </SectionCard>
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
-        <SectionCard title="Packages">
-          {!hasDetails && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <Field label="Actual weight (kg) *" type="number" value={actualWeightKg} onChange={(e) => setActualWeightKg(e.target.value)} placeholder="0.0" />
-              <Field label="Package count *" type="number" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder="0" />
+        <SectionCard
+          title="Goods details"
+          action={<span className="text-xs font-medium text-slate-500">{totalBoxes} box{totalBoxes === 1 ? '' : 'es'} · {enteredActualWeight} kg</span>}
+        >
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <Field dense label="1 · Actual weight (kg) *" type="number" min="0" value={actualWeightKg} onChange={(e) => setActualWeightKg(e.target.value)} placeholder={estWeight != null ? String(estWeight) : '0.0'} />
+              {estWeight != null && Number(actualWeightKg) > 0 && Math.abs(Number(actualWeightKg) - estWeight) / estWeight > 0.1 && (
+                <p className="mt-1 text-[11px] text-amber-600">Estimate was {estWeight} kg</p>
+              )}
+            </div>
+            <div>
+              <Field dense label="2 · Actual package count *" type="number" min="1" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder={estCount != null ? String(estCount) : '0'} />
+              {estCount != null && Number(packagesCount) > 0 && Number(packagesCount) !== estCount && (
+                <p className="mt-1 text-[11px] text-amber-600">Estimate was {estCount}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">3 · Content type</span>
+              <select value={contentType} onChange={(e) => setContentType(e.target.value)} aria-label="Content type" className={`w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-1.5 text-sm focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 ${contentType ? 'text-slate-800' : 'text-slate-400'}`}>
+                <option value="">Select the nature of goods</option>
+                {CONTENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <Field dense label="4 · Content description" aria-label="Content description" value={contentDescription} onChange={(e) => setContentDescription(e.target.value)} placeholder="e.g. Cosmetics" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              <span className="flex items-center gap-2 normal-case">
+                <span className="text-xs font-medium text-slate-500">5 · Box size <span className="font-normal text-slate-400">(L × B × H)</span></span>
+                <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold">
+                  {['cm', 'in'].map((u) => (
+                    <button key={u} type="button" onClick={() => setDimUnit(u)} className={`rounded px-1.5 py-0.5 ${dimUnit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
+                  ))}
+                </span>
+              </span>
+              <span>Qty</span><span className="text-right">CFT</span><span />
+            </div>
+            {packageRows.map((row) => {
+              const cell = 'w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1.5 text-sm tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+              return (
+                <div key={row.id} className="space-y-1.5">
+                  <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
+                    <select
+                      value={row.boxId}
+                      onChange={(e) => {
+                        if (e.target.value === '__create') { setCreatingBoxFor(row.id); setNewBox({ l: '', b: '', h: '' }); return }
+                        const x = boxes.find((bx) => bx.id === e.target.value)
+                        updatePackageRow(row.id, x ? { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h } : { boxId: '', label: '', l: '', b: '', h: '' })
+                      }}
+                      className={`${cell} ${row.boxId ? '' : 'text-slate-400'}`}
+                      aria-label="Box size"
+                    >
+                      <option value="">{`Select box (${dimUnit})`}</option>
+                      {boxes.map((x) => <option key={x.id} value={x.id}>{x.name} — {dims3(x).replaceAll(' ', '')} {dimUnit}</option>)}
+                      <option value="__create">+ Create new box…</option>
+                    </select>
+                    <input type="number" min="1" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className={cell} aria-label="Quantity" />
+                    <span className="text-right text-sm tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</span>
+                    <button type="button" onClick={() => removePackageRow(row.id)} disabled={packageRows.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30" aria-label="Remove size"><Icon name="trash" className="h-4 w-4" /></button>
+                  </div>
+                  {creatingBoxFor === row.id && (
+                    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+                      {[['l', 'L'], ['b', 'B'], ['h', 'H']].map(([k, label]) => (
+                        <label key={k} className="block"><span className="mb-1 block text-[11px] text-slate-500">{label} ({dimUnit})</span><input type="number" min="1" value={newBox[k]} onChange={(e) => setNewBox({ ...newBox, [k]: e.target.value })} className={`${cell} w-20`} aria-label={`New box ${label}`} /></label>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={!(Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0)}
+                        onClick={() => {
+                          const x = addBoxToMaster({ l: toCm(newBox.l), b: toCm(newBox.b), h: toCm(newBox.h) })
+                          setBoxes([...BOX_MASTER])
+                          updatePackageRow(row.id, { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h })
+                          setCreatingBoxFor(null)
+                        }}
+                        className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
+                      >
+                        Add box
+                      </button>
+                      <button type="button" onClick={() => setCreatingBoxFor(null)} className="pb-2 text-xs font-medium text-slate-400 hover:text-slate-600">Cancel</button>
+                      {dimUnit === 'in' && Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0 && (
+                        <span className="basis-full text-[11px] text-slate-400">= {toCm(newBox.l)} × {toCm(newBox.b)} × {toCm(newBox.h)} cm (stored in cm)</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            <div className="flex items-center justify-between pt-0.5">
+              <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1 text-xs font-medium text-brand-orange-dark hover:underline">
+                <Icon name="plus" className="h-3.5 w-3.5" /> Another size
+              </button>
+              {totalBoxes > 0 && (
+                <span className={`text-xs font-medium ${boxesCovered === totalBoxes ? 'text-emerald-600' : boxesCovered > totalBoxes ? 'text-red-600' : 'text-amber-600'}`}>
+                  {boxesCovered === totalBoxes ? `✓ All ${totalBoxes} boxes sized` : boxesCovered > totalBoxes ? `${boxesCovered - totalBoxes} too many — ${totalBoxes} boxes` : `${boxesCovered} of ${totalBoxes} sized — ${totalBoxes - boxesCovered} left`}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+            <div className="flex shrink-0 flex-col gap-1.5">
+              {HANDLING_FLAGS.map((f) => {
+                const on = handling.includes(f)
+                return (
+                  <label key={f} className={`flex cursor-pointer items-center gap-2 text-sm font-medium ${on ? (f === 'Hazardous' ? 'text-rose-700' : 'text-amber-700') : 'text-slate-600'}`}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={(e) => setHandling((h) => (e.target.checked ? [...h, f] : h.filter((x) => x !== f)))}
+                      className={`h-4 w-4 rounded border-slate-300 ${f === 'Hazardous' ? 'accent-rose-500' : 'accent-amber-500'}`}
+                    />
+                    {f}
+                  </label>
+                )
+              })}
+            </div>
+            <div className="flex gap-6 text-xs text-slate-500">
+              <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Volumetric</p><p className="tabular-nums text-slate-700">{volKg.toFixed(1)} kg</p></div>
+              <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Actual</p><p className="tabular-nums text-slate-700">{enteredActualWeight} kg</p></div>
+            </div>
+            <div className="ml-auto text-right">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Chargeable weight</p>
+              <p className="text-2xl font-semibold tabular-nums leading-tight text-brand-orange-dark">{chargeableWeight.toFixed(1)} <span className="text-sm font-medium">kg</span></p>
+              {chargeableWeight > 0 && <p className="text-[10px] text-slate-400">by {volKg > enteredActualWeight ? 'volumetric' : 'actual'} weight</p>}
+            </div>
+          </div>
+          {handling.includes('Hazardous') && (
+            <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-rose-100 bg-rose-50/50 p-3">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">Hazard class</span>
+                <select value={hazardClass} onChange={(e) => setHazardClass(e.target.value)} aria-label="Hazard class" className={`w-full rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40 ${hazardClass ? 'text-slate-800' : 'text-slate-400'}`}>
+                  <option value="">Select class</option>
+                  {HAZARD_CLASSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <Field dense label="UN number" aria-label="UN number" value={unNumber} onChange={(e) => setUnNumber(e.target.value)} placeholder="e.g. UN3481" />
             </div>
           )}
-          <div className="overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full min-w-[420px] text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-left text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  <th className="px-2.5 py-1.5">Size</th>
-                  <th className="px-2.5 py-1.5">L</th>
-                  <th className="px-2.5 py-1.5">B</th>
-                  <th className="px-2.5 py-1.5">H <span className="normal-case">(cm)</span></th>
-                  <th className="px-2.5 py-1.5">Qty</th>
-                  <th className="px-2.5 py-1.5">CFT</th>
-                  <th className="px-2.5 py-1.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {packageRows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-100">
-                    <td className="px-2.5 py-1"><input value={row.label} onChange={(e) => updatePackageRow(row.id, { label: e.target.value })} className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.l} onChange={(e) => updatePackageRow(row.id, { l: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.b} onChange={(e) => updatePackageRow(row.id, { b: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.h} onChange={(e) => updatePackageRow(row.id, { h: e.target.value })} className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1"><input type="number" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-sm" /></td>
-                    <td className="px-2.5 py-1 tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</td>
-                    <td className="px-2.5 py-1">
-                      <button type="button" onClick={() => removePackageRow(row.id)} className="text-slate-400 hover:text-red-500"><Icon name="trash" className="h-4 w-4" /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            <Icon name="plus" className="h-3.5 w-3.5" /> Add row
-          </button>
-          <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-4">
-            <AutoChip label="Volume (CFT)" value={totalVolumeCft.toFixed(1)} />
-            <AutoChip label="Volumetric" value={`${volKg.toFixed(1)} kg`} />
-            <AutoChip label="Actual" value={`${enteredActualWeight} kg`} />
-            <AutoChip label="Chargeable" value={`${chargeableWeight.toFixed(1)} kg`} />
-          </div>
         </SectionCard>
 
-        <SectionCard title="Pricing (auto)">
+        <SectionCard
+          title="Pricing (auto)"
+          action={(
+            <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
+              <label className="flex items-center gap-1.5" title={isOda ? `Consignee pincode ${consigneePincode} is on the ODA list (ODA ${odaEntry.oda})` : 'Consignee pincode is not on the ODA list'}>
+                <input type="checkbox" checked={isOda} disabled readOnly className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                ODA delivery
+              </label>
+              <label className="flex items-center gap-1.5" title="From the pickup booking">
+                <input type="checkbox" checked={appointment} disabled readOnly className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                Appointment delivery
+              </label>
+            </div>
+          )}
+        >
           <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+            {/* The charge list is fixed — a charge that doesn't apply shows ₹0 (muted) instead of disappearing. */}
             {pricing.lines.map((l) => (
               <div key={l.label} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                <span className="text-slate-500">{l.label}</span>
-                <span className="font-medium tabular-nums text-slate-800">₹{l.value.toLocaleString('en-IN')}</span>
+                <span className="text-slate-500">{l.label}{l.breakup?.length > 0 && <BreakupTip items={l.breakup} />}</span>
+                <span className={`font-medium tabular-nums ${l.value > 0 ? 'text-slate-800' : 'text-slate-300'}`}>₹{l.value.toLocaleString('en-IN')}</span>
               </div>
             ))}
             <div className="flex items-center justify-between bg-slate-50/60 px-3 py-1.5 text-sm">
@@ -758,39 +1168,73 @@ function DocketForm({ pickup }) {
         </SectionCard>
         </div>
 
-        <SectionCard title="Payment, risk & POD">
-          <div className="grid gap-3.5 lg:grid-cols-3">
+        <SectionCard
+          title="Document"
+        >
+          {ewayStatus === 'done' && <p className="-mt-1 text-[11px] font-medium text-brand-orange-dark">Filled from the e-Way Bill — edit if needed.</p>}
+          <div className="grid grid-cols-12 gap-2.5">
+            <Field label="1 · Invoice no." className="col-span-12 sm:col-span-5" dense value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
+            <Field label="2 · Invoice date" type="date" className="col-span-6 sm:col-span-3" dense value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            <Field label="3 · Value incl. GST (₹)" type="number" min="0" className="col-span-6 sm:col-span-4" dense value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
+
+            <label className="col-span-12 block sm:col-span-9">
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">4 · Goods description <span className="font-normal text-slate-400">— pick to fill HSN</span></span>
+              <GoodsPicker
+                value={goodsDescription}
+                onChange={setGoodsDescription}
+                onPick={(g) => { setGoodsDescription(g.name); setHsnCode(g.hsn) }}
+              />
+            </label>
+            <Field
+              label="HSN" className="col-span-12 sm:col-span-3" dense value={hsnCode} inputMode="numeric" placeholder="3304"
+              onChange={(e) => {
+                const code = e.target.value.replace(/[^\d]/g, '').slice(0, 8)
+                setHsnCode(code)
+                const hit = goodsByHsn(code)
+                if (hit && (!goodsDescription.trim() || goodsByHsn(hsnCode)?.name === goodsDescription)) setGoodsDescription(hit.name)
+              }}
+            />
+          </div>
+
+        </SectionCard>
+
+        <SectionCard title="Docket Terms">
+          <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Payment term</span>
-              <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} />
+              <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} compact />
             </div>
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Risk cover</span>
-              <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} />
+              <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} compact />
+            </div>
+            <div>
+              <span className="mb-1.5 block text-xs font-medium text-slate-500">GST payable by</span>
+              <SegmentedControl options={[{ value: 'consignor', label: 'Consignor' }, { value: 'consignee', label: 'Consignee' }, { value: 'lt', label: 'LT' }]} value={gstPayableBy} onChange={setGstPayableBy} compact />
             </div>
             <div>
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Proof of Delivery</span>
-              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} />
+              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} compact />
             </div>
           </div>
-          {riskCover === RISK_COVER.OWNERS_RISK && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <Field label="Insurance company" value={insuranceCompany} onChange={(e) => setInsuranceCompany(e.target.value)} placeholder="Optional" />
-              <Field label="Policy no." value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} placeholder="Optional" />
-            </div>
-          )}
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 border-t border-slate-100 pt-3">
-            <span className="text-xs font-medium text-slate-400">Documents</span>
-            <CheckRow checked={!!invoiceNo} label="Invoice #" />
-            <CheckRow checked={!!consigneeGstin} label="GST no." />
-            <CheckRow checked={ewayStatus === 'done'} label="e-Way bill" />
-            <CheckRow checked={true} label="Declaration" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <Field dense label="Insurance · policy name / no." value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} placeholder="e.g. HDFC ERGO / P/123456" />
+            <label className="block">
+              <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-slate-500">
+                Amount covered (₹)
+                <button type="button" onClick={() => setInsuredValue(invoiceValue)} disabled={!invoiceValue} className="font-normal text-brand-orange-dark hover:underline disabled:opacity-40">= invoice</button>
+              </span>
+              <input
+                type="number" min="0" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </label>
           </div>
         </SectionCard>
 
         {!generatedDocket && (
           <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-soft">
-            {!ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required, before generating.</p>}
+            {!ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required with a reason, before generating.</p>}
             <button type="button" onClick={handleSubmit} disabled={!canSubmit} className={`ml-auto ${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
               <Icon name="invoice" className="h-4 w-4" />
               Generate Docket
@@ -808,15 +1252,74 @@ function DocketForm({ pickup }) {
   )
 }
 
+// A pickup can carry several consignees (Create Pickup's consignee list) and a
+// docket is raised for exactly one of them — so with more than one, nothing
+// else is shown until the user picks who this docket is for. The form then
+// works off a copy of the pickup narrowed to that destination (its consignee,
+// boxes, weight and share of the package IDs).
+const docketForDestination = (pickupId, dest) =>
+  DOCKETS_SEED.find((d) => d.pickupId === pickupId && sameText(d.consignee?.name, dest.consignee.name)) ?? null
+
+function destinationView(pickup, destinations, idx) {
+  const dest = destinations[idx]
+  const offset = destinations.slice(0, idx).reduce((n, d) => n + (d.boxes || 0), 0)
+  return {
+    ...pickup,
+    consignee: dest.consignee,
+    packagesCount: dest.boxes,
+    scannedCount: dest.boxes,
+    actualWeightKg: dest.kg,
+    awbNumbers: (pickup.awbNumbers ?? []).slice(offset, offset + dest.boxes),
+    docketNumber: docketForDestination(pickup.id, dest)?.docketNumber,
+  }
+}
+
+function DocketForChooser({ pickup, destinations, value, onChange }) {
+  const raised = destinations.filter((d) => docketForDestination(pickup.id, d)).length
+  return (
+    <div className={`space-y-2 p-3 ${card}`}>
+      <p className="flex items-center justify-between text-xs font-semibold text-slate-700">
+        Docket for
+        <span className="font-normal text-slate-400">{raised} of {destinations.length} dockets raised</span>
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {destinations.map((d, i) => {
+          const docket = docketForDestination(pickup.id, d)
+          const active = value === i
+          return (
+            <button
+              key={d.consignee.name}
+              type="button"
+              onClick={() => onChange(i)}
+              className={`rounded-xl border px-3 py-2 text-left transition ${active ? 'border-brand-orange bg-brand-orange/5' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+            >
+              <p className="truncate text-sm font-medium text-slate-800">{d.consignee.name}</p>
+              <p className="text-xs text-slate-500">{d.consignee.city} · {d.boxes} box{d.boxes === 1 ? '' : 'es'} · {d.kg} kg</p>
+              <p className={`mt-1 text-[11px] font-medium ${docket ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {docket ? `Docket ${docket.docketNumber}` : 'Docket not raised'}
+              </p>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function CreateDocket() {
   const [, bump] = useState(0)
   const refresh = () => bump((n) => n + 1)
   const [selectedId, setSelectedId] = useState(null)
+  const [destIdx, setDestIdx] = useState(null)
 
   const selected = selectedId ? PICKUPS_SEED.find((p) => p.id === selectedId) ?? null : null
+  const destinations = selected?.details?.destinations?.filter((d) => d.consignee?.name) ?? []
+  const multi = destinations.length > 1
+  const formPickup = !selected ? null : multi ? (destIdx != null ? destinationView(selected, destinations, destIdx) : null) : selected
 
   function handleSelect(pickup) {
     setSelectedId(pickup.id)
+    setDestIdx(null)
     refresh()
   }
 
@@ -828,8 +1331,12 @@ export default function CreateDocket() {
 
       <PickupSearch onSelect={handleSelect} />
 
-      {selected ? (
-        <DocketForm key={selected.id} pickup={selected} />
+      {multi && <DocketForChooser pickup={selected} destinations={destinations} value={destIdx} onChange={(i) => { setDestIdx(i); refresh() }} />}
+
+      {formPickup ? (
+        <DocketForm key={`${selected.id}:${destIdx ?? 'x'}`} pickup={formPickup} onGenerated={refresh} />
+      ) : multi ? (
+        <div className={`p-8 text-center text-sm text-slate-500 ${card}`}>Pick the consignee this docket is for.</div>
       ) : (
         <div className={`flex flex-col items-center justify-center gap-2 p-14 text-center ${card}`}>
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange/10 text-brand-orange-dark">

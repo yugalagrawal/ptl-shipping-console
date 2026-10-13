@@ -10,11 +10,11 @@ import { CheckboxFilter, ColumnFilterButton, TextFilter } from '../../components
 import Pagination, { usePagination } from '../../components/Pagination.jsx'
 import { card, thCls } from '../../components/ui.js'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { LOGISTICS_ROWS, REGIONS, REGION_COLORS, ZONES, regroupZones, zonesInRegion } from '../../data/logistics.js'
+import { LOGISTICS_ROWS, DEFAULT_LOCATION_POC, REGIONS, REGION_COLORS, ZONES, regroupZones, zonesInRegion } from '../../data/logistics.js'
 import { defaultServiceability, hasCoverage as coverageIsSet } from '../../data/hubServiceability.js'
 import { exportCSV, exportPDF } from '../../utils/exportTable.js'
 
-export const BLANK_ROW = { region: '', zone: '', hubName: '', hubCode: '', branch: '', miniHub: '', miniHubCode: '' }
+export const BLANK_ROW = { region: '', zone: '', hubName: '', hubCode: '', branch: '', miniHub: '', miniHubCode: '', serviceSummary: '', ...DEFAULT_LOCATION_POC }
 
 // A row's Serviceability lives on whichever real, geocoded entity it
 // actually is: its own Mini Hub if it has one, otherwise the Hub itself —
@@ -39,6 +39,27 @@ export function hubCodesWithMiniHubs(rows) {
 export function isServiceable(row, rows) {
   return !!row.miniHub || !hubCodesWithMiniHubs(rows).has(row.hubCode)
 }
+
+// Service Summary text can run long (a whole state list with exclusions) — shown
+// as two lines with a "See more" toggle, full text on click.
+function SummaryText({ text }) {
+  const [open, setOpen] = useState(false)
+  if (!text) return <span className="text-slate-300">—</span>
+  const long = text.length > 90
+  return (
+    <div className="max-w-md">
+      <p className={`text-sm text-slate-600 ${long && !open ? 'line-clamp-2' : ''}`}>{text}</p>
+      {long && (
+        <button type="button" onClick={() => setOpen((v) => !v)} className="mt-0.5 text-xs font-medium text-brand-orange-dark hover:underline">
+          {open ? 'See less' : 'See more'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// POC details are optional, but an email that's typed has to look like one.
+const pocEmailBad = (v) => !!v.pocEmail && !/^\S+@\S+\.\S+$/.test(v.pocEmail)
 
 const inputCls = 'rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40'
 
@@ -163,6 +184,46 @@ export const COLUMN_DEFS = [
       )
     },
   },
+  // Point of contact for the location — all three optional.
+  {
+    key: 'pocName', label: 'POC Name', filterType: 'text',
+    cell: (r) => <td className="whitespace-nowrap px-6 py-2.5 text-sm text-slate-600">{r.pocName || <span className="text-slate-300">—</span>}</td>,
+    formField: (value, onChange) => (
+      <input value={value.pocName ?? ''} onChange={(e) => onChange({ ...value, pocName: e.target.value })} placeholder="Optional" className={`w-32 ${inputCls}`} />
+    ),
+  },
+  {
+    key: 'pocContact', label: 'Phone / Email', filterType: 'text',
+    cell: (r) => (
+      <td className="whitespace-nowrap px-6 py-2.5 text-sm text-slate-600">
+        {r.pocPhone || r.pocEmail ? (
+          <>
+            {r.pocPhone && <div className="tabular-nums">{r.pocPhone}</div>}
+            {r.pocEmail && <div className="text-xs text-slate-400">{r.pocEmail}</div>}
+          </>
+        ) : <span className="text-slate-300">—</span>}
+      </td>
+    ),
+    formField: (value, onChange) => (
+      <div className="flex flex-col gap-1">
+        <input value={value.pocPhone ?? ''} onChange={(e) => onChange({ ...value, pocPhone: e.target.value.replace(/[^\d+\s-]/g, '').slice(0, 16) })} placeholder="Phone (optional)" inputMode="tel" className={`w-40 ${inputCls}`} />
+        <input type="email" value={value.pocEmail ?? ''} onChange={(e) => onChange({ ...value, pocEmail: e.target.value.trim() })} placeholder="Email (optional)" className={`w-40 ${inputCls} ${pocEmailBad(value) ? 'border-red-300' : ''}`} />
+      </div>
+    ),
+  },
+  {
+    key: 'serviceSummary', label: 'Service Summary', filterType: 'text',
+    cell: (r) => <td className="min-w-[18rem] px-6 py-2.5 align-top"><SummaryText text={r.serviceSummary} /></td>,
+    formField: (value, onChange) => (
+      <textarea
+        value={value.serviceSummary ?? ''}
+        onChange={(e) => onChange({ ...value, serviceSummary: e.target.value })}
+        rows={2}
+        placeholder="e.g. Rest of Karnataka (Exclude Bengaluru)"
+        className={`w-72 resize-y ${inputCls}`}
+      />
+    ),
+  },
 ]
 
 // Two ready-made "which columns matter" presets, replacing a free-form
@@ -172,7 +233,7 @@ export const COLUMN_DEFS = [
 // Region > Hub > Mini Hub (the physical network) — plus a plain "All"
 // that shows every column at once. Location Master is the default.
 const COLUMN_VIEWS = {
-  'location-master': { label: 'Location Master', keys: ['region', 'hubName', 'miniHub'] },
+  'location-master': { label: 'Location Master', keys: ['region', 'hubName', 'miniHub', 'pocName', 'pocContact', 'serviceSummary'] },
   'profit-centre': { label: 'Profit Centre', keys: ['region', 'zone', 'branch'] },
   all: { label: 'All', keys: COLUMN_DEFS.map((c) => c.key) },
 }
@@ -216,7 +277,7 @@ export function findConflict(value, rows, excludeIdx) {
 
 const EMPTY_COLUMN_FILTERS = {
   region: new Set(), zone: new Set(),
-  hubName: '', branch: '', miniHub: '',
+  hubName: '', branch: '', miniHub: '', pocName: '', pocContact: '', serviceSummary: '',
 }
 
 function Stat({ label, value }) {
@@ -304,7 +365,7 @@ function RowForm({ columns, value, onChange, onSave, onCancel, rows, conflict, o
           <button
             type="button"
             onClick={onSave}
-            disabled={!value.region || !value.zone || !value.hubName || !value.hubCode || !!conflict || (serviceable && !hasCoverage)}
+            disabled={!value.region || !value.zone || !value.hubName || !value.hubCode || !!conflict || (serviceable && !hasCoverage) || pocEmailBad(value)}
             className="mr-1.5 rounded-lg bg-brand-orange px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-orange-dark disabled:opacity-40"
           >
             Save
@@ -339,7 +400,9 @@ export default function LogisticsMaster() {
   const [view, setView] = useState('sheet')
   const [selectedZone, setSelectedZone] = useState(null)
   const [columnFilters, setColumnFilters] = useState(EMPTY_COLUMN_FILTERS)
-  const [columnView, setColumnView] = useState('location-master')
+  const [columnKeys, setColumnKeys] = useState(COLUMN_VIEWS['location-master'].keys)
+  // Which preset (if any) the ticked columns add up to — shown in the button.
+  const columnView = Object.entries(COLUMN_VIEWS).find(([, v]) => v.keys.length === columnKeys.length && v.keys.every((k) => columnKeys.includes(k)))?.[0] ?? 'custom'
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState(BLANK_ROW)
   const [editingKey, setEditingKey] = useState(null)
@@ -356,18 +419,24 @@ export default function LogisticsMaster() {
   const [showRegionMapping, setShowRegionMapping] = useState(false)
   const [servicing, setServicing] = useState(null) // { code, label }
 
-  function openServiceability(row) {
+  // `source` says where the row lives so POC edits made in the modal land back on it:
+  // the table (default), the Add draft, or the row being edited.
+  function openServiceability(row, source = 'table') {
     const code = codeForRow(row)
     if (!code) return
-    setServicing({ code, label: labelForRow(row) })
+    setServicing({ code, label: labelForRow(row), poc: { pocName: row.pocName ?? '', pocPhone: row.pocPhone ?? '', pocEmail: row.pocEmail ?? '' }, source })
   }
-  function saveServiceability(coverage) {
+  function saveServiceability(coverage, poc) {
     setServiceability((prev) => ({ ...prev, [servicing.code]: coverage }))
+    if (!poc) return
+    if (servicing.source === 'add') setDraft((d) => ({ ...d, ...poc }))
+    else if (servicing.source === 'edit') setEditDraft((d) => ({ ...d, ...poc }))
+    else setRows((prev) => prev.map((r) => (codeForRow(r) === servicing.code ? { ...r, ...poc } : r)))
   }
 
   const visibleColumns = useMemo(
-    () => COLUMN_DEFS.filter((c) => COLUMN_VIEWS[columnView].keys.includes(c.key)),
-    [columnView]
+    () => COLUMN_DEFS.filter((c) => columnKeys.includes(c.key)),
+    [columnKeys]
   )
 
   // While a row is being added or edited, the sheet temporarily shows every
@@ -426,6 +495,9 @@ export default function LogisticsMaster() {
     if (skip !== 'hubName' && columnFilters.hubName && !`${r.hubName} ${r.hubCode}`.toLowerCase().includes(columnFilters.hubName.toLowerCase())) return false
     if (skip !== 'branch' && columnFilters.branch && !r.branch.toLowerCase().includes(columnFilters.branch.toLowerCase())) return false
     if (skip !== 'miniHub' && columnFilters.miniHub && !`${r.miniHub} ${r.miniHubCode}`.toLowerCase().includes(columnFilters.miniHub.toLowerCase())) return false
+    if (skip !== 'serviceSummary' && columnFilters.serviceSummary && !(r.serviceSummary ?? '').toLowerCase().includes(columnFilters.serviceSummary.toLowerCase())) return false
+    if (skip !== 'pocName' && columnFilters.pocName && !(r.pocName ?? '').toLowerCase().includes(columnFilters.pocName.toLowerCase())) return false
+    if (skip !== 'pocContact' && columnFilters.pocContact && !`${r.pocPhone ?? ''} ${r.pocEmail ?? ''}`.toLowerCase().includes(columnFilters.pocContact.toLowerCase())) return false
     return true
   }
 
@@ -433,7 +505,7 @@ export default function LogisticsMaster() {
     const q = query.trim().toLowerCase()
     return rows
       .filter((r) => rowMatchesColumnFilters(r))
-      .filter((r) => !q || [r.region, r.zone, r.hubName, r.hubCode, r.branch, r.miniHub, r.miniHubCode].some((v) => v.toLowerCase().includes(q)))
+      .filter((r) => !q || [r.region, r.zone, r.hubName, r.hubCode, r.branch, r.miniHub, r.miniHubCode, r.pocName, r.pocPhone, r.pocEmail, r.serviceSummary].some((v) => (v ?? '').toLowerCase().includes(q)))
       .sort((a, b) => a.region.localeCompare(b.region) || a.zone.localeCompare(b.zone) || a.branch.localeCompare(b.branch) || a.miniHub.localeCompare(b.miniHub))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, query, columnFilters])
@@ -494,7 +566,8 @@ export default function LogisticsMaster() {
     value: (r) => {
       if (c.key === 'hubName') return r.hubCode ? `${r.hubName} (${r.hubCode})` : r.hubName
       if (c.key === 'miniHub') { const d = showRow(r); return d.miniHub ? (d.miniHubCode ? `${d.miniHub} (${d.miniHubCode})` : d.miniHub) : '' }
-      return r[c.key]
+      if (c.key === 'pocContact') return [r.pocPhone, r.pocEmail].filter(Boolean).join(' / ')
+      return r[c.key] ?? ''
     },
   }))
 
@@ -546,20 +619,38 @@ export default function LogisticsMaster() {
         <span className="hidden h-6 w-px bg-slate-200 sm:block" />
 
         {view === 'sheet' && (
-          <ToolbarMenu icon="columns" label={`Select columns: ${COLUMN_VIEWS[columnView].label}`}>
-            {(close) => (
+          <ToolbarMenu icon="columns" label={`Select columns: ${columnView === 'custom' ? 'Custom' : COLUMN_VIEWS[columnView].label}`}>
+            {() => (
               <div className="p-1">
+                <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Quick views</p>
                 {Object.entries(COLUMN_VIEWS).map(([key, v]) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => { setColumnView(key); close() }}
-                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left ${columnView === key ? 'bg-brand-orange/10 font-medium text-brand-orange-dark' : 'text-slate-600 hover:bg-slate-50'}`}
+                    onClick={() => setColumnKeys(v.keys)}
+                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left ${columnView === key ? 'bg-brand-orange/10 font-medium text-brand-orange-dark' : 'text-slate-600 hover:bg-slate-50'}`}
                   >
                     {v.label}
                     {columnView === key && <Icon name="approve" className="h-3.5 w-3.5" />}
                   </button>
                 ))}
+                <div className="my-1 border-t border-slate-100" />
+                <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Columns</p>
+                {COLUMN_DEFS.map((c) => {
+                  const on = columnKeys.includes(c.key)
+                  return (
+                    <label key={c.key} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={on && columnKeys.length === 1}
+                        onChange={() => setColumnKeys((prev) => (on ? prev.filter((k) => k !== c.key) : [...prev, c.key]))}
+                        className="h-4 w-4 rounded border-slate-300 accent-brand-orange"
+                      />
+                      {c.label}
+                    </label>
+                  )
+                })}
               </div>
             )}
           </ToolbarMenu>
@@ -644,7 +735,7 @@ export default function LogisticsMaster() {
               </thead>
               <tbody>
                 {adding && canManage && (
-                  <RowForm columns={effectiveColumns} value={draft} onChange={setDraft} onSave={saveAdd} onCancel={() => setAdding(false)} rows={rows} conflict={addConflict} onServiceability={openServiceability} hasCoverage={coverageIsSet(serviceability[codeForRow(draft)])} />
+                  <RowForm columns={effectiveColumns} value={draft} onChange={setDraft} onSave={saveAdd} onCancel={() => setAdding(false)} rows={rows} conflict={addConflict} onServiceability={(row) => openServiceability(row, 'add')} hasCoverage={coverageIsSet(serviceability[codeForRow(draft)])} />
                 )}
                 {filtered.length === 0 && !adding && (
                   <tr>
@@ -655,7 +746,7 @@ export default function LogisticsMaster() {
                   const idx = rows.indexOf(r)
                   const key = idx
                   if (editingKey === key) {
-                    return <RowForm key={key} columns={effectiveColumns} value={editDraft} onChange={setEditDraft} onSave={() => requestSaveEdit(idx)} onCancel={() => setEditingKey(null)} rows={rows} conflict={editConflict} onServiceability={openServiceability} hasCoverage={coverageIsSet(serviceability[codeForRow(editDraft)])} />
+                    return <RowForm key={key} columns={effectiveColumns} value={editDraft} onChange={setEditDraft} onSave={() => requestSaveEdit(idx)} onCancel={() => setEditingKey(null)} rows={rows} conflict={editConflict} onServiceability={(row) => openServiceability(row, 'edit')} hasCoverage={coverageIsSet(serviceability[codeForRow(editDraft)])} />
                   }
                   return (
                     <tr key={key} className="border-t border-slate-100 transition-colors hover:bg-slate-50/70">
@@ -709,6 +800,7 @@ export default function LogisticsMaster() {
       {servicing && (
         <HubServiceabilityModal
           label={servicing.label}
+          poc={servicing.poc}
           coverage={serviceability[servicing.code]}
           onSave={saveServiceability}
           onClose={() => setServicing(null)}

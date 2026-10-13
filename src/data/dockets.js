@@ -5,6 +5,8 @@
 // arrived-but-stuck pickups — see CreateDocket.jsx). Either way it's the
 // same action on the same pickup record, so there's exactly one creation
 // path — no separate "manual" docket shape.
+import { allocateDocketNumber, isReservedDocketNumber } from './docketSeries.js'
+
 export const DOCKET_STATUS = {
   PENDING: 'pending',
   READY_FOR_TRIP: 'ready_for_trip',
@@ -52,7 +54,10 @@ function logEntry(label, note = '', at = Date.now()) {
 // Docket numbers are 10-digit numeric. Random placeholder for now — the real
 // 10-digit logic is still to be defined.
 function randomDocketNumber() {
-  return String(Math.floor(1e9 + Math.random() * 9e9))
+  let n
+  do n = String(Math.floor(1e9 + Math.random() * 9e9))
+  while (isReservedDocketNumber(n)) // never hand out a number inside a client's assigned series
+  return n
 }
 let upcomingDocketNumber = randomDocketNumber()
 function nextDocketNumber() {
@@ -80,14 +85,14 @@ export const MODE_LABEL = { [MODE.SURFACE]: 'Surface', [MODE.AIR]: 'Air', [MODE.
 export const DELIVERY_TYPE = { SOLO_MH: 'solo_mh', DIRECT_HUB: 'direct_hub', DIRECT_MH: 'direct_mh' }
 export const DELIVERY_TYPE_LABEL = { [DELIVERY_TYPE.SOLO_MH]: 'Solo Mini Hub', [DELIVERY_TYPE.DIRECT_HUB]: 'Direct Hub', [DELIVERY_TYPE.DIRECT_MH]: 'Direct Mini Hub' }
 
-export const PAYMENT_TERM = { TBB: 'tbb', PAID: 'paid', TO_PAY_FOD: 'to_pay_fod', COD: 'cod' }
-export const PAYMENT_TERM_LABEL = { [PAYMENT_TERM.TBB]: 'TBB', [PAYMENT_TERM.PAID]: 'Paid', [PAYMENT_TERM.TO_PAY_FOD]: 'To Pay FOD', [PAYMENT_TERM.COD]: 'COD' }
+export const PAYMENT_TERM = { PAID: 'paid', TO_PAY: 'to_pay', TBB: 'tbb' }
+export const PAYMENT_TERM_LABEL = { [PAYMENT_TERM.PAID]: 'Paid', [PAYMENT_TERM.TO_PAY]: 'To-Pay', [PAYMENT_TERM.TBB]: 'TBB' }
 
 export const RISK_COVER = { OWNERS_RISK: 'owners_risk', CARRIERS_RISK: 'carriers_risk' }
-export const RISK_COVER_LABEL = { [RISK_COVER.OWNERS_RISK]: "Owner's Risk", [RISK_COVER.CARRIERS_RISK]: "Carrier's Risk (HRR)" }
+export const RISK_COVER_LABEL = { [RISK_COVER.OWNERS_RISK]: 'Owner', [RISK_COVER.CARRIERS_RISK]: 'Carrier' }
 
 export const POD_TYPE = { EPOD: 'epod', HARDCOPY: 'hardcopy', CONSIGNOR_DC: 'consignor_dc' }
-export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'Hardcopy POD', [POD_TYPE.CONSIGNOR_DC]: 'Consignor DC' }
+export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'Hardcopy', [POD_TYPE.CONSIGNOR_DC]: 'Consignor DC' }
 
 // Called once, at the moment a pickup's last package is scanned — carries
 // exactly what's known at that instant (tentative: actual weight, package/
@@ -96,7 +101,9 @@ export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'H
 // (data/pickups.js), so a docket does too — not a list.
 export function createDocketFromPickup(pickup) {
   const docket = {
-    docketNumber: nextDocketNumber(),
+    // Assigned-series clients draw from their own range; everyone else (and
+    // an exhausted series) falls back to the system auto number.
+    docketNumber: allocateDocketNumber(pickup.clientId) ?? nextDocketNumber(),
     pickupId: pickup.id,
     clientName: pickup.clientName,
     dropMiniHubName: pickup.dropMiniHubName,
@@ -195,13 +202,13 @@ export const DOCKETS_SEED = [
   seedDocket({ docketNumber: '7316402985', pickupId: 'PU-3395', clientName: 'Lenskart', originCity: 'Gurugram', dropMiniHubName: 'Udyog Vihar Yard', consignee: { name: 'Lenskart Store — Lajpat Nagar', city: 'New Delhi', pincode: '110001' }, awbCount: 4, kg: 98, pay: PAYMENT_TERM.TBB, value: 96500, status: DOCKET_STATUS.PENDING, ageH: 26, eddH: 30 }),
   seedDocket({ docketNumber: '5120847391', pickupId: 'PU-3371', clientName: 'Nykaa', originCity: 'Mumbai', dropMiniHubName: 'Whitefield Depot', consignee: { name: 'Nykaa Store — Whitefield', city: 'Bengaluru', pincode: '560066' }, awbCount: 8, kg: 212, pay: PAYMENT_TERM.TBB, value: 264000, status: DOCKET_STATUS.IN_TRANSIT, tripId: 'TRP-2041', ageH: 20, eddH: 40 }),
   seedDocket({ docketNumber: '6038259174', pickupId: 'PU-3368', clientName: 'Licious', originCity: 'Gurugram', dropMiniHubName: 'Mundka Depot', consignee: { name: 'Licious Cold Hub — Rohini', city: 'New Delhi', pincode: '110085' }, awbCount: 12, kg: 340, pay: PAYMENT_TERM.PAID, value: 88000, status: DOCKET_STATUS.IN_TRANSIT, tripId: 'TRP-2043', ageH: 14, eddH: 6 }),
-  seedDocket({ docketNumber: '3947106285', pickupId: 'PU-3360', clientName: 'Country Delight', originCity: 'Mumbai', dropMiniHubName: 'Ambattur Depot', consignee: { name: 'Country Delight DC — Ambattur', city: 'Chennai', pincode: '600053' }, awbCount: 5, kg: 150, pay: PAYMENT_TERM.TO_PAY_FOD, value: 41000, status: DOCKET_STATUS.AT_DEST_HUB, tripId: 'TRP-2036', ageH: 52, eddH: 4 }),
+  seedDocket({ docketNumber: '3947106285', pickupId: 'PU-3360', clientName: 'Country Delight', originCity: 'Mumbai', dropMiniHubName: 'Ambattur Depot', consignee: { name: 'Country Delight DC — Ambattur', city: 'Chennai', pincode: '600053' }, awbCount: 5, kg: 150, pay: PAYMENT_TERM.TO_PAY, value: 41000, status: DOCKET_STATUS.AT_DEST_HUB, tripId: 'TRP-2036', ageH: 52, eddH: 4 }),
   seedDocket({ docketNumber: '8261740539', pickupId: 'PU-3355', clientName: 'Lenskart', originCity: 'Gurugram', dropMiniHubName: 'Whitefield Depot', consignee: { name: 'Lenskart Store — Koramangala', city: 'Bengaluru', pincode: '560034' }, awbCount: 3, kg: 64, pay: PAYMENT_TERM.TBB, value: 184000, status: DOCKET_STATUS.OUT_FOR_DELIVERY, tripId: 'TRP-2030', ageH: 70, eddH: 3 }),
   seedDocket({ docketNumber: '2750961843', pickupId: 'PU-3342', clientName: 'Oriflame', originCity: 'Mumbai', dropMiniHubName: 'Bhandup Yard', consignee: { name: 'Oriflame Distributor — Vazhuthacaud', city: 'Kochi', pincode: '682001' }, awbCount: 7, kg: 188, pay: PAYMENT_TERM.PAID, value: 120000, status: DOCKET_STATUS.DELIVERED, tripId: 'TRP-2011', podBy: 'S. Menon', ageH: 110, eddH: -30 }),
   seedDocket({ docketNumber: '9402816357', pickupId: 'PU-3338', clientName: 'Nykaa', originCity: 'Mumbai', dropMiniHubName: 'Vatva Yard', consignee: { name: 'Nykaa Store — Satellite', city: 'Ahmedabad', pincode: '380015' }, awbCount: 4, kg: 92, pay: PAYMENT_TERM.TBB, value: 56000, status: DOCKET_STATUS.DELIVERED, tripId: 'TRP-2008', podBy: 'R. Patel', ageH: 130, eddH: -60 }),
   seedDocket({ docketNumber: '1683095724', pickupId: 'PU-3376', clientName: 'Wellbeing Nutrition', originCity: 'Mumbai', dropMiniHubName: 'Mundka Depot', consignee: { name: 'Wellbeing Nutrition Store — Malviya Nagar', city: 'Jaipur', pincode: '302017' }, awbCount: 6, kg: 135, pay: PAYMENT_TERM.TBB, value: 72000, status: DOCKET_STATUS.EXCEPTION, exception: { type: 'Damaged in transit', note: '2 cartons crushed, awaiting survey', previousStatus: DOCKET_STATUS.AT_DEST_HUB }, tripId: 'TRP-2027', ageH: 60, eddH: -8 }),
-  seedDocket({ docketNumber: '7059314682', pickupId: 'PU-3380', clientName: 'Licious', originCity: 'Gurugram', dropMiniHubName: 'Electronic City Yard', consignee: { name: 'Licious Outlet — HSR Layout', city: 'Bengaluru', pincode: '560102' }, awbCount: 9, kg: 260, pay: PAYMENT_TERM.COD, value: 36000, status: DOCKET_STATUS.PENDING, ageH: 3, eddH: 96 }),
+  seedDocket({ docketNumber: '7059314682', pickupId: 'PU-3380', clientName: 'Licious', originCity: 'Gurugram', dropMiniHubName: 'Electronic City Yard', consignee: { name: 'Licious Outlet — HSR Layout', city: 'Bengaluru', pincode: '560102' }, awbCount: 9, kg: 260, pay: PAYMENT_TERM.TO_PAY, value: 36000, status: DOCKET_STATUS.PENDING, ageH: 3, eddH: 96 }),
   seedDocket({ docketNumber: '4316978205', pickupId: 'PU-3384', clientName: 'Country Delight', originCity: 'Mumbai', dropMiniHubName: 'Ambattur Depot', consignee: { name: 'Country Delight Store — Adyar', city: 'Chennai', pincode: '600020' }, awbCount: 2, kg: 48, pay: PAYMENT_TERM.PAID, value: 18000, status: DOCKET_STATUS.READY_FOR_TRIP, ageH: 9, eddH: 80 }),
-  seedDocket({ docketNumber: '8805231947', pickupId: 'PU-3349', clientName: 'Oriflame', originCity: 'Mumbai', dropMiniHubName: 'Vatva Yard', consignee: { name: 'Oriflame Distributor — Navrangpura', city: 'Ahmedabad', pincode: '380009' }, awbCount: 5, kg: 120, pay: PAYMENT_TERM.TO_PAY_FOD, value: 64000, status: DOCKET_STATUS.IN_TRANSIT, tripId: 'TRP-2038', ageH: 36, eddH: -5 }),
+  seedDocket({ docketNumber: '8805231947', pickupId: 'PU-3349', clientName: 'Oriflame', originCity: 'Mumbai', dropMiniHubName: 'Vatva Yard', consignee: { name: 'Oriflame Distributor — Navrangpura', city: 'Ahmedabad', pincode: '380009' }, awbCount: 5, kg: 120, pay: PAYMENT_TERM.TO_PAY, value: 64000, status: DOCKET_STATUS.IN_TRANSIT, tripId: 'TRP-2038', ageH: 36, eddH: -5 }),
   seedDocket({ docketNumber: '2194067538', pickupId: 'PU-3390', clientName: 'Nykaa', originCity: 'Mumbai', dropMiniHubName: 'Andheri Depot', consignee: { name: 'Nykaa Hub — Hyderabad', city: 'Hyderabad', pincode: '500081' }, awbCount: 2, kg: 56, pay: PAYMENT_TERM.TBB, value: 212000, status: DOCKET_STATUS.PENDING, ageH: 30, eddH: 50 }),
 ]

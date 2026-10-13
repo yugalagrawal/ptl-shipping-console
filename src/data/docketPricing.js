@@ -1,22 +1,41 @@
 // Docket pricing — the "Pri Rule" from the Docket planning whiteboard:
 //   Chargeable weight = MAX(Actual weight, Volumetric weight)
 //   Price = MAX(Client's Minimum Price, Chargeable weight × Client's per-kg rate)
-// then the usual freight add-ons on top (fuel surcharge %, ROV on the
-// insured value, flat handling/pickup/delivery/DACC charges, GST). A real
+// then the charges from the default charge table on top (docket, exception,
+// FOV owner-risk, FSC, ESS, appointment, handling) and GST. A real
 // build resolves the per-kg rate and minimum price from that client's own
 // rate card (Client Pricing Configuration); this is a small flat sample
 // table standing in for that lookup so Create Docket's pricing panel has
 // somewhere real to read from.
+import { resolveChargeAmount, STANDARD_CHARGES } from './pricing.js'
+
 export const VOLUMETRIC_DIVISOR_CM3_PER_KG = 4700 // 1 CFT ≈ 28317 cm³ ≈ 6 kg → ~4717 cm³/kg; rounded for a clean sample constant
 
-const DEFAULT_RATE_CARD = { perKgRate: 32, minCharge: 350, fuelSurchargePct: 12, rovPct: 0.15, dacc: 0, handling: 0 }
+// Default charges (ops's charge table) — a client's own rate card can override
+// them; these are what a docket gets until it does. Minimum freight (₹400 +
+// GST) lives in the logic below, not as a line on screen.
+export const DEFAULT_CHARGES = {
+  docket: 50,            // ₹ per docket
+  exception: 50,         // ₹ per docket, only once an exception is raised
+  fovOwnerRisk: 50,      // ₹ per docket, when risk cover is Owner's Risk
+  essPerKg: 3,           // ESS: ₹3/kg or ₹750 per docket, whichever is higher — only while an emergency is declared
+  essMin: 750,
+  appointment: 750,      // ₹ per docket, when delivery needs an appointment
+  handlingFreeUpToKg: 200, // handling is NIL up to this chargeable weight…
+  handlingPerKg: 0.75,   // …above it ₹0.75/kg or ₹400, whichever is higher
+  handlingMin: 400,
+}
+// Emergency Situation Surcharge is switched on network-wide by ops, not per docket.
+export const EMERGENCY_SURCHARGE_ON = false
+
+const DEFAULT_RATE_CARD = { perKgRate: 32, minCharge: 400, fuelSurchargePct: 5 }
 
 // A handful of clients priced differently from the default, purely to make
 // the pricing panel visibly react to which pickup/client is selected —
 // same spirit as pricing.js's own ZONE_CLASSIFICATIONS sample data.
 const CLIENT_RATE_CARDS = {
-  nykaa: { perKgRate: 28, minCharge: 400, fuelSurchargePct: 10, rovPct: 0.12, dacc: 25, handling: 20 },
-  lenskart: { perKgRate: 35, minCharge: 380, fuelSurchargePct: 11, rovPct: 0.15, dacc: 0, handling: 30 },
+  nykaa: { perKgRate: 28, minCharge: 400, fuelSurchargePct: 10 },
+  lenskart: { perKgRate: 35, minCharge: 400, fuelSurchargePct: 11 },
 }
 
 export function rateCardFor(clientId) {
@@ -28,20 +47,40 @@ export function volumetricWeightKg(totalVolumeCft) {
   return Math.round(totalVolumeCft * 6 * 10) / 10
 }
 
-export function priceDocket({ clientId, actualWeightKg, volumetricWeightKg: volKg, insuredValue = 0, isOda = false }) {
+// Client Pricing charges the docket already prices itself (or that only apply to
+// an event, not a booking) — everything else the client has is rolled into
+// "Others" with a breakup.
+const OTHERS_SKIP = new Set(['docket', 'fov', 'fsc', 'oda', 'gst', 'min_wt', 'rto'])
+
+export function priceDocket({
+  clientId, actualWeightKg, volumetricWeightKg: volKg, ownersRisk = false, appointment = false, hasException = false,
+  isOda = false, odaRate = null, clientCharges = STANDARD_CHARGES, paymentTerm = '', codAmount = 0,
+}) {
   const card = rateCardFor(clientId)
+  const c = DEFAULT_CHARGES
   const chargeableWeight = Math.max(Number(actualWeightKg) || 0, Number(volKg) || 0)
+  // Pri Rule + minimum freight: never below the client's minimum (₹400 by default).
   const basicFreight = Math.max(card.minCharge, Math.round(chargeableWeight * card.perKgRate))
-  const fuelSurcharge = Math.round(basicFreight * (card.fuelSurchargePct / 100))
-  const docketCharge = 60
-  const rov = Math.round((Number(insuredValue) || 0) * (card.rovPct / 100))
-  const odaCharges = isOda ? Math.round(basicFreight * 0.15) : 0
-  const dacc = card.dacc
-  const doorPickup = 120
-  const doorDelivery = 120
-  const handling = card.handling
-  const misc = 0
-  const subtotal = basicFreight + fuelSurcharge + docketCharge + rov + odaCharges + dacc + doorPickup + doorDelivery + handling + misc
+  const docketCharge = c.docket
+  const exceptionCharge = hasException ? c.exception : 0
+  const fov = ownersRisk ? c.fovOwnerRisk : 0
+  const fsc = Math.round(basicFreight * (card.fuelSurchargePct / 100))
+  const ess = EMERGENCY_SURCHARGE_ON && chargeableWeight > 0 ? Math.max(Math.round(chargeableWeight * c.essPerKg), c.essMin) : 0
+  const appointmentCharge = appointment ? c.appointment : 0
+  const handling = chargeableWeight > c.handlingFreeUpToKg ? Math.max(Math.round(chargeableWeight * c.handlingPerKg), c.handlingMin) : 0
+  // ODA: higher of ₹/kg or ₹/docket for the pincode's ODA category (odaRate); falls back to the
+  // client's own ODA charge when no category is known.
+  const odaRule = clientCharges.find((x) => x.id === 'oda') ?? STANDARD_CHARGES.find((x) => x.id === 'oda')
+  const oda = isOda && odaRate ? Math.round(Math.max(odaRate.perKg * chargeableWeight, odaRate.perAwb)) : isOda && odaRule ? Math.round(resolveChargeAmount(odaRule, { chargeableWeightKg: chargeableWeight, baseFreight: basicFreight }) ?? 0) : 0
+  // Others: any other charge the client has on their pricing (COD collection only on COD dockets).
+  const others = clientCharges
+    .filter((x) => !OTHERS_SKIP.has(x.id) && !x.isWeightFloor && !x.locked && (x.id !== 'cod_fee' || paymentTerm === 'cod'))
+    .map((x) => {
+      const amount = resolveChargeAmount(x, { chargeableWeightKg: chargeableWeight, baseFreight: basicFreight, codAmount })
+      return { label: x.label, amount: amount == null ? null : Math.round(amount) } // null = billed at actuals
+    })
+  const othersTotal = others.reduce((n, x) => n + (x.amount ?? 0), 0)
+  const subtotal = basicFreight + docketCharge + exceptionCharge + fov + fsc + ess + appointmentCharge + handling + oda + othersTotal
   const gst = Math.round(subtotal * 0.18)
   const total = subtotal + gst
 
@@ -50,15 +89,15 @@ export function priceDocket({ clientId, actualWeightKg, volumetricWeightKg: volK
     rate: card,
     lines: [
       { label: 'Basic freight', value: basicFreight },
-      { label: `Fuel surcharge (${card.fuelSurchargePct}%)`, value: fuelSurcharge },
-      { label: 'Docket / RXB charge', value: docketCharge },
-      { label: 'ROV (risk on value)', value: rov },
-      { label: 'ODA charges', value: odaCharges },
-      { label: 'DACC charges', value: dacc },
-      { label: 'Door pick-up', value: doorPickup },
-      { label: 'Door delivery', value: doorDelivery },
-      { label: 'Handling / heavy lift', value: handling },
-      { label: 'Misc / VAS', value: misc },
+      { label: 'Docket charges', value: docketCharge },
+      { label: 'Exception charges', value: exceptionCharge },
+      { label: 'FOV: Owner Risk', value: fov },
+      { label: `FSC (${card.fuelSurchargePct}%)`, value: fsc },
+      { label: 'ESS (emergency)', value: ess },
+      { label: 'Appointment', value: appointmentCharge },
+      { label: 'Handling', value: handling },
+      { label: 'ODA', value: oda },
+      { label: 'Others', value: othersTotal, breakup: others },
     ],
     subtotal,
     gst,
