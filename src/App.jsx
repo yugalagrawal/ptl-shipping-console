@@ -32,6 +32,7 @@ import RoutingSimulator from './pages/trip/RoutingSimulator.jsx'
 import Tracking from './pages/trip/Tracking.jsx'
 import PastTrips from './pages/trip/PastTrips.jsx'
 import TripAnalytics from './pages/trip/Analytics.jsx'
+import TripOps from './pages/trip/TripOps.jsx'
 import FleetRoster from './pages/supply-fleet/FleetRoster.jsx'
 import TruckAssignment from './pages/supply-fleet/TruckAssignment.jsx'
 import WarehouseHubOps from './pages/WarehouseHubOps.jsx'
@@ -85,6 +86,13 @@ export default function App() {
         <Route path="/trip-management/tracking" element={<Tracking />} />
         <Route path="/trip-management/past-trips" element={<PastTrips />} />
         <Route path="/trip-management/analytics" element={<TripAnalytics />} />
+        <Route path="/trip-management/trip-ops/overview" element={<TripOps screen="overview" />} />
+        <Route path="/trip-management/trip-ops/route-pricing" element={<TripOps screen="route-pricing" />} />
+        <Route path="/trip-management/trip-ops/vehicle-assign" element={<TripOps screen="vehicle-assign" />} />
+        <Route path="/trip-management/trip-ops/manifest" element={<TripOps screen="manifest" />} />
+        <Route path="/trip-management/trip-ops/cewb" element={<TripOps screen="cewb" />} />
+        <Route path="/trip-management/trip-ops/scan-descan" element={<TripOps screen="scan-descan" />} />
+        <Route path="/trip-management/trip-ops/final-arrival" element={<TripOps screen="final-arrival" />} />
         <Route path="/supply-fleet-module/fleet-roster" element={<FleetRoster />} />
         <Route path="/supply-fleet-module/truck-assignment" element={<TruckAssignment />} />
         <Route path="/warehouse-hub-ops" element={<WarehouseHubOps />} />

@@ -1,0 +1,50 @@
+.lt2-h1{font-size:26px;font-weight:600;letter-spacing:-.01em;color:#0f172a;margin:0}
+.lt2-sub{margin:4px 0 0;color:#64748b;font-size:14px}
+.lt2-card{border-radius:16px;border:1px solid rgba(226,232,240,.7);background:#fff;box-shadow:0 1px 2px #0f172a0a,0 1px 3px #0f172a0f}
+.lt2-card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #f1f5f9;padding:12px 16px}
+.lt2-card-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8}
+.lt2-card-body{padding:16px}
+.lt2-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:background-color .15s,color .15s}
+.lt2-btn.primary{background:#D94F1C;color:#fff}
+.lt2-btn.primary:hover{background:#B8410E}
+.lt2-btn.ghost{background:#fff;border-color:#e2e8f0;color:#475569}
+.lt2-btn.ghost:hover{background:#f8fafc;color:#0f172a}
+.lt2-btn.sm{padding:6px 12px;font-size:12.5px;border-radius:9px}
+.lt2-btn:disabled{opacity:.45;cursor:not-allowed}
+.lt2-tabs{display:inline-flex;gap:2px;background:#f1f5f9;padding:3px;border-radius:12px}
+.lt2-tab{border:0;background:transparent;padding:6px 14px;border-radius:9px;font-size:12.5px;font-weight:500;color:#64748b;cursor:pointer}
+.lt2-tab.active{background:#0f172a;color:#fff}
+.lt2-table{width:100%;border-collapse:collapse;font-size:13px}
+.lt2-table th{text-align:left;padding:10px 14px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;white-space:nowrap}
+.lt2-table td{padding:12px 14px;border-top:1px solid #f1f5f9;color:#475569;white-space:nowrap;vertical-align:middle}
+.lt2-table tr.expand td{white-space:normal;background:#fafbfd}
+.lt2-table tbody tr:hover td{background:#fafbfd}
+.lt2-badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+.lt2-badge.slate{background:#f1f5f9;color:#475569}
+.lt2-badge.amber{background:#fffbeb;color:#b45309}
+.lt2-badge.red{background:#fef2f2;color:#b91c1c}
+.lt2-badge.green{background:#ecfdf5;color:#047857}
+.lt2-badge.blue{background:#eff6ff;color:#1d4ed8}
+.lt2-field{display:flex;flex-direction:column;gap:5px}
+.lt2-label{font-size:12px;font-weight:600;color:#334155}
+.lt2-input,.lt2-select,.lt2-textarea{border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;font-size:13.5px;color:#0f172a;background:#fff;font-family:inherit;width:100%;box-sizing:border-box}
+.lt2-input:focus,.lt2-select:focus,.lt2-textarea:focus{outline:2px solid rgba(217,79,28,.33);border-color:#D94F1C}
+.lt2-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.lt2-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.lt2-muted{color:#94a3b8;font-size:12.5px}
+.lt2-empty{padding:36px 20px;text-align:center;color:#94a3b8;font-size:13px}
+.lt2-banner{display:flex;align-items:center;gap:10px;border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:500}
+.lt2-banner.success{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+.lt2-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.8);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.lt2-modal{background:#fff;border-radius:18px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(15,23,42,.2)}
+.lt2-modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9}
+.lt2-modal-title{font-size:15px;font-weight:600;color:#0f172a}
+.lt2-modal-close{border:0;background:transparent;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;padding:4px}
+.lt2-modal-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.lt2-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid #f1f5f9}
+.lt2-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.lt2-stat{padding:14px;border-radius:14px;border:1px solid rgba(226,232,240,.7);background:#fff}
+.lt2-stat b{display:block;font-size:20px;font-weight:600;color:#0f172a}
+.lt2-stat span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8}
+.lt2-diff-up{color:#b91c1c;text-decoration:line-through;font-variant-numeric:tabular-nums}
+.lt2-diff-dn{color:#047857;font-weight:600;font-variant-numeric:tabular-nums}

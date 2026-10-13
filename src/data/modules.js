@@ -70,6 +70,13 @@ export const MODULES = [
       { key: 'trip-tracking', label: 'Trip Tracking', to: '/trip-management/tracking', icon: 'tracking', tagline: 'Live manifest, vehicle location and exception alerts.' },
       { key: 'past-trips', label: 'Past Trips', to: '/trip-management/past-trips', icon: 'history', tagline: 'Completed manifests, POD and trip-level history.' },
       { key: 'trip-analytics', label: 'Analytics', to: '/trip-management/analytics', icon: 'analytics', tagline: 'On-time %, utilization, turnaround by lane and vendor.' },
+      { key: 'trip-ops-overview', label: 'Trip Ops · Overview', to: '/trip-management/trip-ops/overview', icon: 'grid', tagline: 'Trip Ops 1A — stage counts, docket stock at hubs and hand-off from pickups.' },
+      { key: 'trip-route-pricing', label: 'Route & Pricing', to: '/trip-management/trip-ops/route-pricing', icon: 'route', tagline: 'Plan the hub-to-hub route, pick a lane and price the trip.' },
+      { key: 'trip-vehicle', label: 'Vehicle Assign', to: '/trip-management/trip-ops/vehicle-assign', icon: 'trip', tagline: 'Assign vehicle, drivers and THC with document validation.' },
+      { key: 'trip-manifest', label: 'Manifest · To-Fro', to: '/trip-management/trip-ops/manifest', icon: 'file', tagline: 'Build the to-fro manifest from docket stock at the hub.' },
+      { key: 'trip-cewb', label: 'CEWB', to: '/trip-management/trip-ops/cewb', icon: 'invoice', tagline: 'Consolidated e-way bill for the manifest.' },
+      { key: 'trip-scan', label: 'Multi-stop Scan → Descan', to: '/trip-management/trip-ops/scan-descan', icon: 'tracking', tagline: 'Scan at origin, descan at each pit-stop.' },
+      { key: 'trip-arrival', label: 'Final Hub Arrival', to: '/trip-management/trip-ops/final-arrival', icon: 'history', tagline: 'Arrive at the final hub, reconcile and close the trip.' },
     ],
   },
   {
