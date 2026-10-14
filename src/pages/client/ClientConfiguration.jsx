@@ -164,11 +164,11 @@ function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly, clientI
         {fieldIds.map((fieldId) => (
           <Fragment key={fieldId}>
             <ConfigField field={CLIENT_CONFIG_FIELDS_BY_ID[fieldId]} value={values[fieldId]} onChange={onChange} readOnly={readOnly || yetToBuild} />
-            {fieldId === 'docket-series' && values['docket-series'] === DOCKET_SERIES_ASSIGNED && (
-              <SeriesPanel clientId={clientId} ranges={values['docket-series-ranges'] ?? []} onChange={(next) => onChange('docket-series-ranges', next)} readOnly={readOnly} />
-            )}
           </Fragment>
         ))}
+        {fieldIds.includes('docket-series') && values['docket-series'] === DOCKET_SERIES_ASSIGNED && (
+          <SeriesPanel clientId={clientId} ranges={values['docket-series-ranges'] ?? []} onChange={(next) => onChange('docket-series-ranges', next)} readOnly={readOnly} />
+        )}
       </div>
     </div>
   )

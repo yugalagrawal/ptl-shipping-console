@@ -15,6 +15,12 @@ export const CLIENT_CONFIG_FIELDS = [
     default: DOCKET_SERIES_AUTO,
   },
   {
+    id: 'pricing-on-docket',
+    label: 'Print Pricing on Docket',
+    options: ['Yes', 'No'],
+    default: 'Yes',
+  },
+  {
     id: 'booking-data-exchange',
     label: 'Booking Data Exchange',
     options: [
@@ -232,7 +238,7 @@ export const CLIENT_CONFIG_TABS = [
     cards: [
       // Only Docket Series is live for now; Booking Sequence and EWB Count Per
       // Docket stay defined above but are hidden until their behaviour is built.
-      { title: 'Docket Config', icon: 'invoice', fieldIds: ['docket-series'] },
+      { title: 'Docket Config', icon: 'invoice', fieldIds: ['docket-series', 'pricing-on-docket'] },
       // Not built yet — the card keeps its dropdowns (dimmed, read-only) under a "Yet to be built" tag.
       {
         title: 'Tracking & Data Exchange',

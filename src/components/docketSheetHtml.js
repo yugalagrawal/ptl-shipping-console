@@ -10,6 +10,7 @@
 // them. Every dynamic value goes through esc(). Barcode / QR are decorative
 // stand-ins derived from the docket number, not scannable symbologies.
 import { MODE_LABEL, PAYMENT_TERM } from '../data/dockets.js'
+import { getClientConfigValues } from '../data/clientConfigFields.js'
 import { fmtDocket } from '../data/docketNumber.js'
 
 export const DOCKET_SHEET_WIDTH = 1000
@@ -113,7 +114,9 @@ export function buildDocketSheetBody(docket) {
   const pay = docket.paymentTerm
   const consignorAddr = [cr.address, [cr.city, cr.state].filter(Boolean).join(', '), cr.pincode].filter(Boolean).join(' · ')
   const consigneeAddr = [cn.address, [cn.city, cn.state].filter(Boolean).join(', '), cn.pincode].filter(Boolean).join(' · ')
-  const charge = (label) => money(lineValue(pricing, label))
+  // Client config "Pricing Shown on Docket" = No → every charge cell prints blank.
+  const showPricing = !docket.clientId || getClientConfigValues(docket.clientId)['pricing-on-docket'] !== 'No'
+  const charge = (label) => (showPricing ? money(lineValue(pricing, label)) : '')
   const dimTable = dimRows.map((r) => `<tr><td class="v">${dash(r.l)}</td><td class="v">${dash(r.b)}</td><td class="v">${dash(r.h)}</td><td class="v">${dash(r.qty)}</td></tr>`).join('')
 
   return `<div class="dkt">
@@ -205,7 +208,7 @@ export function buildDocketSheetBody(docket) {
         <tr><td class="k">Exception Charges</td><td class="num">${charge('Exception')}</td><td class="k">Appointment</td><td class="num">${charge('Appointment')}</td></tr>
         <tr><td class="k">FOV: Owner Risk</td><td class="num">${charge('FOV')}</td><td class="k">Handling</td><td class="num">${charge('Handling')}</td></tr>
         <tr><td class="k">ODA</td><td class="num">${charge('ODA')}</td><td class="k">Others</td><td class="num">${charge('Others')}</td></tr>
-        <tr><td class="k">GST</td><td class="num">${money(pricing?.gst)}</td><td class="k">Total Charges</td><td class="num" style="font-size:12.5px">${pricing?.total != null ? `₹${money(pricing.total)}` : ''}</td></tr>
+        <tr><td class="k">GST</td><td class="num">${showPricing ? money(pricing?.gst) : ''}</td><td class="k">Total Charges</td><td class="num" style="font-size:12.5px">${showPricing && pricing?.total != null ? `₹${money(pricing.total)}` : ''}</td></tr>
       </table>
     </td>
   </tr></table>

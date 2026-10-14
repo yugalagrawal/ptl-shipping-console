@@ -674,6 +674,7 @@ function DocketForm({ pickup, onGenerated }) {
   const draftDocket = {
     docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId) : peekNextDocketNumber()),
     status: 'pending',
+    clientId: pickup.clientId,
     clientName: pickup.clientName,
     pickupId: pickup.id,
     dropMiniHubName: pickup.dropMiniHubName,

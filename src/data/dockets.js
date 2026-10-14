@@ -110,6 +110,7 @@ export function createDocketFromPickup(pickup) {
     // an exhausted series) falls back to the system auto number.
     docketNumber: allocateDocketNumber(pickup.clientId) ?? nextDocketNumber(),
     pickupId: pickup.id,
+    clientId: pickup.clientId,
     clientName: pickup.clientName,
     dropMiniHubName: pickup.dropMiniHubName,
     consignee: pickup.consignee,
