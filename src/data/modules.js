@@ -59,6 +59,7 @@ export const MODULES = [
       { key: 'docket-dashboard', label: 'Docket Dashboard', to: '/docket-module/dashboard', icon: 'grid', tagline: 'Track dockets raised from pickups, ready for trip.' },
       { key: 'eway-bill', label: 'E-way Bill Console', to: '/docket-module/eway-bill', icon: 'file', tagline: 'Generate, fetch and update e-way bills for clients and consignors.' },
       { key: 'docket-series', label: 'Docket Series', to: '/docket-module/docket-series', icon: 'invoice', tagline: 'Docket number series per client — ranges, usage and what is next.' },
+      { key: 'package-series', label: 'Package Series', to: '/docket-module/package-series', icon: 'tag', tagline: '12-digit parcel barcodes — automated and stock labels mapped to dockets.' },
     ],
   },
   {
