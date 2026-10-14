@@ -1,24 +1,43 @@
 import { useRef, useState } from 'react'
-import { card, pill } from '../../components/ui.js'
+import { card, pill, thCls, tdCls, rowCls } from '../../components/ui.js'
 import { DOCKETS_SEED, DOCKET_STATUS_LABEL, DOCKET_STATUS_BADGE, MODE_LABEL } from '../../data/dockets.js'
 import { fmtDocket } from '../../data/docketNumber.js'
 import { fmtPackage, sourceOfPackage, lookupPackage, packagesOfDocket, blockUsage, searchPackages } from '../../data/packageSeries.js'
 
+const th = thCls.replace('px-6', 'px-3')
+const td = tdCls.replace('px-6', 'px-3').replace('whitespace-nowrap', '')
 const SRC_LABEL = { automated: 'System Generated', stock: 'Stock' }
 const SRC_CLS = { automated: 'bg-sky-50 text-sky-700', stock: 'bg-violet-50 text-violet-700' }
 
-function Info({ u }) {
+const DESCRIPTION = {
+  automated: 'Sequential barcodes the system hands out when labels are printed for a docket — the next unused numbers are mapped to its parcels.',
+  stock: 'Pre-printed label stock. The number written on each label is typed in and linked to the docket.',
+}
+
+function SeriesTable() {
   return (
-    <div className={`${card} p-4`}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">{SRC_LABEL[u.id]}</h2>
-        <span className={`${pill} !py-0.5 ${SRC_CLS[u.id]}`}>{u.id === 'automated' ? 'Printed labels' : 'Pre-printed stock'}</span>
-      </div>
-      <p className="mt-1 font-mono text-xs text-slate-500">{fmtPackage(u.from)} – {fmtPackage(u.to)}</p>
-      <div className="mt-3 flex gap-6 text-sm">
-        <div><p className="text-xs text-slate-400">Used</p><p className="font-semibold tabular-nums text-slate-900">{u.used.toLocaleString('en-IN')}</p></div>
-        {u.next && <div><p className="text-xs text-slate-400">Next barcode</p><p className="font-mono text-sm font-semibold text-slate-900">{fmtPackage(u.next)}</p></div>}
-      </div>
+    <div className={`${card} overflow-x-auto`}>
+      <table className="w-full">
+        <thead>
+          <tr>
+            <th className={th}>Type</th>
+            <th className={th}>Series</th>
+            <th className={th}>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {['automated', 'stock'].map((id) => {
+            const u = blockUsage(id)
+            return (
+              <tr key={id} className={`${rowCls} align-top`}>
+                <td className={`${td} whitespace-nowrap`}><span className={`${pill} !py-0.5 ${SRC_CLS[id]}`}>{SRC_LABEL[id]}</span></td>
+                <td className={`${td} font-mono text-xs text-slate-700`}>{fmtPackage(u.from)} – {fmtPackage(u.to)}</td>
+                <td className={`${td} whitespace-normal text-slate-600`}>{DESCRIPTION[id]}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -150,7 +169,7 @@ export default function PackageSeries() {
         {digits.length > 0 && digits.length < 12 && !focus && <p className="px-1 text-xs text-slate-400">{digits.length} of 12 digits</p>}
         {digits.length === 12 && <Result digits={digits} />}
       </div>
-      <div className="grid gap-4 md:grid-cols-2">{['automated', 'stock'].map((id) => <Info key={id} u={blockUsage(id)} />)}</div>
+      <SeriesTable />
     </div>
   )
 }
