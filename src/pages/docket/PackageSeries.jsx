@@ -6,13 +6,8 @@ import { fmtPackage, sourceOfPackage, lookupPackage, packagesOfDocket, blockUsag
 
 const th = thCls.replace('px-6', 'px-3')
 const td = tdCls.replace('px-6', 'px-3').replace('whitespace-nowrap', '')
-const SRC_LABEL = { automated: 'System Generated', stock: 'Stock' }
+const SRC_LABEL = { automated: 'System Generated', stock: 'Stock Printed' }
 const SRC_CLS = { automated: 'bg-sky-50 text-sky-700', stock: 'bg-violet-50 text-violet-700' }
-
-const DESCRIPTION = {
-  automated: 'Sequential barcodes the system hands out when labels are printed for a docket — the next unused numbers are mapped to its parcels.',
-  stock: 'Pre-printed label stock. The number written on each label is typed in and linked to the docket.',
-}
 
 function SeriesTable() {
   return (
@@ -22,7 +17,6 @@ function SeriesTable() {
           <tr>
             <th className={th}>Type</th>
             <th className={th}>Series</th>
-            <th className={th}>Description</th>
           </tr>
         </thead>
         <tbody>
@@ -32,7 +26,6 @@ function SeriesTable() {
               <tr key={id} className={`${rowCls} align-top`}>
                 <td className={`${td} whitespace-nowrap`}><span className={`${pill} !py-0.5 ${SRC_CLS[id]}`}>{SRC_LABEL[id]}</span></td>
                 <td className={`${td} font-mono text-xs text-slate-700`}>{fmtPackage(u.from)} – {fmtPackage(u.to)}</td>
-                <td className={`${td} whitespace-normal text-slate-600`}>{DESCRIPTION[id]}</td>
               </tr>
             )
           })}

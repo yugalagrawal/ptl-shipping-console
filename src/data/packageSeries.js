@@ -7,7 +7,7 @@ import { DOCKETS_SEED } from './dockets.js'
 export const PACKAGE_DIGITS = 12
 export const PKG_BLOCKS = {
   automated: { id: 'automated', label: 'System Generated', from: 100000000000, to: 599999999999 },
-  stock: { id: 'stock', label: 'Stock', from: 600000000000, to: 999999999999 },
+  stock: { id: 'stock', label: 'Stock Printed', from: 600000000000, to: 999999999999 },
 }
 
 export const fmtPackage = (n) => String(n).replace(/(\d{4})(?=\d)/g, '$1 ').trim()
@@ -86,7 +86,7 @@ export function linkStock(docket, text) {
   const r = parseStockInput(text)
   if (r.error) return r
   const bad = r.nums.find((v) => sourceOfPackage(v) !== 'stock')
-  if (bad) return { error: `${bad} is not in the Stock series (starts at ${PKG_BLOCKS.stock.from}).` }
+  if (bad) return { error: `${bad} is not in the Stock Printed series (starts at ${PKG_BLOCKS.stock.from}).` }
   const taken = r.nums.find((v) => used.has(v))
   if (taken) return { error: `${fmtPackage(taken)} is already linked to docket ${used.get(taken).docket}.` }
   r.nums.forEach((b) => put(docket, b, 'stock'))
