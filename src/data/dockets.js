@@ -56,18 +56,23 @@ function logEntry(label, note = '', at = Date.now()) {
 // weighted mod-11 check digit (data/docketNumber.js). Auto numbers skip bodies
 // that can't be issued and every client's assigned series. In production this
 // is a locked counter / DB sequence — never random, never reissued.
-let autoBody = 99999999 // auto numbering starts at 100000000 (Surface block, see data/docketSeries.js)
-function nextAutoDocketNumber() {
+// Auto numbering runs one sequence per service, each inside its own block
+// (Surface 1…, Air 60…, Rail 65…, Sea 675…), so a number always tells its mode.
+const AUTO_START = { surface: 100000000, air: 600000000, rail: 650000000, sea: 675000000 }
+const autoBody = Object.fromEntries(Object.entries(AUTO_START).map(([m, v]) => [m, v - 1]))
+const upcoming = {}
+function nextAutoDocketNumber(mode) {
   for (;;) {
-    autoBody = nextIssuableBody(autoBody + 1)
-    const n = docketOfBody(autoBody)
+    const b = nextIssuableBody(autoBody[mode] + 1)
+    autoBody[mode] = b
+    const n = docketOfBody(b)
     if (!isReservedDocketNumber(n)) return n
   }
 }
-let upcomingDocketNumber = nextAutoDocketNumber()
-function nextDocketNumber() {
-  const n = upcomingDocketNumber
-  upcomingDocketNumber = nextAutoDocketNumber()
+const upcomingFor = (mode = 'surface') => (upcoming[mode] ??= nextAutoDocketNumber(mode))
+function nextDocketNumber(mode = 'surface') {
+  const n = upcomingFor(mode)
+  upcoming[mode] = nextAutoDocketNumber(mode)
   return n
 }
 
@@ -76,8 +81,8 @@ function nextDocketNumber() {
 // being pressed (matches the physical docket book: the number is already
 // printed on the next blank sheet, it's just not "used" until you write on
 // it).
-export function peekNextDocketNumber() {
-  return upcomingDocketNumber
+export function peekNextDocketNumber(mode = 'surface') {
+  return upcomingFor(mode)
 }
 
 export const MODE = { SURFACE: 'surface', AIR: 'air', RAIL: 'rail', SEA: 'sea' }
@@ -104,11 +109,12 @@ export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'H
 // AWB count, drop Mini Hub, the pickup's own single consignee) since
 // routing/trip info doesn't exist yet. A pickup has exactly one consignee
 // (data/pickups.js), so a docket does too — not a list.
-export function createDocketFromPickup(pickup) {
+export function createDocketFromPickup(pickup, mode = 'surface') {
   const docket = {
     // Assigned-series clients draw from their own range; everyone else (and
     // an exhausted series) falls back to the system auto number.
-    docketNumber: allocateDocketNumber(pickup.clientId) ?? nextDocketNumber(),
+    docketNumber: allocateDocketNumber(pickup.clientId, mode) ?? nextDocketNumber(mode),
+    mode,
     pickupId: pickup.id,
     clientId: pickup.clientId,
     clientName: pickup.clientName,

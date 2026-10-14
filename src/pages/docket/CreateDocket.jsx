@@ -13,7 +13,7 @@ import {
 import { INDIAN_STATES } from '../../data/geo.js'
 import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
 import { goodsByHsn, searchGoods } from '../../data/goodsCatalog.js'
-import { seriesState, peekSeriesNumber } from '../../data/docketSeries.js'
+import { seriesState, peekSeriesNumber, modeOfNumber } from '../../data/docketSeries.js'
 import { BOX_MASTER, addBoxToMaster } from '../../data/boxMaster.js'
 import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
 import { PRS_SEED } from '../../data/prs.js'
@@ -497,7 +497,9 @@ function DocketForm({ pickup, onGenerated }) {
   // Assigned docket series (Client Configuration): once a client's numbers run
   // out, ops chooses — auto-generate this docket's number, or assign a new series.
   const [seriesAuto, setSeriesAuto] = useState(false)
-  const series = seriesState(pickup.clientId)
+  // Mode comes first — series are assigned by service, so the docket number follows it.
+  const [mode, setMode] = useState(() => (pickup.docketNumber && modeOfNumber(pickup.docketNumber)) || MODE.SURFACE)
+  const series = seriesState(pickup.clientId, mode)
   const hasDetails = pickup.packagesCount != null
 
   // ① / ② Consignor is read straight off the pickup (it's who booked it);
@@ -527,7 +529,6 @@ function DocketForm({ pickup, onGenerated }) {
 
   // ⑥⑦ Mode + delivery type (the B/L/V shorthand — Solo MH / Direct Hub /
   // Direct MH) — manual, since routing hasn't run yet at docket time.
-  const [mode, setMode] = useState(MODE.SURFACE)
 
   // Part B / e-Way Bill — ⑫ "Part B auto-fill & mapped to e-way bill
   // [vehicle/packer/invoice]". Fetch resolves Vehicle No + Transporter
@@ -707,7 +708,7 @@ function DocketForm({ pickup, onGenerated }) {
   const destCity = consigneeCity.trim()
   const destinationMiniHubName = MINI_HUBS.find((h) => h.city.toLowerCase() === destCity.toLowerCase())?.name ?? (destCity ? `${destCity} Depot` : '')
   const draftDocket = {
-    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId) : peekNextDocketNumber()),
+    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId, mode) : series.exhausted && !seriesAuto ? null : peekNextDocketNumber(mode)),
     status: 'pending',
     clientId: pickup.clientId,
     clientName: pickup.clientName,
@@ -768,7 +769,7 @@ function DocketForm({ pickup, onGenerated }) {
 
     // A consignee picked from a multi-consignee pickup may not have its docket
     // yet — raise it first, then fill in the details below.
-    const docketNumber = pickup.docketNumber ?? createDocketFromPickup(pickup).docketNumber
+    const docketNumber = pickup.docketNumber ?? createDocketFromPickup(pickup, mode).docketNumber
     const docket = enrichDocketDetails(docketNumber, {
       mode,
       ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
@@ -830,7 +831,7 @@ function DocketForm({ pickup, onGenerated }) {
               <span>Series exhausted — this docket gets a system-generated number.</span>
             ) : (
               <>
-                <span><span className="font-semibold">Docket series exhausted</span> — {series.ranges.length ? 'every number in this client\'s assigned series is used.' : 'this client has no series assigned.'}</span>
+                <span><span className="font-semibold">Docket series exhausted</span> — {series.ranges.length ? `every number in this client's ${MODE_LABEL[mode]} series is used.` : `this client has no ${MODE_LABEL[mode]} series assigned.`}</span>
                 <span className="flex items-center gap-2">
                   <button type="button" onClick={() => setSeriesAuto(true)} className={btnSecondary}>Auto-generate</button>
                   <button type="button" onClick={() => navigate('/client-module/client-configuration')} className={btnPrimary}>Assign new series</button>
@@ -844,7 +845,15 @@ function DocketForm({ pickup, onGenerated }) {
         )}
         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{fmtDocket(draftDocket.docketNumber)}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+              <label className="flex items-center gap-1.5 text-base text-slate-500">
+                Mode
+                <select value={mode} disabled={!!pickup.docketNumber || !!generatedDocket} onChange={(e) => { setMode(e.target.value); setSeriesAuto(false) }} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-medium text-slate-800 disabled:opacity-60 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                  {Object.values(MODE).map((v) => <option key={v} value={v}>{MODE_LABEL[v]}</option>)}
+                </select>
+              </label>
+            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber ? fmtDocket(draftDocket.docketNumber) : <span className="text-sm font-medium text-slate-400">Assigned after series is resolved</span>}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
+            </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
               <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
               <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
@@ -853,12 +862,6 @@ function DocketForm({ pickup, onGenerated }) {
                 <span className="mx-1 text-slate-300">→</span>
                 <span className="font-medium text-slate-700">{destinationMiniHubName || 'Destination Mini Hub'}</span>
               </span>
-              <label className="flex items-center gap-1.5">
-                Mode
-                <select value={mode} onChange={(e) => setMode(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
-                  {Object.values(MODE).map((v) => <option key={v} value={v}>{MODE_LABEL[v]}</option>)}
-                </select>
-              </label>
             </div>
           </div>
           <div className="flex flex-col gap-3">

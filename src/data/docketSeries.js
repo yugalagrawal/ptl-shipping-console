@@ -37,10 +37,16 @@ function totalOf(r) {
   return totalCache.get(k)
 }
 
-function savedRanges(clientId) {
+// Which mode a number belongs to ('surface' | 'air' | 'rail' | 'sea') — series are
+// assigned by service, so the number block decides it.
+export const modeOfNumber = (n) => blockOfNumber(n)?.assigned.toLowerCase() ?? null
+
+// `mode` narrows to the ranges issued for that service; omitted = every range.
+function savedRanges(clientId, mode) {
   const v = getClientConfigValues(clientId)
   if (v['docket-series'] !== DOCKET_SERIES_ASSIGNED) return []
   return (v['docket-series-ranges'] ?? [])
+    .filter((r) => !mode || modeOfNumber(r.from) === mode)
     .filter((r) => isDocket(r.from) && isDocket(r.to) && Number(r.to) >= Number(r.from))
     .map((r) => ({ id: r.id, from: Number(r.from), to: Number(r.to), fromBody: bodyOfDocket(r.from), toBody: bodyOfDocket(r.to) }))
 }
@@ -55,9 +61,9 @@ function nextIn(clientId, r) {
 // Used / left per range plus which one is live. `assigned` is true whenever
 // the client is on Assigned Series — even with no valid range yet, in which
 // case it counts as exhausted (nothing to draw from).
-export function seriesState(clientId) {
+export function seriesState(clientId, mode) {
   const assigned = getClientConfigValues(clientId)['docket-series'] === DOCKET_SERIES_ASSIGNED
-  const ranges = savedRanges(clientId).map((r) => {
+  const ranges = savedRanges(clientId, mode).map((r) => {
     const { count: total, approx } = totalOf(r)
     const used = Math.min(USED[keyOf(clientId, r)] ?? 0, total)
     const nextBody = nextIn(clientId, r)
@@ -76,16 +82,16 @@ export function seriesState(clientId) {
   }
 }
 
-export function peekSeriesNumber(clientId) {
-  return seriesState(clientId).next
+export function peekSeriesNumber(clientId, mode) {
+  return seriesState(clientId, mode).next
 }
 
 // Consumes and returns the client's next series number, or null when the
 // client isn't on an assigned series / it's exhausted (caller falls back to
 // the auto generator). A number handed out is never reissued, even if the
 // docket's creation later fails.
-export function allocateDocketNumber(clientId) {
-  const { active } = seriesState(clientId)
+export function allocateDocketNumber(clientId, mode) {
+  const { active } = seriesState(clientId, mode)
   if (!active) return null
   const body = bodyOfDocket(active.next)
   PTR[keyOf(clientId, active)] = body + 1
