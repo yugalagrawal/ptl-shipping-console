@@ -492,14 +492,17 @@ function ConsigneeNameInput({ value, clientId, clientName, onChange, onPick, cla
   )
 }
 
+const NO_SERIES = { assigned: false, ranges: [], active: null, next: null, remaining: 0, exhausted: false, low: false }
+
 function DocketForm({ pickup, onGenerated }) {
   const navigate = useNavigate()
   // Assigned docket series (Client Configuration): once a client's numbers run
   // out, ops chooses — auto-generate this docket's number, or assign a new series.
   const [seriesAuto, setSeriesAuto] = useState(false)
   // Mode comes first — series are assigned by service, so the docket number follows it.
-  const [mode, setMode] = useState(() => (pickup.docketNumber && modeOfNumber(pickup.docketNumber)) || MODE.SURFACE)
-  const series = seriesState(pickup.clientId, mode)
+  // No default: nothing is numbered until a mode is chosen (a docket that already exists keeps its own).
+  const [mode, setMode] = useState(() => (pickup.docketNumber && modeOfNumber(pickup.docketNumber)) || '')
+  const series = mode ? seriesState(pickup.clientId, mode) : NO_SERIES
   const hasDetails = pickup.packagesCount != null
 
   // ① / ② Consignor is read straight off the pickup (it's who booked it);
@@ -681,7 +684,7 @@ function DocketForm({ pickup, onGenerated }) {
   const ewayRequired = ewayStatus !== 'manual'
   const ewayNeed = ewayNeedCheck({ value: Number(checkValue) || 0, exempt: EWAY_EXEMPT_GOODS.find((g) => g.hsn === checkCategory) ?? null, special: ewayMandatorySpecial })
   const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok'
-  const canSubmit = !generatedDocket &&
+  const canSubmit = !generatedDocket && !!mode &&
     actualWeightKg && packagesCount && packageRows.every((r) => r.boxId) && consigneeName.trim() && !(!pickup.docketNumber && series.exhausted && !seriesAuto) &&
     ewayReady
 
@@ -708,7 +711,7 @@ function DocketForm({ pickup, onGenerated }) {
   const destCity = consigneeCity.trim()
   const destinationMiniHubName = MINI_HUBS.find((h) => h.city.toLowerCase() === destCity.toLowerCase())?.name ?? (destCity ? `${destCity} Depot` : '')
   const draftDocket = {
-    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId, mode) : series.exhausted && !seriesAuto ? null : peekNextDocketNumber(mode)),
+    docketNumber: generatedDocket?.docketNumber ?? pickup.docketNumber ?? (!mode ? null : series.assigned && !series.exhausted ? peekSeriesNumber(pickup.clientId, mode) : series.exhausted && !seriesAuto ? null : peekNextDocketNumber(mode)),
     status: 'pending',
     clientId: pickup.clientId,
     clientName: pickup.clientName,
@@ -848,11 +851,12 @@ function DocketForm({ pickup, onGenerated }) {
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
               <label className="flex items-center gap-1.5 text-base text-slate-500">
                 Mode
-                <select value={mode} disabled={!!pickup.docketNumber || !!generatedDocket} onChange={(e) => { setMode(e.target.value); setSeriesAuto(false) }} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-medium text-slate-800 disabled:opacity-60 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                <select value={mode} aria-label="Mode" disabled={!!pickup.docketNumber || !!generatedDocket} onChange={(e) => { setMode(e.target.value); setSeriesAuto(false) }} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-medium text-slate-800 disabled:opacity-60 focus:outline focus:outline-2 focus:outline-brand-orange/40">
+                  <option value="" disabled>Select mode</option>
                   {Object.values(MODE).map((v) => <option key={v} value={v}>{MODE_LABEL[v]}</option>)}
                 </select>
               </label>
-            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber ? fmtDocket(draftDocket.docketNumber) : <span className="text-sm font-medium text-slate-400">Assigned after series is resolved</span>}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
+            <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber ? fmtDocket(draftDocket.docketNumber) : <span className="text-sm font-medium text-slate-400">{mode ? 'Assigned after series is resolved' : 'Select a mode to get the docket number'}</span>}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
               <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
@@ -1390,7 +1394,8 @@ function DocketForm({ pickup, onGenerated }) {
 
         {!generatedDocket && (
           <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-soft">
-            {!ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required with a reason, before generating.</p>}
+            {!mode && <p className="text-xs text-amber-700">Select the mode before generating.</p>}
+            {mode && !ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required with a reason, before generating.</p>}
             <button type="button" onClick={handleSubmit} disabled={!canSubmit} className={`ml-auto ${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
               <Icon name="invoice" className="h-4 w-4" />
               Generate Docket
