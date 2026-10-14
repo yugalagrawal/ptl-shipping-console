@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { card, pill, thCls, tdCls, rowCls } from '../../components/ui.js'
 import { DOCKETS_SEED, DOCKET_STATUS_LABEL, DOCKET_STATUS_BADGE, MODE_LABEL } from '../../data/dockets.js'
+import Code128 from '../../components/Code128.jsx'
 import { fmtDocket } from '../../data/docketNumber.js'
 import { fmtPackage, sourceOfPackage, lookupPackage, packagesOfDocket, blockUsage, searchPackages } from '../../data/packageSeries.js'
 
@@ -163,6 +164,12 @@ export default function PackageSeries() {
         <DigitBoxes value={digits} onChange={setDigits} onFocusChange={setFocus} />
         {digits.length < 12 && focus && <Suggestions digits={digits} onPick={setDigits} />}
         {digits.length > 0 && digits.length < 12 && !focus && <p className="px-1 text-xs text-slate-400">{digits.length} of 12 digits</p>}
+        {digits.length === 12 && (
+          <div className={`${card} flex flex-col items-center px-6 py-4`}>
+            <Code128 value={digits} className="h-16 w-full max-w-sm text-slate-900" />
+            <p className="mt-1.5 font-mono text-sm tracking-[0.25em] text-slate-700">{fmtPackage(digits)}</p>
+          </div>
+        )}
         {digits.length === 12 && <Result digits={digits} />}
       </div>
       <SeriesTable />
