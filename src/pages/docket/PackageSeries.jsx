@@ -143,13 +143,14 @@ export default function PackageSeries() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <h1 className="text-lg font-semibold tracking-tight text-slate-900">Package Series</h1>
-      <div className="grid gap-4 md:grid-cols-2">{['automated', 'stock'].map((id) => <Info key={id} u={blockUsage(id)} />)}</div>
       <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-900">Enter package number</h2>
         <DigitBoxes value={digits} onChange={setDigits} onFocusChange={setFocus} />
         {digits.length < 12 && focus && <Suggestions digits={digits} onPick={setDigits} />}
         {digits.length > 0 && digits.length < 12 && !focus && <p className="px-1 text-xs text-slate-400">{digits.length} of 12 digits</p>}
         {digits.length === 12 && <Result digits={digits} />}
       </div>
+      <div className="grid gap-4 md:grid-cols-2">{['automated', 'stock'].map((id) => <Info key={id} u={blockUsage(id)} />)}</div>
     </div>
   )
 }
