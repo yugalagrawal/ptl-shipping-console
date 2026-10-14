@@ -382,6 +382,40 @@ function ewayNeedCheck({ value, exempt, special }) {
   return { state: 'ok', reason: `Value ${rs(value)} is within ${rs(EWAY_VALUE_LIMIT)}` }
 }
 
+// "What can happen with the e-Way Bill?" — plain-language rundown of every
+// case this section handles, opened from the (i) next to the E-Way Bill number.
+const EWAY_CASES = [
+  ['Bill is assigned to LetsTransport', 'Enter the number and Fetch & validate. Invoice, consignee, goods and validity fill in automatically.'],
+  ['Bill exists but is not assigned to us', 'Ask the consignor to add our GSTIN as transporter (Copy message), then Fetch again. Or Continue unverified — enter invoice, consignee and goods by hand; the docket is marked "not verified".'],
+  ['No bill yet, but one is needed', 'Use Generate e-Way Bill — LetsTransport raises it from the invoice details, and the bill number fills in.'],
+  ['Not needed — value up to ₹50,000', 'Switch E-Way Bill required to No and enter the invoice value. Distance never makes a small consignment need one.'],
+  ['Not needed — exempt goods', 'Pick the goods (by HSN) on the No tab, e.g. jewellery, currency, fresh milk. Exemption is decided by the goods, not by a tick.'],
+  ['Needed at any value', 'Inter-state job-work and inter-state handicraft goods always need a bill — No is blocked for these.'],
+  ['Value above ₹50,000', 'A bill is required whatever the distance. Several invoices to one consignee in one vehicle add up — enter the combined value.'],
+]
+function EwayInfoModal({ onClose }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-900">E-Way Bill — possible cases</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Close"><Icon name="close" className="h-4 w-4" /></button>
+        </div>
+        <ol className="mt-3 space-y-3">
+          {EWAY_CASES.map(([t, d], i) => (
+            <li key={t} className="flex gap-3">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-orange/10 text-[11px] font-semibold text-brand-orange-dark">{i + 1}</span>
+              <div><p className="text-sm font-medium text-slate-800">{t}</p><p className="text-xs text-slate-500">{d}</p></div>
+            </li>
+          ))}
+        </ol>
+        <div className="mt-4 flex justify-end"><button type="button" onClick={onClose} className={btnSecondary}>Got it</button></div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
 
@@ -502,6 +536,7 @@ function DocketForm({ pickup, onGenerated }) {
   const [ewayBillNo, setEwayBillNo] = useState('')
   const [ewayStatus, setEwayStatus] = useState('idle') // idle | loading | done | error | notAssigned | unverified | generate | manual
   const [ewayError, setEwayError] = useState('')
+  const [ewayInfoOpen, setEwayInfoOpen] = useState(false)
   const [ewayData, setEwayData] = useState(null)
   const [hsnCode, setHsnCode] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
@@ -850,11 +885,12 @@ function DocketForm({ pickup, onGenerated }) {
             })}
           </div>
           </div>
+          {ewayInfoOpen && <EwayInfoModal onClose={() => setEwayInfoOpen(false)} />}
           {ewayStatus !== 'manual' ? (
             <>
               <div className="flex flex-wrap items-end gap-2.5">
                 <Field
-                  label="E-Way Bill number"
+                  label={<span className="inline-flex items-center gap-1">E-Way Bill number<button type="button" onClick={(e) => { e.preventDefault(); setEwayInfoOpen(true) }} className="text-slate-400 hover:text-brand-orange-dark" aria-label="E-Way Bill cases"><Icon name="info" className="h-3.5 w-3.5" /></button></span>}
                   className="min-w-[220px] flex-1"
                   value={ewayBillNo}
                   onChange={(e) => { setEwayBillNo(e.target.value); setEwayStatus('idle'); setEwayError(''); restoreFromPickup() }}
