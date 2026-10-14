@@ -92,3 +92,13 @@ export function linkStock(docket, text) {
   r.nums.forEach((b) => put(docket, b, 'stock'))
   return { barcodes: r.nums }
 }
+
+// Used barcodes that start with the typed digits (all of them when empty), a few of each series first.
+export function searchPackages(prefix, limit = 6) {
+  const hits = []
+  used.forEach((v, k) => { if (String(k).startsWith(prefix)) hits.push(k) })
+  hits.sort((a, b) => a - b)
+  if (prefix) return hits.slice(0, limit)
+  const half = limit / 2
+  return [...hits.filter((k) => used.get(k).source === 'automated').slice(0, half), ...hits.filter((k) => used.get(k).source === 'stock').slice(0, half)]
+}
