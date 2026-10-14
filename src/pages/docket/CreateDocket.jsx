@@ -11,7 +11,7 @@ import {
   peekNextDocketNumber, enrichDocketDetails, createDocketFromPickup, DOCKETS_SEED,
 } from '../../data/dockets.js'
 import { INDIAN_STATES } from '../../data/geo.js'
-import { EWAY_EXEMPT_GOODS } from '../../data/ewayExemptGoods.js'
+import { exemptGoodsFor } from '../../data/ewayExemptGoods.js'
 import { goodsByHsn, searchGoods } from '../../data/goodsCatalog.js'
 import { seriesState, peekSeriesNumber, modeOfNumber } from '../../data/docketSeries.js'
 import { BOX_MASTER, addBoxToMaster } from '../../data/boxMaster.js'
@@ -372,8 +372,10 @@ function EwayGenerateForm({ initial, onGenerated, onCancel }) {
 // here as the safe national default. Several invoices to one consignee in one
 // vehicle can add up past the limit, so ops should enter the combined value.
 const EWAY_VALUE_LIMIT = 50000
-function ewayNeedCheck({ value, exempt, special }) {
+function ewayNeedCheck({ value, hsn, exempt, special }) {
+  if (!hsn) return { state: 'pending', msg: 'Enter the goods HSN in Document to check' }
   if (exempt) return { state: 'ok', reason: `Exempt goods — ${exempt.label}`, note: exempt.note }
+  if (!special) return { state: 'pending', msg: 'Answer the movement question to check' }
   if (special === 'jobwork') return { state: 'required', msg: 'Inter-state job-work — needed at any value' }
   if (special === 'handicraft') return { state: 'required', msg: 'Inter-state handicraft — needed at any value' }
   if (!(value > 0)) return { state: 'pending', msg: 'Enter the invoice value to check' }
@@ -546,9 +548,10 @@ function DocketForm({ pickup, onGenerated }) {
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10))
   // The "not required" check runs only on what's entered in its own panel —
   // nothing is pulled in from the rest of the form or the pickup.
-  const [checkValue, setCheckValue] = useState('')
-  const [checkCategory, setCheckCategory] = useState('') // '' = none of the exempt categories
-  const [ewayMandatorySpecial, setEwayMandatorySpecial] = useState('none') // none | jobwork | handicraft
+  // Value and exemption are read from the Document section (invoice value, goods HSN)
+  // so the check can't be answered differently from what the docket says.
+  // The movement question must be answered explicitly: '' (not answered) | none | jobwork | handicraft
+  const [ewayMandatorySpecial, setEwayMandatorySpecial] = useState('')
   const [vehicleNo, setVehicleNo] = useState(vehicleFor(pickup)?.regNo ?? '') // auto from the pickup's assigned vehicle
   const transporterGstin = OUR_GSTIN // fixed — we are always the transporter; only the vehicle changes
 
@@ -682,7 +685,7 @@ function DocketForm({ pickup, onGenerated }) {
   )
 
   const ewayRequired = ewayStatus !== 'manual'
-  const ewayNeed = ewayNeedCheck({ value: Number(checkValue) || 0, exempt: EWAY_EXEMPT_GOODS.find((g) => g.hsn === checkCategory) ?? null, special: ewayMandatorySpecial })
+  const ewayNeed = ewayNeedCheck({ value: Number(invoiceValue) || 0, hsn: hsnCode, exempt: exemptGoodsFor(hsnCode), special: ewayMandatorySpecial })
   const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok'
   const canSubmit = !generatedDocket && !!mode &&
     actualWeightKg && packagesCount && packageRows.every((r) => r.boxId) && consigneeName.trim() && !(!pickup.docketNumber && series.exhausted && !seriesAuto) &&
@@ -882,7 +885,7 @@ function DocketForm({ pickup, onGenerated }) {
                   onClick={() => {
                     if (active) return
                     if (k === 'none') { restoreFromPickup(); setEwayStatus('manual'); setEwayError('') }
-                    else { setEwayStatus('idle'); setVehicleNo(''); setCheckValue(''); setCheckCategory(''); setEwayMandatorySpecial('none') }
+                    else { setEwayStatus('idle'); setVehicleNo(''); setEwayMandatorySpecial('') }
                   }}
                   className={`rounded-lg px-5 py-1.5 transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
@@ -1038,18 +1041,19 @@ function DocketForm({ pickup, onGenerated }) {
                   </p>
                 {ewayNeed.note && <p className="text-xs text-amber-700">{ewayNeed.note}</p>}
                 <div className="grid gap-2.5 sm:grid-cols-3">
-                  <Field label="Invoice value incl. GST (₹)" type="number" min="0" value={checkValue} onChange={(e) => setCheckValue(e.target.value)} placeholder="0" />
+                  <div>
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Invoice value incl. GST</span>
+                    <p className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm tabular-nums text-slate-800">{Number(invoiceValue) > 0 ? `₹${Number(invoiceValue).toLocaleString('en-IN')}` : <span className="text-slate-400">Fill in Document</span>}</p>
+                  </div>
+                  <div>
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Goods HSN</span>
+                    <p className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800">{hsnCode ? <>{hsnCode}{exemptGoodsFor(hsnCode) ? <span className="ml-1.5 text-xs text-emerald-600">exempt category</span> : <span className="ml-1.5 text-xs text-slate-400">not exempt</span>}</> : <span className="text-slate-400">Fill in Document</span>}</p>
+                  </div>
                   <label className="block">
-                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Exempt category</span>
-                    <select value={checkCategory} onChange={(e) => setCheckCategory(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
-                      <option value="">None</option>
-                      {EWAY_EXEMPT_GOODS.map((g) => <option key={g.hsn} value={g.hsn}>{g.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Special movement</span>
-                    <select value={ewayMandatorySpecial} onChange={(e) => setEwayMandatorySpecial(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40">
-                      <option value="none">None</option>
+                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Inter-state job-work or handicraft? *</span>
+                    <select value={ewayMandatorySpecial} onChange={(e) => setEwayMandatorySpecial(e.target.value)} className={`w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40 ${ewayMandatorySpecial ? 'text-slate-800' : 'text-slate-400'}`}>
+                      <option value="">Select</option>
+                      <option value="none">No — neither</option>
                       <option value="jobwork">Inter-state job-work</option>
                       <option value="handicraft">Inter-state handicraft</option>
                     </select>
