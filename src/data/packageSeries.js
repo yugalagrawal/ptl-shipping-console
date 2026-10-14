@@ -6,7 +6,7 @@ import { DOCKETS_SEED } from './dockets.js'
 
 export const PACKAGE_DIGITS = 12
 export const PKG_BLOCKS = {
-  automated: { id: 'automated', label: 'Automated', from: 100000000000, to: 599999999999 },
+  automated: { id: 'automated', label: 'System Generated', from: 100000000000, to: 599999999999 },
   stock: { id: 'stock', label: 'Stock', from: 600000000000, to: 999999999999 },
 }
 
