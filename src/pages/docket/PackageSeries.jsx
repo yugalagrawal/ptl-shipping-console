@@ -11,7 +11,9 @@ const SRC_CLS = { automated: 'bg-sky-50 text-sky-700', stock: 'bg-violet-50 text
 
 function SeriesTable() {
   return (
-    <div className={`${card} overflow-x-auto`}>
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold text-slate-900">Series assigned info</h2>
+      <div className={`${card} overflow-x-auto`}>
       <table className="w-full">
         <thead>
           <tr>
@@ -31,6 +33,7 @@ function SeriesTable() {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
