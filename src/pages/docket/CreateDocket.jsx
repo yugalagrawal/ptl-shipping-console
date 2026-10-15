@@ -20,7 +20,7 @@ import { PRS_SEED } from '../../data/prs.js'
 import PartyModal from '../../components/PartyModal.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { getAllConsignees, addConsigneeForClient } from '../../data/consignees.js'
-import { FLEET_SEED } from '../../data/fleet.js'
+import { FLEET_SEED, VEHICLE_STATUS, VEHICLE_STATUS_LABEL, VEHICLE_STATUS_BADGE } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
 import { priceDocket, volumetricWeightKg } from '../../data/docketPricing.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
@@ -87,7 +87,100 @@ function vehicleFor(pickup) {
   if (!prs) return null
   const veh = FLEET_SEED.find((v) => v.id === prs.vehicleId)
   const partner = veh ? (veh.ownership === 'Vendor' ? veh.vendorName : 'LetsTransport (Owned)') : ''
-  return { label: prs.vehicleLabel, regNo: veh?.regNo ?? '', driver: prs.driverName, prsId: prs.id, partner }
+  return { label: prs.vehicleLabel, regNo: veh?.regNo ?? '', driver: prs.driverName, prsId: prs.id, partner, vehicleId: veh?.id ?? null }
+}
+
+function fleetInfo(v) {
+  if (!v) return null
+  return { vehicleId: v.id, regNo: v.regNo, driver: v.driverName, partner: v.ownership === 'Vendor' ? v.vendorName : 'LetsTransport (Owned)' }
+}
+
+// Vehicle + pickup strip shown above the e-way bill choice. Three states:
+// vehicle assigned (can change), none assigned yet (assign now), picker open.
+function VehicleStrip({ pickup, vehicle, onPick, locked }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const cell = (label, value, strong) => (
+    <div className="min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-0.5 truncate ${strong ? 'text-base font-bold tabular-nums text-slate-900' : 'text-sm font-medium text-slate-800'}`}>{value}</p>
+    </div>
+  )
+  const mini = (label, value) => (
+    <div className="min-w-0">
+      <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="truncate text-xs font-medium text-slate-600">{value}</p>
+    </div>
+  )
+  const actionBtn = !locked && (
+    <button type="button" onClick={() => { setOpen((o) => !o); setQ('') }} className={vehicle ? 'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300' : 'rounded-lg bg-brand-orange px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-orange-dark'}>
+      {open ? 'Close' : vehicle ? 'Change' : 'Assign vehicle'}
+    </button>
+  )
+  const needle = q.toLowerCase().replace(/\s+/g, '')
+  const options = [...FLEET_SEED]
+    .filter((v) => !needle || [v.regNo, v.driverName, v.vendorName, v.type, v.city, v.ownership === 'Owned' ? 'letstransport owned' : ''].join(' ').toLowerCase().replace(/\s+/g, '').includes(needle))
+    .sort((a, b) => (a.status === VEHICLE_STATUS.AVAILABLE ? 0 : 1) - (b.status === VEHICLE_STATUS.AVAILABLE ? 0 : 1))
+  return (
+    <div className="mb-4">
+      <div className={`flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border px-4 py-3 ${vehicle ? 'border-brand-orange/25 bg-brand-orange/5' : 'border-dashed border-amber-300 bg-amber-50/60'}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${vehicle ? 'bg-brand-orange text-white' : 'bg-amber-100 text-amber-700'}`}><Icon name="truck" className="h-5 w-5" /></span>
+        {vehicle ? (
+          <>
+            {cell('Vehicle', vehicle.regNo, true)}
+            {vehicle.driver && cell('Driver', vehicle.driver)}
+            {vehicle.partner && cell('Partner', vehicle.partner)}
+            {actionBtn}
+          </>
+        ) : (
+          <>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">No vehicle assigned yet</p>
+              <p className="text-xs text-amber-700">Assign one now, or continue and add it later.</p>
+            </div>
+            {actionBtn}
+          </>
+        )}
+        <div className="ml-auto flex items-center gap-x-6 border-l border-slate-200 pl-6">
+          {mini('Pickup', pickup.id)}
+          {mini('Booked', new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}
+        </div>
+      </div>
+      {open && (
+        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
+          <div className="relative border-b border-slate-100">
+            <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search vehicle no., driver or partner…"
+              className="w-full bg-transparent py-3 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+          {options.length === 0 && <p className="px-4 py-6 text-center text-sm text-slate-400">No vehicle matches “{q}”</p>}
+          {options.map((v) => {
+            const current = vehicle?.vehicleId === v.id
+            const free = v.status === VEHICLE_STATUS.AVAILABLE || current
+            return (
+              <button
+                key={v.id}
+                type="button"
+                disabled={!free}
+                onClick={() => { onPick(v); setOpen(false) }}
+                className={`flex w-full flex-wrap items-center gap-x-6 gap-y-1 border-b border-slate-100 px-4 py-2.5 text-left last:border-b-0 ${free ? 'hover:bg-slate-50' : 'cursor-not-allowed opacity-50'} ${current ? 'bg-brand-orange/5' : ''}`}
+              >
+                <span className="w-32 text-sm font-bold tabular-nums text-slate-900">{v.regNo}</span>
+                <span className="w-36 text-xs text-slate-500">{v.type}</span>
+                <span className="w-32 text-xs text-slate-700">{v.driverName}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-500">{v.ownership === 'Vendor' ? v.vendorName : 'LetsTransport (Owned)'} · {v.city}</span>
+                {current ? <span className="rounded-full bg-brand-orange/10 px-2 py-0.5 text-[10px] font-semibold text-brand-orange-dark">Current</span> : <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${VEHICLE_STATUS_BADGE[v.status]}`}>{VEHICLE_STATUS_LABEL[v.status]}</span>}
+              </button>
+            )
+          })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Dockets this pickup needs when ops sets the count by hand (pickup id → n).
@@ -553,6 +646,7 @@ function DocketForm({ pickup, onGenerated }) {
   // The movement question must be answered explicitly: '' (not answered) | none | jobwork | handicraft
   const [ewayMandatorySpecial, setEwayMandatorySpecial] = useState('')
   const [vehicleNo, setVehicleNo] = useState(vehicleFor(pickup)?.regNo ?? '') // auto from the pickup's assigned vehicle
+  const [vehicleFleetId, setVehicleFleetId] = useState(vehicleFor(pickup)?.vehicleId ?? null) // vehicle shown in the strip; changeable here
   const transporterGstin = OUR_GSTIN // fixed — we are always the transporter; only the vehicle changes
 
   // Invoice & goods
@@ -861,16 +955,13 @@ function DocketForm({ pickup, onGenerated }) {
               </label>
             <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber ? fmtDocket(draftDocket.docketNumber) : <span className="text-sm font-medium text-slate-400">{mode ? 'Assigned after series is resolved' : 'Select a mode to get the docket number'}</span>}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
-              <span>Pickup <span className="font-medium text-slate-700">{pickup.id}</span></span>
-              <span>Booked <span className="font-medium text-slate-700">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></span>
-              <span>
-                <span className="font-medium text-slate-700">{pickup.dropMiniHubName || 'Source Mini Hub'}</span>
-                <span className="mx-1 text-slate-300">→</span>
-                <span className="font-medium text-slate-700">{destinationMiniHubName || 'Destination Mini Hub'}</span>
-              </span>
-            </div>
           </div>
+          <VehicleStrip
+            pickup={pickup}
+            vehicle={vehicleFleetId ? fleetInfo(FLEET_SEED.find((v) => v.id === vehicleFleetId)) : null}
+            locked={!!pickup.docketNumber || !!generatedDocket}
+            onPick={(v) => { setVehicleFleetId(v.id); setVehicleNo(v.regNo) }}
+          />
           <div className="flex flex-col gap-3">
             <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-center gap-3">
@@ -1041,14 +1132,17 @@ function DocketForm({ pickup, onGenerated }) {
                   </p>
                 {ewayNeed.note && <p className="text-xs text-amber-700">{ewayNeed.note}</p>}
                 <div className="grid gap-2.5 sm:grid-cols-3">
-                  <div>
-                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Invoice value incl. GST</span>
-                    <p className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm tabular-nums text-slate-800">{Number(invoiceValue) > 0 ? `₹${Number(invoiceValue).toLocaleString('en-IN')}` : <span className="text-slate-400">Fill in Document</span>}</p>
-                  </div>
-                  <div>
-                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Goods HSN</span>
-                    <p className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800">{hsnCode ? <>{hsnCode}{exemptGoodsFor(hsnCode) ? <span className="ml-1.5 text-xs text-emerald-600">exempt category</span> : <span className="ml-1.5 text-xs text-slate-400">not exempt</span>}</> : <span className="text-slate-400">Fill in Document</span>}</p>
-                  </div>
+                  <Field label="Invoice value incl. GST (₹) *" type="number" min="0" value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
+                  <Field
+                    label="Goods HSN *" value={hsnCode} inputMode="numeric" placeholder="3304"
+                    hint={hsnCode ? (exemptGoodsFor(hsnCode) ? 'Exempt category' : 'Not exempt') : undefined}
+                    onChange={(e) => {
+                      const code = e.target.value.replace(/[^\d]/g, '').slice(0, 8)
+                      setHsnCode(code)
+                      const hit = goodsByHsn(code)
+                      if (hit && (!goodsDescription.trim() || goodsByHsn(hsnCode)?.name === goodsDescription)) setGoodsDescription(hit.name)
+                    }}
+                  />
                   <label className="block">
                     <span className="mb-1.5 block text-xs font-medium text-slate-500">Inter-state job-work or handicraft? *</span>
                     <select value={ewayMandatorySpecial} onChange={(e) => setEwayMandatorySpecial(e.target.value)} className={`w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40 ${ewayMandatorySpecial ? 'text-slate-800' : 'text-slate-400'}`}>
@@ -1059,10 +1153,6 @@ function DocketForm({ pickup, onGenerated }) {
                     </select>
                   </label>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <Field label="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="e.g. DL-01-CZ-5567" />
-                <Field label="Transporter GSTIN" value={transporterGstin} readOnly hint="LetsTransport" />
               </div>
             </>
           )}
