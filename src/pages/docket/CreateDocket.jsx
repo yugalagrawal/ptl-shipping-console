@@ -1493,9 +1493,6 @@ function DocketForChooser({ slots, count, minCount, onCount, value, onChange }) 
           {slots.map((slot, i) => {
             const active = value === i
             const c = slot.kind === 'known' ? slot.dest.consignee : slot.prefill?.consignee
-            const boxes = slot.kind === 'known' ? slot.dest.boxes : slot.prefill?.boxes
-            const kg = slot.kind === 'known' ? slot.dest.kg : slot.prefill?.kg
-            const meta = [c?.city, boxes != null ? `${boxes} box${boxes === 1 ? '' : 'es'}` : null, kg != null ? `${kg} kg` : null].filter(Boolean).join(' · ')
             return (
               <button
                 key={slot.kind === 'known' ? slot.dest.consignee.name : `pending-${slot.i}`}
@@ -1504,7 +1501,6 @@ function DocketForChooser({ slots, count, minCount, onCount, value, onChange }) 
                 className={`rounded-xl border px-3 py-2 text-left transition ${active ? 'border-brand-orange bg-brand-orange/5' : 'border-slate-200 bg-white hover:border-slate-300'}`}
               >
                 <p className={`truncate text-sm font-medium ${c?.name ? 'text-slate-800' : 'text-slate-500'}`}>{c?.name || `Consignee ${slot.n}`}</p>
-                <p className="text-xs text-slate-500">{meta || 'Details to be filled'}</p>
                 <p className={`mt-1 text-[11px] font-medium ${slot.docket ? 'text-emerald-600' : 'text-amber-600'}`}>
                   {slot.docket ? `Docket ${fmtDocket(slot.docket.docketNumber)}` : 'Docket not raised'}
                 </p>
