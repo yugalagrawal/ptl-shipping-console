@@ -31,11 +31,15 @@ export function isPlausibleEwayBillNumber(value) {
   return /^\d{12}$/.test(String(value ?? '').trim())
 }
 
-// Prototype test numbers for devs:
-//   123456789001 — happy path: fetched, valid, assigned to LetsTransport, no Part B vehicle on the bill
-//   123456789007 — happy path with a different vehicle already on Part B
-//   …11 / 123456789002 — exists but not assigned to LetsTransport
-//   …00 / 123456789003 — expired
+// Prototype test numbers for devs — the only bills the fetch recognises, one per case.
+// (Create Docket lists them under the E-Way Bill field.) Anything else is "not found".
+export const TEST_EWAY_BILLS = [
+  { no: '123456789001', label: 'Fetched · no vehicle on Part B' },
+  { no: '123456789002', label: 'Fetched · other vehicle on Part B' },
+  { no: '123456789003', label: 'Not assigned to LetsTransport' },
+  { no: '123456789004', label: 'Expired' },
+]
+
 export function fetchEwayBill(number) {
   const clean = String(number ?? '').trim()
   return new Promise((resolve, reject) => {
@@ -46,16 +50,20 @@ export function fetchEwayBill(number) {
       }
       // A number ending 11 is treated as a bill that exists but is assigned
       // to a different transporter (or none) — NIC refuses to show it to us.
-      if (clean.endsWith('11') || clean === '123456789002') {
+      if (clean === '123456789003') {
         const err = new Error(`E-Way Bill ${clean} exists but isn't assigned to LetsTransport, so we can't read or update it.`)
         err.code = 'NOT_ASSIGNED'
         reject(err)
         return
       }
+      if (!TEST_EWAY_BILLS.some((t) => t.no === clean)) {
+        reject(new Error(`E-Way Bill ${clean} was not found. In this prototype only the listed test numbers resolve.`))
+        return
+      }
       const seed = clean.split('').reduce((s, d) => s + Number(d), 0)
       // A number ending 00 is treated as expired — one easy, memorable way
       // to demo the "fetched but no longer valid" state without a real API.
-      if (clean.endsWith('00') || clean === '123456789003') {
+      if (clean === '123456789004') {
         reject(new Error(`E-Way Bill ${clean} was found but has expired. Ask the consignor to regenerate it.`))
         return
       }
@@ -76,7 +84,7 @@ export function fetchEwayBill(number) {
         distanceKm: 50 + (seed % 900),
         validUntil: validUntil.toISOString().slice(0, 10),
         // Part B (vehicle) — most consignor-raised bills arrive without it; some already carry one.
-        partB: seed % 4 === 0 ? { vehicleNo: 'MH12 ZZ 9999' } : null,
+        partB: clean === '123456789002' ? { vehicleNo: 'MH12 ZZ 9999' } : null,
       })
     }, 700)
   })

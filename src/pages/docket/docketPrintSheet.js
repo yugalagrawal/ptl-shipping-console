@@ -2,35 +2,44 @@
 // DocketSheet draws (markup + styles both come from
 // components/docketSheetHtml.js, so print and preview can't drift apart),
 // opened in its own window so printing never fights the app shell's CSS.
-import { buildDocketSheetBody, docketSheetCss } from '../../components/docketSheetHtml.js'
+import { buildDocketSheetBody, docketSheetCss, DOCKET_SHEET_WIDTH, COPY_OPTIONS } from '../../components/docketSheetHtml.js'
 
-export function printDocketSheet(docket) {
+// Two dockets per A4 sheet — each copy (Shipper, Consignor, …) takes one half of a portrait page.
+export function printDocketSheet(docket, copies = COPY_OPTIONS.slice(0, 2)) {
   const win = window.open('', '_blank', 'width=900,height=960')
   if (!win) return
-  win.document.write(buildDocketSheetHtml(docket))
+  win.document.write(buildDocketSheetHtml(docket, copies))
   win.document.close()
   win.focus()
   win.print()
 }
 
-export function buildDocketSheetHtml(docket) {
+export function buildDocketSheetHtml(docket, copies = COPY_OPTIONS.slice(0, 2)) {
+  const list = copies.length ? copies : COPY_OPTIONS.slice(0, 1)
+  const pages = []
+  for (let i = 0; i < list.length; i += 2) pages.push(list.slice(i, i + 2))
+  const body = pages.map((pair) => `<section class="page">${pair.map((c) => `<div class="half"><div class="fit">${buildDocketSheetBody(docket, c)}</div></div>`).join('')}</section>`).join('')
   return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Docket ${escapeHtml(docket.docketNumber)}</title>
 <style>
-  @page { size: A4 landscape; margin: 8mm; }
-  body { margin: 0; padding: 20px; background: #e2e8f0; }
-  .wrap { width: fit-content; margin: 0 auto; }
+  @page { size: A4 portrait; margin: 0; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; background: #e2e8f0; }
+  .page { width: 210mm; height: 297mm; margin: 12px auto; background: #fff; box-sizing: border-box; page-break-after: always; break-after: page; display: flex; flex-direction: column; }
+  .half { height: 148.5mm; box-sizing: border-box; padding: 4mm 6mm; display: flex; align-items: center; justify-content: center; }
+  .half + .half { border-top: 1px dashed #b8b8b8; }
+  .fit { zoom: ${(198 / ((DOCKET_SHEET_WIDTH * 25.4) / 96)).toFixed(4)}; }
   ${docketSheetCss}
   @media print {
-    body { padding: 0; background: #fff; }
-    .wrap { zoom: 0.93; }
+    body { background: #fff; }
+    .page { margin: 0; }
   }
 </style>
 </head>
-<body><div class="wrap">${buildDocketSheetBody(docket)}</div></body>
+<body>${body}</body>
 </html>`
 }
 

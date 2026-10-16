@@ -24,12 +24,14 @@ import { getAllConsignors, addConsignorForClient } from '../../data/consignors.j
 import { getClientConfigValues, PRICING_CONDITION_OTHERS } from '../../data/clientConfigFields.js'
 import { PARTNERS } from '../../data/partners.js'
 import { FLEET_SEED, vehicleTypeFromRegNo, addVendorVehicle, VEHICLE_STATUS, VEHICLE_STATUS_LABEL, VEHICLE_STATUS_BADGE } from '../../data/fleet.js'
-import { fetchEwayBill, generateEwayBill, updateEwayPartB, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
+import { fetchEwayBill, generateEwayBill, updateEwayPartB, TEST_EWAY_BILLS, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
 import { priceDocket, volumetricWeightKg, cftToKgFor, EMERGENCY_SURCHARGE_ON } from '../../data/docketPricing.js'
 import { ACTIVE_CLIENTS_SEED, clientCodeFor } from '../../data/clients.js'
 import { groupById } from '../../data/groups.js'
 import { odaEntryForPincode, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { printDocketSheet } from './docketPrintSheet.js'
+import { CopyPicker } from '../../components/DocketSheet.jsx'
+import { COPY_OPTIONS } from '../../components/docketSheetHtml.js'
 import DocketLabelsPanel from '../../components/DocketLabelsPanel.jsx'
 import { shareDocket } from '../../utils/docketShare.js'
 import { fmtDocket } from '../../data/docketNumber.js'
@@ -721,7 +723,6 @@ function EwayGenerateForm({ initial, onGenerated, onCancel }) {
 // here as the safe national default. Several invoices to one consignee in one
 // vehicle can add up past the limit, so ops should enter the combined value.
 const EWAY_VALUE_LIMIT = 50000
-const TEST_EWAY_BILL_NO = '123456789001' // prototype happy path — see fetchEwayBill in data/ewayBill.js
 function ewayNeedCheck({ value, hsn, exempt, special }) {
   if (!hsn) return { state: 'pending', msg: 'Enter the goods HSN in Document to check' }
   if (exempt) return { state: 'ok', reason: `Exempt goods — ${exempt.label}`, note: exempt.note }
@@ -738,7 +739,7 @@ function ewayNeedCheck({ value, hsn, exempt, special }) {
 // case this section handles, opened from the (i) next to the E-Way Bill number.
 const EWAY_CASES = [
   ['Bill is assigned to LetsTransport', 'Enter the number and Fetch & validate. Invoice, consignee, goods and validity fill in automatically.'],
-  ['Bill exists but is not assigned to us', 'Ask the consignor to add our GSTIN as transporter (Copy message), then Fetch again. Or Continue unverified — enter invoice, consignee and goods by hand; the docket is marked "not verified".'],
+  ['Bill exists but is not assigned to us', 'Ask the consignor to add our GSTIN as transporter, then Fetch again. Or Continue unverified — enter invoice, consignee and goods by hand; the docket is marked "not verified".'],
   ['No bill yet, but one is needed', 'Use Generate e-Way Bill — LetsTransport raises it from the invoice details, and the bill number fills in.'],
   ['Not needed — value up to ₹50,000', 'Switch E-Way Bill required to No and enter the invoice value. Distance never makes a small consignment need one.'],
   ['Not needed — exempt goods', 'Pick the goods (by HSN) on the No tab, e.g. jewellery, currency, fresh milk. Exemption is decided by the goods, not by a tick.'],
@@ -1003,6 +1004,7 @@ function DocketForm({ pickup, onGenerated }) {
   const [generatedDocket, setGeneratedDocket] = useState(null)
   const existingGenerated = !!pickup.docketNumber && !!DOCKETS_SEED.find((d) => d.docketNumber === pickup.docketNumber)?.generated
   const locked = !!generatedDocket || existingGenerated // a created docket can't be edited any more
+  const [copies, setCopies] = useState(COPY_OPTIONS.slice(0, 2)) // copies to print — two per A4 sheet
   const [previewingCreate, setPreviewingCreate] = useState(false) // "Generate Docket" opens a preview first; Create docket there makes it
   const [view, setView] = useState('details')
   const [shareStatus, setShareStatus] = useState('idle') // idle | shared | copied
@@ -1226,7 +1228,7 @@ function DocketForm({ pickup, onGenerated }) {
           {mode && <span className="text-xs font-medium text-slate-400">{MODE_LABEL[mode]}</span>}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => printDocketSheet(draftDocket)} disabled={!draftDocket.docketNumber} className={`${btnSecondary} disabled:cursor-not-allowed disabled:opacity-40`}>
+          <button type="button" onClick={() => printDocketSheet(draftDocket, copies)} disabled={!draftDocket.docketNumber || !copies.length} className={`${btnSecondary} disabled:cursor-not-allowed disabled:opacity-40`}>
             <Icon name="invoice" className="h-4 w-4" /> Print
           </button>
           <div className="relative">
@@ -1239,7 +1241,7 @@ function DocketForm({ pickup, onGenerated }) {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShareMenuOpen(false)} />
                 <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
-                  <button type="button" onClick={() => { setShareMenuOpen(false); printDocketSheet(draftDocket) }} className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50">
+                  <button type="button" onClick={() => { setShareMenuOpen(false); printDocketSheet(draftDocket, copies) }} className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50">
                     <Icon name="download" className="h-4 w-4 text-slate-400" /> Save as PDF
                   </button>
                   <button type="button" onClick={() => { setShareMenuOpen(false); handleShare() }} className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50">
@@ -1347,9 +1349,14 @@ function DocketForm({ pickup, onGenerated }) {
                   {ewayStatus === 'loading' ? 'Fetching…' : 'Fetch & validate'}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Prototype test number — <button type="button" onClick={() => { setEwayBillNo(TEST_EWAY_BILL_NO); setEwayStatus('idle'); setEwayError(''); restoreFromPickup() }} className="font-medium tabular-nums text-slate-500 underline decoration-dotted hover:text-slate-700">{TEST_EWAY_BILL_NO}</button> fetches a bill (happy path). Ending 11 = not assigned to us, ending 00 = expired.
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                <span className="font-medium">Prototype test numbers</span>
+                {TEST_EWAY_BILLS.map((t) => (
+                  <button key={t.no} type="button" onClick={() => { setEwayBillNo(t.no); setEwayStatus('idle'); setEwayError(''); restoreFromPickup() }} className="hover:text-slate-700">
+                    <span className="font-semibold tabular-nums text-slate-500 underline decoration-dotted">{t.no}</span> {t.label}
+                  </button>
+                ))}
+              </div>
               {ewayStatus !== 'generate' && (
                 <button type="button" onClick={() => { setEwayStatus('generate'); setEwayError('') }} className="text-xs font-medium text-brand-orange-dark hover:underline">
                   No e-Way Bill yet? Generate one for the consignor
@@ -1363,25 +1370,40 @@ function DocketForm({ pickup, onGenerated }) {
                 />
               )}
               {ewayStatus === 'notAssigned' && (
-                <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
-                  <p className="text-xs font-medium text-amber-900">{ewayError}</p>
-                  <div className="grid gap-2.5 sm:grid-cols-3">
-                    <div className="rounded-lg border border-amber-200 bg-white p-3 text-xs text-slate-600">
-                      <p className="mb-1 font-semibold text-slate-800">1. Ask the consignor to assign us</p>
-                      <p>Transporter GSTIN to add on the bill: <span className="font-semibold text-slate-800">{OUR_GSTIN}</span></p>
-                      <button type="button" onClick={() => navigator.clipboard?.writeText(`Please add ${OUR_GSTIN} (LetsTransport) as transporter on e-Way Bill ${ewayBillNo}.`).catch(() => {})} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Copy message</button>
-                      <button type="button" onClick={handleFetchEwayBill} className="ml-3 mt-1.5 font-medium text-brand-orange-dark hover:underline">Fetch again</button>
-                    </div>
-                    <div className="rounded-lg border border-amber-200 bg-white p-3 text-xs text-slate-600">
-                      <p className="mb-1 font-semibold text-slate-800">2. Enter details manually</p>
-                      <p>Keep the number and type the invoice, consignee and goods below. The docket is tagged "e-Way Bill not verified".</p>
-                      <button type="button" onClick={() => setEwayStatus('unverified')} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Continue unverified</button>
-                    </div>
-                    <div className="rounded-lg border border-amber-200 bg-white p-3 text-xs text-slate-600">
-                      <p className="mb-1 font-semibold text-slate-800">3. Generate a new bill</p>
-                      <p>Raise a fresh e-Way Bill under our GSTIN from the consignor's invoice.</p>
-                      <button type="button" onClick={() => { setEwayStatus('generate'); setEwayBillNo(''); restoreFromPickup() }} className="mt-1.5 font-medium text-brand-orange-dark hover:underline">Generate</button>
-                    </div>
+                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                  <p className="flex items-start gap-2 text-sm font-medium text-amber-900">
+                    <Icon name="flag" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <span>{ewayError}</span>
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {[
+                      {
+                        n: 1, title: 'Ask the consignor to assign us',
+                        body: <>Ask them to add LetsTransport as transporter: <span className="mt-1.5 block w-fit rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-800">{OUR_GSTIN}</span></>,
+                        action: 'Fetch again', onClick: handleFetchEwayBill,
+                      },
+                      {
+                        n: 2, title: 'Enter details manually',
+                        body: 'Keep the number and type the invoice, consignee and goods below. The docket is tagged “e-Way Bill not verified”.',
+                        action: 'Continue unverified', onClick: () => setEwayStatus('unverified'),
+                      },
+                      {
+                        n: 3, title: 'Generate a new bill',
+                        body: 'Raise a fresh e-Way Bill under our GSTIN from the consignor’s invoice.',
+                        action: 'Generate new bill', onClick: () => { setEwayStatus('generate'); setEwayBillNo(''); restoreFromPickup() },
+                      },
+                    ].map((o) => (
+                      <div key={o.n} className="flex flex-col rounded-xl border border-amber-200/80 bg-white p-4 shadow-soft">
+                        <div className="mb-2.5 flex items-center gap-2.5">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-800">{o.n}</span>
+                          <p className="text-sm font-semibold leading-tight text-slate-900">{o.title}</p>
+                        </div>
+                        <p className="flex-1 text-xs leading-relaxed text-slate-500">{o.body}</p>
+                        <button type="button" onClick={o.onClick} className="mt-3.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-orange/50 hover:bg-brand-orange/5 hover:text-brand-orange-dark">
+                          {o.action}
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1808,8 +1830,14 @@ function DocketForm({ pickup, onGenerated }) {
       )}
 
       {view === 'preview' && (
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-100 p-6 shadow-soft">
-          <DocketSheet docket={draftDocket} />
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
+            <CopyPicker value={copies} onChange={setCopies} />
+          </div>
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-100 p-6 shadow-soft">
+            <p className="mb-3 text-center text-[11px] font-medium uppercase tracking-wide text-slate-400">A4 half · 210 × 148.5 mm — showing {copies[0] ?? 'Shipper Copy'}</p>
+            <DocketSheet docket={draftDocket} copy={copies[0]} />
+          </div>
         </div>
       )}
     </div>
