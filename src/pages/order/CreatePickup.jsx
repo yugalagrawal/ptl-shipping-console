@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { card } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
@@ -28,6 +28,53 @@ import {
 // like "Helper"/"Picker" that would double-count the same person.
 const HELPER_TYPES = ['Extra Driver', 'Loader', 'Packer', 'Supervisor']
 const MATERIALS = ['Bubble Wrapping material', 'Paper Packing', 'Crates - Fruits and Vegetables', 'Ice Boxes', 'Carton Box', 'Plain Covers', 'Ropes']
+// Typed time entry — hour, minute and AM/PM — reporting "HH:MM" (24h) once all three are
+// valid, '' otherwise. Jumps to the next box as soon as the current one is full.
+function TimeField({ label, value, onChange, required }) {
+  const init = () => {
+    if (!value) return { h: '', m: '', ap: 'AM' }
+    const [H, M] = value.split(':').map(Number)
+    return { h: String(H % 12 || 12), m: String(M).padStart(2, '0'), ap: H < 12 ? 'AM' : 'PM' }
+  }
+  const [t, setT] = useState(init)
+  const mRef = useRef(null)
+  // The form cleared this time (e.g. the pickup was reset, or From moved past To) — blank the boxes too.
+  useEffect(() => {
+    if (!value) setT((cur) => (cur.h !== '' && cur.m.length === 2 && Number(cur.h) >= 1 && Number(cur.h) <= 12 && Number(cur.m) <= 59 ? { h: '', m: '', ap: 'AM' } : cur))
+  }, [value])
+  function commit(next) {
+    setT(next)
+    const h = Number(next.h), m = Number(next.m)
+    if (next.h !== '' && next.m.length === 2 && h >= 1 && h <= 12 && m >= 0 && m <= 59) {
+      onChange(`${String((h % 12) + (next.ap === 'PM' ? 12 : 0)).padStart(2, '0')}:${next.m}`)
+    } else onChange('')
+  }
+  const box = 'w-12 rounded-lg border border-slate-200 bg-white px-2 py-2 text-center text-sm tabular-nums focus:outline focus:outline-2 focus:outline-brand-orange/40'
+  return (
+    <div className="block">
+      <span className="mb-1.5 block text-xs font-medium text-slate-500">{label}{required && <span className="text-brand-orange-dark"> *</span>}</span>
+      <div className="flex items-center gap-1.5">
+        <input
+          inputMode="numeric" maxLength={2} placeholder="hh" aria-label={`${label} hour`} value={t.h}
+          onChange={(e) => { const h = e.target.value.replace(/\D/g, '').slice(0, 2); commit({ ...t, h }); if (h.length === 2 || (h.length === 1 && Number(h) > 1)) mRef.current?.focus() }}
+          className={box}
+        />
+        <span className="text-slate-400">:</span>
+        <input
+          ref={mRef} inputMode="numeric" maxLength={2} placeholder="mm" aria-label={`${label} minute`} value={t.m}
+          onChange={(e) => commit({ ...t, m: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+          className={box}
+        />
+        <span className="ml-1 inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold">
+          {['AM', 'PM'].map((ap) => (
+            <button key={ap} type="button" onClick={() => commit({ ...t, ap })} className={`rounded-md px-2 py-1.5 ${t.ap === ap ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500'}`}>{ap}</button>
+          ))}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 const REPEAT_FREQUENCIES = ['Daily', 'Weekly']
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PAYMENT_TERMS = ['Credit', 'Retail']
@@ -979,7 +1026,7 @@ export default function CreatePickup() {
   const canSubmit = Boolean(
     client && consignor.name && site && pickupDate && pickupTime && estWeight && (!hazardous || hazardClass) && !weightMismatch && !boxesMismatch
       && (!repeatPickup || repeatEndDate)
-      && (!appointment || (apptFrom && apptTo && apptDate)),
+      && (!appointment || (apptFrom && apptTo && apptTo > apptFrom && apptDate)),
   )
   function handleConfirm() {
     if (!canSubmit) return
@@ -1311,16 +1358,10 @@ export default function CreatePickup() {
           <div>
             {appointment && (
               <div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <Field label="Appointment date" required type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} />
-                  <label className="block">
-                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Slot<span className="text-brand-orange-dark"> *</span></span>
-                    <div className={`flex items-center gap-2 ${inputCls}`}>
-                      <input type="time" aria-label="Slot from" value={apptFrom} onChange={(e) => setApptFrom(e.target.value)} className="min-w-0 flex-1 bg-transparent focus:outline-none" />
-                      <span className="text-xs text-slate-400">to</span>
-                      <input type="time" aria-label="Slot to" value={apptTo} onChange={(e) => setApptTo(e.target.value)} className="min-w-0 flex-1 bg-transparent focus:outline-none" />
-                    </div>
-                  </label>
+                  <TimeField label="Slot from" required value={apptFrom} onChange={(v) => { setApptFrom(v); if (apptTo && v && apptTo <= v) setApptTo('') }} />
+                  <TimeField label="Slot to" required value={apptTo} onChange={setApptTo} />
                 </div>
               </div>
             )}
