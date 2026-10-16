@@ -15,7 +15,7 @@ import {
   createPartnerActivation, updatePartnerActivationStatus, removePartnerActivation,
 } from '../../data/partnerActivations.js'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { VEHICLE_TYPES } from '../../data/fleet.js'
+import { vehicleTypeFromRegNo } from '../../data/fleet.js'
 
 // Create Partner wizard — being built step by step per Yugal's prompts.
 // Fields below are placeholders based on the Softpal vendor-onboarding
@@ -42,7 +42,6 @@ const PARTNER_TYPE_INFO = [
   { type: 'Franchise', description: 'A local partner operating under the main brand to manage branch hubs, bookings, and regional deliveries.' },
   { type: 'Individual Driver', description: 'A contracted or employed driver who operates a vehicle provided by a third party or fleet owner.' },
 ]
-const FLEET_VEHICLE_TYPES = VEHICLE_TYPES.map((v) => v.type)
 const BILLING_PERIODS = ['Weekly', 'Fortnightly', 'Monthly']
 const STATES_COUNTRY = ['India']
 // Same list as Client Onboarding's own KYC upload (NewClient.jsx).
@@ -159,16 +158,6 @@ const IFSC_BANK_PREFIXES = {
 }
 function bankNameForIfsc(ifsc) {
   return IFSC_BANK_PREFIXES[ifsc.slice(0, 4).toUpperCase()] ?? null
-}
-
-// Vehicle type is auto-filled from the registration number instead of picked
-// manually — per Yugal, a real lookup (VAHAN or similar RTO registry) is a
-// dev-side integration for later; this is a random-but-deterministic
-// stand-in so the same reg number always resolves to the same type here.
-function vehicleTypeFromRegNo(regNo) {
-  let hash = 0
-  for (let i = 0; i < regNo.length; i++) hash = (hash * 31 + regNo.charCodeAt(i)) >>> 0
-  return FLEET_VEHICLE_TYPES[hash % FLEET_VEHICLE_TYPES.length]
 }
 
 function formatDisplayDate(iso) {
@@ -1068,7 +1057,7 @@ export default function NewPartner() {
 
   const [drivers, setDrivers] = useState([])
   function addDriver() {
-    setDrivers((rows) => [...rows, { id: docRowSeq++, name: '', phoneCode: PHONE_CODES[0], mobile: '', licenseNumber: '', assignedVehicleId: '' }])
+    setDrivers((rows) => [...rows, { id: docRowSeq++, name: '', phoneCode: PHONE_CODES[0], mobile: '', email: '', licenseNumber: '', assignedVehicleId: '' }])
   }
   function updateDriver(id, field, value) {
     setDrivers((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
@@ -1777,6 +1766,7 @@ export default function NewPartner() {
                         <th className={`${thCls} w-40`}>
                           Driver mobile<span className="text-brand-orange-dark"> *</span>
                         </th>
+                        <th className={`${thCls} w-48`}>Email</th>
                         <th className={`${thCls} w-44`}>Assigned vehicle</th>
                         <th className={`${thCls} w-10`} />
                       </tr>
@@ -1827,6 +1817,15 @@ export default function NewPartner() {
                                 className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
                               />
                             </div>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <input
+                              type="email"
+                              value={d.email}
+                              onChange={(e) => updateDriver(d.id, 'email', e.target.value)}
+                              placeholder="Optional"
+                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                            />
                           </td>
                           <td className="px-3 py-3 align-top">
                             <select

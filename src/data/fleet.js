@@ -64,6 +64,32 @@ export const FLEET_SEED = [
   { id: 'VEH-008', regNo: 'GJ01 RS 0123', type: 'ICV · up to 3.5T', ownership: 'Owned', vendorName: '', driverName: 'Bhavesh Shah', driverPhone: '9925055001', city: 'Ahmedabad', branch: 'Vatva Hub', status: VEHICLE_STATUS.AVAILABLE, compliance: COMPLIANCE_STATUS.VALID, permitExpiry: '2026-12-31', insuranceExpiry: '2026-10-10' },
 ].map((v) => ({ ...v, ...vehicleSpec(v.type) }))
 
+// Vehicle type is auto-filled from the registration number rather than picked — a real
+// VAHAN / RTO lookup is a dev-side integration for later; this deterministic stand-in
+// always resolves the same reg number to the same type. Shared by Partner onboarding
+// and Create Docket's vehicle onboarding so both behave the same.
+export function vehicleTypeFromRegNo(regNo) {
+  let hash = 0
+  for (let i = 0; i < regNo.length; i++) hash = (hash * 31 + regNo.charCodeAt(i)) >>> 0
+  return VEHICLE_TYPES[hash % VEHICLE_TYPES.length].type
+}
+
+let vehicleSeq = 900
+// Onboard a vendor vehicle (with its driver) under an existing partner — used by Create
+// Docket when the vehicle on the ground isn't in the fleet yet. Starts Available.
+export function addVendorVehicle({ regNo, type, partner, driverName, driverPhone, driverEmail = '', licenseNumber = '', hasInsurance = false, hasPermit = false }) {
+  const v = {
+    id: `VEH-${vehicleSeq++}`,
+    regNo: String(regNo).toUpperCase().replace(/\s+/g, ' ').trim(),
+    type, ownership: 'Vendor', vendorName: partner.organisationName, partnerId: partner.id,
+    driverName: driverName.trim(), driverPhone: String(driverPhone).replace(/\D/g, '').slice(-10),
+    city: partner.city ?? '', branch: '', status: VEHICLE_STATUS.AVAILABLE, compliance: COMPLIANCE_STATUS.VALID,
+    driverEmail: driverEmail.trim(), licenseNumber, hasInsurance, hasPermit, permitExpiry: '', insuranceExpiry: '',
+  }
+  FLEET_SEED.push(v)
+  return v
+}
+
 // Manifests / lanes currently sitting in the truck-assignment queue —
 // aggregate demand (weight + volume) waiting for a matching vehicle, the
 // PTL analogue of "these AWBs are grouped, now pick a truck." Deliberately

@@ -20,7 +20,8 @@ import { PRS_SEED } from '../../data/prs.js'
 import PartyModal from '../../components/PartyModal.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { getAllConsignees, addConsigneeForClient } from '../../data/consignees.js'
-import { FLEET_SEED, VEHICLE_STATUS, VEHICLE_STATUS_LABEL, VEHICLE_STATUS_BADGE } from '../../data/fleet.js'
+import { PARTNERS } from '../../data/partners.js'
+import { FLEET_SEED, vehicleTypeFromRegNo, addVendorVehicle, VEHICLE_STATUS, VEHICLE_STATUS_LABEL, VEHICLE_STATUS_BADGE } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
 import { priceDocket, volumetricWeightKg, cftToKgFor } from '../../data/docketPricing.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
@@ -95,10 +96,140 @@ function fleetInfo(v) {
   return { vehicleId: v.id, regNo: v.regNo, driver: v.driverName, partner: v.ownership === 'Vendor' ? v.vendorName : 'LetsTransport (Owned)' }
 }
 
+function FileSlot({ file, onChange, compact }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-2.5 py-1.5 text-xs text-slate-500 hover:border-brand-orange/40" title={file?.name}>
+      <Icon name="upload" className="h-3.5 w-3.5 shrink-0" />
+      {!compact && <span className="max-w-[7rem] truncate">{file ? file.name : 'Upload'}</span>}
+      {compact && file && <span className="max-w-[5rem] truncate">{file.name}</span>}
+      <input type="file" className="hidden" onChange={(e) => onChange(e.target.files[0] ?? null)} />
+    </label>
+  )
+}
+
+// Onboard a vehicle that isn't in the fleet: partner first (must already be registered —
+// found by name, phone or email), then the vehicle, then its driver. No partner, no vehicle.
+function VehicleOnboard({ initialReg = '', onDone, onCancel }) {
+  const [pq, setPq] = useState('')
+  const [partner, setPartner] = useState(null)
+  const [reg, setReg] = useState(initialReg.toUpperCase())
+  const [rcFile, setRcFile] = useState(null)
+  const [insurance, setInsurance] = useState({ on: false, file: null })
+  const [permit, setPermit] = useState({ on: false, file: null })
+  const [driver, setDriver] = useState('')
+  const [license, setLicense] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const needle = pq.trim().toLowerCase()
+  const digits = needle.replace(/\D/g, '')
+  const matches = needle.length < 2 ? [] : PARTNERS.filter((p) => p.status === 'Active' && (
+    p.organisationName.toLowerCase().includes(needle) || p.pocName.toLowerCase().includes(needle) || (p.orgEmail ?? '').toLowerCase().includes(needle) ||
+    (digits.length >= 3 && (p.pocPhone ?? '').replace(/\D/g, '').includes(digits))
+  )).slice(0, 5)
+  const regOk = reg.replace(/\s+/g, '').length >= 6
+  const dupe = regOk ? FLEET_SEED.find((v) => v.regNo.replace(/\s+/g, '') === reg.replace(/\s+/g, '')) : null
+  const type = regOk ? vehicleTypeFromRegNo(reg.replace(/\s+/g, ' ').trim()) : ''
+  const vehicleOk = regOk && !dupe && !!rcFile
+  const phoneOk = phone.replace(/\D/g, '').length === 10
+  const emailOk = !email.trim() || /^\S+@\S+\.\S+$/.test(email.trim())
+  const driverOk = driver.trim().length >= 2 && license.trim().length >= 8 && phoneOk && emailOk
+  const inp = 'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40'
+  const step = (n, title, done) => (
+    <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${done ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'}`}>{done ? '✓' : n}</span>{title}
+    </p>
+  )
+  return (
+    <div className="mt-2 space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-soft">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-slate-900">Onboard a new vehicle</p>
+        <button type="button" onClick={onCancel} className="text-xs font-medium text-slate-400 hover:text-slate-600">Back to search</button>
+      </div>
+
+      <div>
+        {step(1, 'Partner', !!partner)}
+        {partner ? (
+          <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">{partner.organisationName}</p>
+              <p className="truncate text-xs text-slate-500">{partner.pocName} · {partner.pocPhone} · {partner.orgEmail}</p>
+            </div>
+            <button type="button" onClick={() => { setPartner(null); setPq('') }} className="text-xs font-medium text-slate-500 hover:text-slate-800">Change</button>
+          </div>
+        ) : (
+          <div className="relative">
+            <input value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Search registered partner by name, phone or email" className={inp} aria-label="Partner" autoFocus />
+            {needle.length >= 2 && (
+              <div className="mt-1 overflow-hidden rounded-lg border border-slate-200">
+                {matches.map((p) => (
+                  <button key={p.id} type="button" onClick={() => setPartner(p)} className="flex w-full items-center gap-4 border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{p.organisationName}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{p.pocPhone} · {p.city}</span>
+                  </button>
+                ))}
+                {matches.length === 0 && <p className="px-3 py-3 text-xs text-slate-500">No registered partner matches “{pq}”. A vehicle can only be onboarded under a partner — register the partner first in Partner Module.</p>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {partner && (
+        <div>
+          {step(2, 'Vehicle', vehicleOk)}
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Registration number<span className="text-brand-orange-dark"> *</span></span><input value={reg} onChange={(e) => setReg(e.target.value.toUpperCase())} placeholder="MH04 AB 1234" className={inp} /></label>
+            <div className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Vehicle type</span><p className="py-2 text-sm">{type ? <span className="text-slate-800">{type}</span> : <span className="text-xs text-slate-400">Auto-filled from reg. no.</span>}</p></div>
+            <div className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Upload RC<span className="text-brand-orange-dark"> *</span></span><FileSlot file={rcFile} onChange={setRcFile} /></div>
+            <div className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Other documents</span>
+              <div className="space-y-1.5">
+                {[['Insurance', insurance, setInsurance], ['Permit', permit, setPermit]].map(([l, st, set]) => (
+                  <div key={l} className="flex items-center gap-1.5">
+                    <label className="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" checked={st.on} onChange={(e) => set({ on: e.target.checked, file: e.target.checked ? st.file : null })} className="h-3.5 w-3.5 rounded accent-brand-orange" />{l}</label>
+                    {st.on && <FileSlot compact file={st.file} onChange={(f) => set({ ...st, file: f })} />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {dupe && <p className="mt-1 text-xs text-rose-600">{dupe.regNo} is already onboarded under {dupe.ownership === 'Vendor' ? dupe.vendorName : 'LetsTransport (Owned)'} — search for it instead.</p>}
+        </div>
+      )}
+
+      {partner && vehicleOk && (
+        <div>
+          {step(3, 'Driver', driverOk)}
+          <div className="grid gap-3 sm:grid-cols-4">
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Driver name<span className="text-brand-orange-dark"> *</span></span><input value={driver} onChange={(e) => setDriver(e.target.value)} placeholder="Name" className={inp} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">License number<span className="text-brand-orange-dark"> *</span></span><input value={license} onChange={(e) => setLicense(e.target.value.toUpperCase())} placeholder="MH1420110012345" className={inp} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Driver mobile<span className="text-brand-orange-dark"> *</span></span>
+              <div className="flex gap-1"><span className="flex w-16 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600">🇮🇳 +91</span><input value={phone} inputMode="numeric" onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="99999 99999" className={inp} /></div>
+            </label>
+            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Email</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Optional" className={`${inp} ${emailOk ? '' : 'border-rose-300'}`} /></label>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+        <button
+          type="button"
+          disabled={!(partner && vehicleOk && driverOk)}
+          onClick={() => onDone(addVendorVehicle({ regNo: reg, type, partner, driverName: driver, driverPhone: phone, driverEmail: email, licenseNumber: license, hasInsurance: insurance.on, hasPermit: permit.on }))}
+          className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
+        >
+          Onboard &amp; assign
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Vehicle + pickup strip shown above the e-way bill choice. Three states:
 // vehicle assigned (can change), none assigned yet (assign now), picker open.
 function VehicleStrip({ pickup, vehicle, onPick, locked }) {
   const [open, setOpen] = useState(false)
+  const [onboarding, setOnboarding] = useState(false)
   const [q, setQ] = useState('')
   const cell = (label, value, strong) => (
     <div className="min-w-0">
@@ -113,7 +244,7 @@ function VehicleStrip({ pickup, vehicle, onPick, locked }) {
     </div>
   )
   const actionBtn = !locked && (
-    <button type="button" onClick={() => { setOpen((o) => !o); setQ('') }} className={vehicle ? 'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300' : 'rounded-lg bg-brand-orange px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-orange-dark'}>
+    <button type="button" onClick={() => { setOpen((o) => !o); setQ(''); setOnboarding(false) }} className={vehicle ? 'rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300' : 'rounded-lg bg-brand-orange px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-orange-dark'}>
       {open ? 'Close' : vehicle ? 'Change' : 'Assign vehicle'}
     </button>
   )
@@ -146,7 +277,10 @@ function VehicleStrip({ pickup, vehicle, onPick, locked }) {
           {mini('Booked', new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}
         </div>
       </div>
-      {open && (
+      {open && onboarding && (
+        <VehicleOnboard initialReg={q} onCancel={() => setOnboarding(false)} onDone={(v) => { onPick(v); setOnboarding(false); setOpen(false) }} />
+      )}
+      {open && !onboarding && (
         <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
           <div className="relative border-b border-slate-100">
             <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -156,7 +290,12 @@ function VehicleStrip({ pickup, vehicle, onPick, locked }) {
             />
           </div>
           <div className="max-h-60 overflow-y-auto">
-          {options.length === 0 && <p className="px-4 py-6 text-center text-sm text-slate-400">No vehicle matches “{q}”</p>}
+          {options.length === 0 && (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-slate-400">No vehicle matches “{q}”</p>
+              <button type="button" onClick={() => setOnboarding(true)} className="mt-2 text-sm font-semibold text-brand-orange-dark hover:underline">+ Onboard this vehicle</button>
+            </div>
+          )}
           {options.map((v) => {
             const current = vehicle?.vehicleId === v.id
             const free = v.status === VEHICLE_STATUS.AVAILABLE || current
@@ -177,6 +316,9 @@ function VehicleStrip({ pickup, vehicle, onPick, locked }) {
             )
           })}
           </div>
+          {options.length > 0 && (
+            <button type="button" onClick={() => setOnboarding(true)} className="w-full border-t border-slate-100 px-4 py-2.5 text-left text-xs font-semibold text-brand-orange-dark hover:bg-slate-50">+ Vehicle not listed? Onboard a new one</button>
+          )}
         </div>
       )}
     </div>
