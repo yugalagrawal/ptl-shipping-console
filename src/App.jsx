@@ -29,6 +29,7 @@ import DocketDashboard from './pages/docket/DocketDashboard.jsx'
 import GeographyMaster from './pages/master/GeographyMaster.jsx'
 import LogisticsMaster from './pages/master/LogisticsMaster.jsx'
 import MappingLadder from './pages/master/MappingLadder.jsx'
+import BoxMaster from './pages/master/BoxMaster.jsx'
 import ConsignorConsigneeMaster from './pages/master/ConsignorConsigneeMaster.jsx'
 import RoutingSimulator from './pages/trip/RoutingSimulator.jsx'
 import Tracking from './pages/trip/Tracking.jsx'
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="/master-module/geography-master" element={<GeographyMaster />} />
         <Route path="/master-module/logistics-master" element={<LogisticsMaster />} />
         <Route path="/master-module/mapping-ladder" element={<MappingLadder />} />
+        <Route path="/master-module/box-master" element={<BoxMaster />} />
         <Route path="/master-module/consignor-consignee-master" element={<ConsignorConsigneeMaster />} />
         <Route path="/trip-management/routing-simulator" element={<RoutingSimulator />} />
         <Route path="/trip-management/tracking" element={<Tracking />} />

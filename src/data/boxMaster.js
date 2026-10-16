@@ -13,8 +13,8 @@ export const BOX_MASTER = [
 
 // Every created box is simply "Custom" — told apart by its size in the dropdown
 // ("Custom — 25×25×50"), so there's no name to type.
-export function addBoxToMaster({ l, b, h }) {
-  const box = { id: `box-${Date.now()}`, name: 'Custom', l: Number(l), b: Number(b), h: Number(h) }
+export function addBoxToMaster({ l, b, h, name = 'Custom' }) {
+  const box = { id: `box-${Date.now()}`, name: String(name).trim() || 'Custom', l: Number(l), b: Number(b), h: Number(h) }
   BOX_MASTER.push(box)
   return box
 }

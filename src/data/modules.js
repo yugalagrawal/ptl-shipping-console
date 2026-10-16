@@ -140,6 +140,7 @@ export const MODULES = [
       { key: 'logistics-master', label: 'Location Master', to: '/master-module/logistics-master', icon: 'grid', tagline: 'Location Master — coming soon.' },
       { key: 'mapping-ladder', label: 'Logistics Ladder', to: '/master-module/mapping-ladder', icon: 'search', tagline: 'Search any State, City, Region, Hub… and see its full mapping across Geography + Logistics.' },
       { key: 'consignor-consignee-master', label: 'Consignor/Consignee', to: '/master-module/consignor-consignee-master', icon: 'user', tagline: 'Every consignor and consignee mapped across all clients, in one place.' },
+      { key: 'box-master', label: 'Box Master', to: '/master-module/box-master', icon: 'grid', tagline: 'Standard carton sizes used to size pickups and dockets.' },
     ],
   },
   {
