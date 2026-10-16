@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import DocketSheetModal from '../../components/DocketSheetModal.jsx'
 import Pagination, { usePagination } from '../../components/Pagination.jsx'
@@ -11,6 +11,8 @@ import {
 } from '../../data/dockets.js'
 import { listEwayBills } from '../../data/ewayBills.js'
 import { fmtDocket } from '../../data/docketNumber.js'
+import { packagesOfDocket } from '../../data/packageSeries.js'
+import DocketLabelsPanel from '../../components/DocketLabelsPanel.jsx'
 
 const HOUR = 3600 * 1000
 const EWB_THRESHOLD = 50000
@@ -218,12 +220,24 @@ const SORTS = [
   ['wt', 'Heaviest first'],
 ]
 
+// A docket is waiting on labels until every package has one (system-printed or pre-printed stock).
+const labelsOf = (d) => packagesOfDocket(d.docketNumber).length
+
 export default function DocketDashboard() {
   const [, bump] = useState(0)
   const refresh = () => bump((n) => n + 1)
+  const [params] = useSearchParams()
+  const landed = params.get('docket') ?? '' // arriving from Create Docket lands on that docket
+  const all = DOCKETS_SEED
+  const pendingLabel = (d) => labelsOf(d) < (Number(d.awbCount) || 1)
+  const [tab, setTab] = useState(() => {
+    const d = landed && all.find((x) => x.docketNumber === landed)
+    return d && pendingLabel(d) ? 'labels' : 'active'
+  })
   const [status, setStatus] = useState('all')
+  const [query, setQuery] = useState(landed)
+  const [more, setMore] = useState(false)
   const [flag, setFlag] = useState('') // '' | 'delayed' | 'aged' | 'ewb'
-  const [query, setQuery] = useState('')
   const [client, setClient] = useState('')
   const [hub, setHub] = useState('')
   const [pay, setPay] = useState('')
@@ -232,25 +246,26 @@ export default function DocketDashboard() {
   const [selected, setSelected] = useState(() => new Set())
   const [openNo, setOpenNo] = useState(null)
   const [printing, setPrinting] = useState(null)
+  const [labelFor, setLabelFor] = useState(null)
 
   const now = Date.now()
   const bills = listEwayBills()
-  const all = DOCKETS_SEED
   const open = all.find((d) => d.docketNumber === openNo) ?? null
 
-  const counts = all.reduce((c, d) => ({ ...c, [d.status]: (c[d.status] ?? 0) + 1 }), {})
   const isDelayed = (d) => d.status !== DOCKET_STATUS.DELIVERED && d.edd < now
   const isAged = (d) => d.status === DOCKET_STATUS.PENDING && now - d.createdTs > 24 * HOUR
   const needsEwb = (d) => d.status !== DOCKET_STATUS.DELIVERED && ewayInfo(d, bills).kind === 'needed'
-  const flagCounts = { delayed: all.filter(isDelayed).length, aged: all.filter(isAged).length, ewb: all.filter(needsEwb).length }
-
   const clients = [...new Set(all.map((d) => d.clientName))].sort()
   const hubs = [...new Set(all.map((d) => d.dropMiniHubName).filter(Boolean))].sort()
 
+  const waiting = all.filter(pendingLabel)
+  const active = all.filter((d) => !pendingLabel(d))
+  const pool = tab === 'labels' ? waiting : active
+
   const q = query.trim().toLowerCase()
   const rows = useMemo(() => {
-    const list = all.filter((d) => {
-      if (status !== 'all' && d.status !== status) return false
+    const list = pool.filter((d) => {
+      if (tab === 'active' && status !== 'all' && d.status !== status) return false
       if (flag === 'delayed' && !isDelayed(d)) return false
       if (flag === 'aged' && !isAged(d)) return false
       if (flag === 'ewb' && !needsEwb(d)) return false
@@ -264,9 +279,10 @@ export default function DocketDashboard() {
     const by = { new: (a, b) => b.createdTs - a.createdTs, old: (a, b) => a.createdTs - b.createdTs, edd: (a, b) => a.edd - b.edd, wt: (a, b) => b.totalWeightKg - a.totalWeightKg }
     return list.sort(by[sort])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [all.length, status, flag, client, hub, pay, range, sort, q, bills.length, refreshKey(all)])
+  }, [all.length, tab, status, flag, client, hub, pay, range, sort, q, bills.length, refreshKey(all)])
   const pg = usePagination(rows, 10)
-  const filtersActive = Boolean(flag || client || hub || pay || range || q || status !== 'all')
+  const moreActive = Boolean(flag || client || hub || pay || range)
+  const filtersActive = Boolean(moreActive || q || (tab === 'active' && status !== 'all'))
 
   function clearAll() {
     setStatus('all'); setFlag(''); setClient(''); setHub(''); setPay(''); setRange(''); setQuery(''); setSelected(new Set())
@@ -301,6 +317,7 @@ export default function DocketDashboard() {
       { label: 'Destination', value: (d) => d.consignee?.city ?? '' },
       { label: 'Drop Mini Hub', value: (d) => d.dropMiniHubName ?? '' },
       { label: 'Packages', value: (d) => d.awbCount },
+      { label: 'Labels assigned', value: (d) => labelsOf(d) },
       { label: 'Weight (kg)', value: (d) => d.totalWeightKg },
       { label: 'Payment', value: (d) => PAYMENT_TERM_LABEL[d.paymentTerm] ?? '' },
       { label: 'Status', value: (d) => DOCKET_STATUS_LABEL[d.status] },
@@ -309,21 +326,13 @@ export default function DocketDashboard() {
     ], list)
   }
 
-  const tiles = [
-    ['all', 'All dockets', all.length],
-    [DOCKET_STATUS.PENDING, 'Pending', counts[DOCKET_STATUS.PENDING] ?? 0],
-    [DOCKET_STATUS.READY_FOR_TRIP, 'Ready for trip', counts[DOCKET_STATUS.READY_FOR_TRIP] ?? 0],
-    [DOCKET_STATUS.IN_TRANSIT, 'In transit', counts[DOCKET_STATUS.IN_TRANSIT] ?? 0],
-    [DOCKET_STATUS.AT_DEST_HUB, 'At dest. hub', counts[DOCKET_STATUS.AT_DEST_HUB] ?? 0],
-    [DOCKET_STATUS.OUT_FOR_DELIVERY, 'Out for delivery', counts[DOCKET_STATUS.OUT_FOR_DELIVERY] ?? 0],
-    [DOCKET_STATUS.DELIVERED, 'Delivered', counts[DOCKET_STATUS.DELIVERED] ?? 0],
-    [DOCKET_STATUS.EXCEPTION, 'Exceptions', counts[DOCKET_STATUS.EXCEPTION] ?? 0],
-  ]
+  const statusCounts = active.reduce((c, d) => ({ ...c, [d.status]: (c[d.status] ?? 0) + 1 }), {})
   const flags = [
-    ['delayed', 'Delayed', flagCounts.delayed, 'text-rose-600'],
-    ['aged', 'Pending > 24h', flagCounts.aged, 'text-amber-600'],
-    ['ewb', 'E-way bill needed', flagCounts.ewb, 'text-amber-600'],
+    ['delayed', 'Delayed', active.filter(isDelayed).length],
+    ['aged', 'Pending > 24h', active.filter(isAged).length],
+    ['ewb', 'E-way bill needed', active.filter(needsEwb).length],
   ]
+  const tabs = [['labels', 'Pending Label Print', waiting.length], ['active', 'Active Dockets', active.length]]
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -341,64 +350,72 @@ export default function DocketDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
-        {tiles.map(([key, label, n]) => (
+      <div className="flex gap-6 border-b border-slate-200">
+        {tabs.map(([k, label, n]) => (
           <button
-            key={key}
+            key={k}
             type="button"
-            onClick={() => { setStatus(key); setSelected(new Set()) }}
-            className={`rounded-xl border px-3.5 py-2.5 text-left transition-colors ${status === key ? 'border-brand-orange bg-brand-orange/5' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+            onClick={() => { setTab(k); setSelected(new Set()); pg.setPage(1) }}
+            className={`-mb-px flex items-center gap-2 border-b-2 px-1 pb-2.5 text-sm font-medium transition-colors ${tab === k ? 'border-brand-orange text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
           >
-            <p className={`text-xl font-semibold tabular-nums ${key === DOCKET_STATUS.EXCEPTION && n > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{n}</p>
-            <p className="text-[11px] text-slate-500">{label}</p>
+            {label}
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${tab === k ? 'bg-brand-orange/10 text-brand-orange-dark' : 'bg-slate-100 text-slate-500'}`}>{n}</span>
           </button>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-slate-400">Needs attention</span>
-        {flags.map(([key, label, n, tone]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setFlag(flag === key ? '' : key)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${flag === key ? 'border-brand-orange bg-brand-orange text-white' : `border-slate-200 bg-white hover:border-slate-300 ${n ? tone : 'text-slate-400'}`}`}
-          >
-            {label} · {n}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[240px] flex-1">
+        <div className="relative min-w-[260px] flex-1">
           <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search docket, pickup, package, client, consignee or trip…" className={`${inputCls} w-full pl-9`} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search docket, pickup, package, client or consignee…" className={`${inputCls} w-full pl-9`} />
         </div>
-        <Select value={client} onChange={setClient}>
-          <option value="">All clients</option>
-          {clients.map((c) => <option key={c}>{c}</option>)}
-        </Select>
-        <Select value={hub} onChange={setHub}>
-          <option value="">All drop hubs</option>
-          {hubs.map((h) => <option key={h}>{h}</option>)}
-        </Select>
-        <Select value={pay} onChange={setPay}>
-          <option value="">Any payment</option>
-          {Object.entries(PAYMENT_TERM_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-        <Select value={range} onChange={setRange}>
-          {DATE_RANGES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-        <Select value="" onChange={setSort} className="!border-slate-200 !text-slate-700">
-          <option value="">Sort: {SORTS.find(([k]) => k === sort)?.[1]}</option>
-          {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </Select>
-        {filtersActive && (
-          <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-500 hover:text-slate-700">Clear all</button>
+        {tab === 'active' && (
+          <Select value={status === 'all' ? '' : status} onChange={(v) => setStatus(v || 'all')}>
+            <option value="">All statuses · {active.length}</option>
+            {DOCKET_LIFECYCLE.concat(DOCKET_STATUS.EXCEPTION).map((st) => <option key={st} value={st}>{DOCKET_STATUS_LABEL[st]} · {statusCounts[st] ?? 0}</option>)}
+          </Select>
         )}
+        <button type="button" onClick={() => setMore((m) => !m)} className={`${inputCls} inline-flex items-center gap-1.5 py-1.5 ${moreActive ? 'border-brand-orange/60 text-brand-orange-dark' : ''}`}>
+          More filters{moreActive ? ' •' : ''}
+          <Icon name="chevron" className={`h-3.5 w-3.5 transition-transform ${more ? 'rotate-180' : ''}`} />
+        </button>
+        {filtersActive && <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-500 hover:text-slate-700">Clear</button>}
       </div>
 
-      {selected.size > 0 && (
+      {more && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+          <Select value={client} onChange={setClient}>
+            <option value="">All clients</option>
+            {clients.map((c) => <option key={c}>{c}</option>)}
+          </Select>
+          <Select value={hub} onChange={setHub}>
+            <option value="">All drop hubs</option>
+            {hubs.map((h) => <option key={h}>{h}</option>)}
+          </Select>
+          <Select value={pay} onChange={setPay}>
+            <option value="">Any payment</option>
+            {Object.entries(PAYMENT_TERM_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+          <Select value={range} onChange={setRange}>
+            {DATE_RANGES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+          <Select value="" onChange={setSort} className="!border-slate-200 !text-slate-700">
+            <option value="">Sort: {SORTS.find(([k]) => k === sort)?.[1]}</option>
+            {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </Select>
+          {tab === 'active' && (
+            <span className="ml-auto flex flex-wrap items-center gap-1.5">
+              {flags.map(([key, label, n]) => (
+                <button key={key} type="button" onClick={() => setFlag(flag === key ? '' : key)} className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${flag === key ? 'border-brand-orange bg-brand-orange text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                  {label} · {n}
+                </button>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
+
+      {tab === 'active' && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-orange/20 bg-brand-orange/5 px-4 py-2.5 text-sm">
           <span className="font-medium text-slate-700">{selected.size} selected</span>
           {selectedPending.length > 0 && (
@@ -414,9 +431,39 @@ export default function DocketDashboard() {
       <div className={`overflow-x-auto ${card}`}>
         {rows.length === 0 ? (
           <div className="px-6 py-14 text-center">
-            <p className="text-sm font-medium text-slate-600">No dockets match.</p>
+            <p className="text-sm font-medium text-slate-600">{tab === 'labels' && !filtersActive ? 'Every docket has its labels.' : 'No dockets match.'}</p>
             {filtersActive && <button type="button" onClick={clearAll} className="mt-2 text-xs font-medium text-brand-orange-dark hover:underline">Clear filters</button>}
           </div>
+        ) : tab === 'labels' ? (
+          <table className="w-full">
+            <thead>
+              <tr>{['Docket', 'Client', 'Consignee', 'Packages', 'Labels', ''].map((h, i) => <th key={i} className={`${th} ${i === 0 ? 'pl-5' : ''}`}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {pg.pageItems.map((d) => {
+                const n = Number(d.awbCount) || 1
+                const have = labelsOf(d)
+                return (
+                  <tr key={d.docketNumber} className={rowCls}>
+                    <td className={`${td} pl-5`}>
+                      <p className="font-medium tabular-nums text-slate-900">{fmtDocket(d.docketNumber)}</p>
+                      <p className="text-[11px] text-slate-400">{d.pickupId} · {d.createdAt}</p>
+                    </td>
+                    <td className={td}>{d.clientName}</td>
+                    <td className={`${td} max-w-[220px]`}>
+                      <p className="truncate">{d.consignee?.name || <span className="text-slate-300">—</span>}</p>
+                      <p className="text-[11px] text-slate-400">{d.consignee?.city}</p>
+                    </td>
+                    <td className={`${td} tabular-nums`}>{n}</td>
+                    <td className={td}><span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold tabular-nums ${have ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{have} of {n}</span></td>
+                    <td className={`${td} text-right`}>
+                      <button type="button" onClick={() => setLabelFor(d.docketNumber)} className={`${btnPrimary} !px-3 !py-1.5 text-xs`}>Print / assign labels</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         ) : (
           <table className="w-full">
             <thead>
@@ -424,13 +471,12 @@ export default function DocketDashboard() {
                 <th className={`${th} w-10 pl-4`}>
                   <input type="checkbox" checked={allOnPageSelected} onChange={toggleAllOnPage} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40" />
                 </th>
-                {['Docket', 'Client', 'Route', 'Consignee', 'Pkgs · Weight', 'Payment', 'E-way bill', 'Delivery', 'Status'].map((h) => <th key={h} className={th}>{h}</th>)}
+                {['Docket', 'Client', 'Consignee', 'Pkgs · Weight', 'Delivery', 'Status'].map((h) => <th key={h} className={th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {pg.pageItems.map((d) => {
                 const edd = eddInfo(d, now)
-                const ewb = ewayInfo(d, bills)
                 return (
                   <tr key={d.docketNumber} onClick={() => setOpenNo(d.docketNumber)} className={`${rowCls} cursor-pointer ${selected.has(d.docketNumber) ? 'bg-brand-orange/5' : ''}`}>
                     <td className={`${td} pl-4`} onClick={(e) => e.stopPropagation()}>
@@ -441,19 +487,11 @@ export default function DocketDashboard() {
                       <p className="text-[11px] text-slate-400">{d.pickupId} · {d.createdAt}</p>
                     </td>
                     <td className={td}>{d.clientName}</td>
-                    <td className={td}>
-                      {d.originCity || '—'}
-                      <span className="text-slate-300"> → </span>
-                      {d.consignee?.city || '—'}
+                    <td className={`${td} max-w-[220px]`}>
+                      <p className="truncate">{d.consignee?.name || <span className="text-slate-300">—</span>}</p>
+                      <p className="text-[11px] text-slate-400">{d.originCity || '—'} → {d.consignee?.city || '—'}</p>
                     </td>
-                    <td className={`${td} max-w-[200px] truncate`}>{d.consignee?.name || <span className="text-slate-300">—</span>}</td>
                     <td className={`${td} tabular-nums`}>{d.awbCount} · {d.totalWeightKg} kg</td>
-                    <td className={td}>{PAYMENT_TERM_LABEL[d.paymentTerm] ?? <span className="text-slate-300">—</span>}</td>
-                    <td className={td}>
-                      {ewb.kind === 'has' && <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">✓ Generated</span>}
-                      {ewb.kind === 'needed' && d.status !== DOCKET_STATUS.DELIVERED && <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">Needed</span>}
-                      {(ewb.kind === 'na' || (ewb.kind === 'needed' && d.status === DOCKET_STATUS.DELIVERED)) && <span className="text-slate-300">—</span>}
-                    </td>
                     <td className={`${td} ${edd.late ? 'font-medium text-rose-600' : ''}`}>{edd.label}</td>
                     <td className={td}><StatusBadge status={d.status} /></td>
                   </tr>
@@ -464,6 +502,21 @@ export default function DocketDashboard() {
         )}
       </div>
       {rows.length > 0 && <Pagination pg={pg} noun="dockets" />}
+
+      {labelFor && (() => {
+        const d = all.find((x) => x.docketNumber === labelFor)
+        return d ? (
+          <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/30 p-4" onClick={() => setLabelFor(null)}>
+            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-xl space-y-3 rounded-2xl bg-white p-5 shadow-soft">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900">Labels · Docket <span className="tabular-nums">{fmtDocket(d.docketNumber)}</span></p>
+                <button type="button" onClick={() => setLabelFor(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><Icon name="close" className="h-4 w-4" /></button>
+              </div>
+              <DocketLabelsPanel docket={d} packages={Number(d.awbCount) || 1} onChange={refresh} />
+            </div>
+          </div>
+        ) : null
+      })()}
 
       {open && (
         <DocketDrawer

@@ -20,13 +20,17 @@ import { PRS_SEED } from '../../data/prs.js'
 import PartyModal from '../../components/PartyModal.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { getAllConsignees, addConsigneeForClient } from '../../data/consignees.js'
+import { getAllConsignors, addConsignorForClient } from '../../data/consignors.js'
+import { getClientConfigValues, PRICING_CONDITION_OTHERS } from '../../data/clientConfigFields.js'
 import { PARTNERS } from '../../data/partners.js'
 import { FLEET_SEED, vehicleTypeFromRegNo, addVendorVehicle, VEHICLE_STATUS, VEHICLE_STATUS_LABEL, VEHICLE_STATUS_BADGE } from '../../data/fleet.js'
-import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
-import { priceDocket, volumetricWeightKg, cftToKgFor } from '../../data/docketPricing.js'
-import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
+import { fetchEwayBill, generateEwayBill, updateEwayPartB, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
+import { priceDocket, volumetricWeightKg, cftToKgFor, EMERGENCY_SURCHARGE_ON } from '../../data/docketPricing.js'
+import { ACTIVE_CLIENTS_SEED, clientCodeFor } from '../../data/clients.js'
+import { groupById } from '../../data/groups.js'
 import { odaEntryForPincode, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { printDocketSheet } from './docketPrintSheet.js'
+import DocketLabelsPanel from '../../components/DocketLabelsPanel.jsx'
 import { shareDocket } from '../../utils/docketShare.js'
 import { fmtDocket } from '../../data/docketNumber.js'
 
@@ -717,6 +721,7 @@ function EwayGenerateForm({ initial, onGenerated, onCancel }) {
 // here as the safe national default. Several invoices to one consignee in one
 // vehicle can add up past the limit, so ops should enter the combined value.
 const EWAY_VALUE_LIMIT = 50000
+const TEST_EWAY_BILL_NO = '123456789001' // prototype happy path — see fetchEwayBill in data/ewayBill.js
 function ewayNeedCheck({ value, hsn, exempt, special }) {
   if (!hsn) return { state: 'pending', msg: 'Enter the goods HSN in Document to check' }
   if (exempt) return { state: 'ok', reason: `Exempt goods — ${exempt.label}`, note: exempt.note }
@@ -766,33 +771,34 @@ function EwayInfoModal({ onClose }) {
 const normText = (x) => String(x ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
 const sameText = (a, b) => !!normText(a) && !!normText(b) && (normText(a) === normText(b) || normText(a).includes(normText(b)) || normText(b).includes(normText(a)))
 
-// Consignee name field with a typeahead over the Consignee master (the same
-// store behind Master Module and Client Configuration). Picking a row fills the
-// whole card; "+ Add new consignee" opens the shared party modal, which saves
-// back to that master. Typing a free name still works — nothing is forced.
-function ConsigneeNameInput({ value, clientId, clientName, onChange, onPick, className }) {
+// Pick a consignee / consignor (and which of its sites) from the master — nothing here is typed,
+// so the address, city and pincode always come from a real saved site. Type to search the list;
+// "Create" adds a new party to the master (and this client) and uses it.
+function PartyPicker({ kind, value, clientId, clientName, onPick, disabled, className }) {
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
-  const [typed, setTyped] = useState(false) // only filter once the user actually types
   const [coords, setCoords] = useState(null)
-  const inputRef = useRef(null)
+  const [q, setQ] = useState('')
+  const [typing, setTyping] = useState(false) // typed text only filters — it is never saved as the party
+  const btnRef = useRef(null)
   const panelRef = useRef(null)
+  const isConsignee = kind === 'consignee'
 
-  const all = getAllConsignees()
+  const all = isConsignee ? getAllConsignees() : getAllConsignors()
   const mine = all.filter((c) => c.clientIds.includes(clientId))
-  const q = typed ? value.trim().toLowerCase() : ''
+  const needle = typing ? q.trim().toLowerCase() : ''
   const options = (mine.length ? mine : all)
     .flatMap((party) => party.sites.map((site) => ({ key: `${party.id}|${site.id}`, party, site })))
-    .filter((o) => !q || `${o.party.partyName} ${o.site.label} ${o.site.city}`.toLowerCase().includes(q))
+    .filter((o) => !needle || `${o.party.partyName} ${o.site.label} ${o.site.address} ${o.site.city} ${o.site.pincode}`.toLowerCase().includes(needle))
 
   useEffect(() => {
     if (!open) return
     const place = () => {
-      const r = inputRef.current?.getBoundingClientRect()
-      if (r) setCoords({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 280) })
+      const r = btnRef.current?.getBoundingClientRect()
+      if (r) setCoords({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 300) })
     }
     place()
-    const onDown = (e) => { if (!panelRef.current?.contains(e.target) && !inputRef.current?.contains(e.target)) setOpen(false) }
+    const onDown = (e) => { if (!panelRef.current?.contains(e.target) && !btnRef.current?.contains(e.target)) { setOpen(false); setTyping(false) } }
     document.addEventListener('mousedown', onDown)
     window.addEventListener('scroll', place, true)
     window.addEventListener('resize', place)
@@ -804,32 +810,44 @@ function ConsigneeNameInput({ value, clientId, clientName, onChange, onPick, cla
     address: site.address, city: site.city, pincode: site.pincode,
   })
 
+  if (disabled) return <p className={className}>{value || <span className="text-slate-400">—</span>}</p>
   return (
     <>
-      <input ref={inputRef} className={className} value={value} onChange={(e) => { onChange(e.target.value); setTyped(true); setOpen(true) }} onFocus={() => { setTyped(false); setOpen(true) }} placeholder="Search or type consignee name" aria-label="consignee name" autoComplete="off" />
+      <input
+        ref={btnRef}
+        role="combobox"
+        aria-expanded={open}
+        aria-label={`Choose ${kind}`}
+        autoComplete="off"
+        className={className}
+        value={typing ? q : value}
+        placeholder={`Search ${kind}…`}
+        onFocus={() => { setQ(''); setTyping(false); setOpen(true) }}
+        onChange={(e) => { setQ(e.target.value); setTyping(true); setOpen(true) }}
+      />
       {open && coords && createPortal(
         <div ref={panelRef} style={{ top: coords.top, left: coords.left, width: coords.width }} className="fixed z-[60] rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-lg">
           <div className="max-h-56 overflow-y-auto">
             {options.map((o) => (
-              <button key={o.key} type="button" onClick={() => { fill(o.party, o.site); setOpen(false) }} className="block w-full rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-50">
+              <button key={o.key} type="button" onClick={() => { fill(o.party, o.site); setOpen(false); setTyping(false) }} className="block w-full rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-50">
                 <span className="block truncate text-sm text-slate-800">{o.party.partyName}{o.party.sites.length > 1 ? ` · ${o.site.label}` : ''}</span>
                 <span className="block truncate text-[11px] text-slate-400">{o.site.address}, {o.site.city} {o.site.pincode}</span>
               </button>
             ))}
-            {options.length === 0 && <p className="px-2.5 py-2 text-xs text-slate-400">No match in the consignee master</p>}
+            {options.length === 0 && <p className="px-2.5 py-2 text-xs text-slate-400">{needle ? `No ${kind} matches “${q}”` : `No ${kind} in the master yet`}</p>}
           </div>
-          <button type="button" onClick={() => { setOpen(false); setAdding(true) }} className="mt-1 block w-full rounded-lg border-t border-slate-100 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-orange-dark hover:bg-slate-50">+ Add new consignee</button>
+          <button type="button" onClick={() => { setOpen(false); setTyping(false); setAdding(true) }} className="mt-1 block w-full rounded-lg border-t border-slate-100 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-orange-dark hover:bg-slate-50">+ Create {kind}</button>
         </div>,
         document.body
       )}
       {adding && (
         <PartyModal
-          kind="consignee"
+          kind={kind}
           companyDefault={clientName}
           onClose={() => setAdding(false)}
           onSave={(form) => {
             const { clientIds: _ignored, ...data } = form
-            const row = addConsigneeForClient(clientId, data)
+            const row = (isConsignee ? addConsigneeForClient : addConsignorForClient)(clientId, data)
             fill(row, row.sites[0])
             setAdding(false)
           }}
@@ -840,6 +858,27 @@ function ConsigneeNameInput({ value, clientId, clientName, onChange, onPick, cla
 }
 
 const NO_SERIES = { assigned: false, ranges: [], active: null, next: null, remaining: 0, exhausted: false, low: false }
+
+// What happens right after a docket is created: jump to it on the Docket Dashboard, and put package
+// labels on it — either print system-generated ones, or link pre-printed stock labels (same two
+// routes the PTL APP offers at pickup).
+function DocketCreatedPanel({ docket, packages, onViewDashboard }) {
+  return (
+    <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium text-emerald-800">
+          <Icon name="approve" className="mr-1.5 inline h-4 w-4" />
+          Docket <span className="font-semibold">{fmtDocket(docket.docketNumber)}</span> created — it can no longer be edited.
+        </p>
+        <button type="button" onClick={onViewDashboard} className={btnPrimary}>
+          <Icon name="search" className="h-4 w-4" />
+          View on Docket Dashboard
+        </button>
+      </div>
+      <DocketLabelsPanel docket={docket} packages={packages} />
+    </div>
+  )
+}
 
 function DocketForm({ pickup, onGenerated }) {
   const navigate = useNavigate()
@@ -885,6 +924,16 @@ function DocketForm({ pickup, onGenerated }) {
   // GSTIN from the (simulated) e-Way Bill API; "not required" unlocks
   // manual entry for moves that genuinely have none (e.g. intra-city).
   const [ewayBillNo, setEwayBillNo] = useState('')
+  // Print pricing on the docket: starts from the client's configuration, but can be flipped for this docket.
+  const [printPricing, setPrintPricing] = useState(() => !pickup.clientId || getClientConfigValues(pickup.clientId)['pricing-on-docket'] !== 'No')
+  const [clientCode, setClientCode] = useState(() => clientCodeFor(pickup.clientId, (id) => groupById(id)?.name ?? ''))
+  // Optional charges are ticked by hand for now (a settings screen for when each applies comes later);
+  // a ticked charge is evaluated from the client's own rates.
+  const [chargeOverride, setChargeOverride] = useState({}) // key → true/false once ops ticks/unticks by hand
+  // Part B of the e-Way Bill (vehicle). If the bill arrives without one, the vehicle picked above goes on it.
+  const [partB, setPartB] = useState({ vehicleNo: null, by: null, busy: false, was: null }) // by: 'bill' (as fetched) | 'us' (we put it); was = what the bill carried before we changed it
+  const [ewayDecided, setEwayDecided] = useState({}) // how each e-Way Bill vs pickup difference was settled: ewb | pu | self
+  const [ewayDeclared, setEwayDeclared] = useState(false) // "No e-way bill required" declaration, only offered once every check passes
   const [ewayStatus, setEwayStatus] = useState('idle') // idle | loading | done | error | notAssigned | unverified | generate | manual
   const [ewayError, setEwayError] = useState('')
   const [ewayInfoOpen, setEwayInfoOpen] = useState(false)
@@ -952,6 +1001,9 @@ function DocketForm({ pickup, onGenerated }) {
   const [podType, setPodType] = useState(POD_TYPE.EPOD)
 
   const [generatedDocket, setGeneratedDocket] = useState(null)
+  const existingGenerated = !!pickup.docketNumber && !!DOCKETS_SEED.find((d) => d.docketNumber === pickup.docketNumber)?.generated
+  const locked = !!generatedDocket || existingGenerated // a created docket can't be edited any more
+  const [previewingCreate, setPreviewingCreate] = useState(false) // "Generate Docket" opens a preview first; Create docket there makes it
   const [view, setView] = useState('details')
   const [shareStatus, setShareStatus] = useState('idle') // idle | shared | copied
 
@@ -962,6 +1014,10 @@ function DocketForm({ pickup, onGenerated }) {
   // All stay editable.
   function applyEwayResult(result) {
     setEwayData(result)
+    // The e-Way Bill is the legal document, so its values are used by default; each difference can be switched.
+    setPartB(result.partB?.vehicleNo ? { vehicleNo: result.partB.vehicleNo, by: 'bill', busy: false, was: null } : { vehicleNo: null, by: null, busy: false, was: null })
+    setEwayDecided({ name: 'ewb', city: 'ewb', pincode: 'ewb', packages: 'ewb' })
+    if (result.goods?.quantity != null) setPackagesCount(String(result.goods.quantity))
     setConsigneeGstin(result.consignee.gstin)
     setConsigneeName(result.consignee.name)
     setConsigneeCity(result.consignee.city)
@@ -972,6 +1028,17 @@ function DocketForm({ pickup, onGenerated }) {
     setGoodsDescription(result.goods.description)
     setHsnCode(result.goods.hsn ?? '')
     setEwayStatus('done')
+  }
+
+  // Fill Part B from the selected vehicle whenever the bill has none of its own (or still carries ours for a vehicle we've since changed).
+  const sameVehicle = (a, b) => String(a ?? '').replace(/[^a-z0-9]/gi, '').toUpperCase() === String(b ?? '').replace(/[^a-z0-9]/gi, '').toUpperCase()
+  // Part B is updated only when ops clicks "Update vehicle" in Needs attention.
+  async function updatePartBVehicle() {
+    const was = partB.vehicleNo
+    const target = vehicleNo
+    setPartB((b) => ({ ...b, busy: true }))
+    await updateEwayPartB(ewayBillNo, target)
+    setPartB({ vehicleNo: target, by: 'us', busy: false, was })
   }
 
   // Back to the pickup's own values when the e-Way Bill goes away (number
@@ -1011,19 +1078,34 @@ function DocketForm({ pickup, onGenerated }) {
   // auto-recomputed on every keystroke that could move it (weight, packages,
   // insured value, ODA). Not editable here — Client Pricing Configuration
   // owns the rate card this reads from.
+  // Which optional charges apply comes from the client's Pricing Conditions (Client Configuration →
+  // Pickup & Docket); ticking or unticking one here overrides it for this docket only.
+  const pc = getClientConfigValues(pickup.clientId)
+  const othersApply = PRICING_CONDITION_OTHERS.filter((id) => pc[id] === 'Always').map((id) => id.replace('pc-others-', ''))
+  const chargesOn = {
+    exception: pc['pc-exception'] === 'Always',
+    fov: pc['pc-fov'] === 'Always' || (pc['pc-fov'] === "When Owner's Risk is selected" && riskCover === RISK_COVER.OWNERS_RISK),
+    fsc: pc['pc-fsc'] === 'Always',
+    ess: pc['pc-ess'] === 'Always' || (pc['pc-ess'] === 'While an emergency is declared' && EMERGENCY_SURCHARGE_ON),
+    handling: pc['pc-handling'] === 'Always' || (pc['pc-handling'] === 'Above 200 kg chargeable weight' && chargeableWeight > 200),
+    others: othersApply.length > 0,
+    ...chargeOverride,
+  }
   const pricing = useMemo(
     () => priceDocket({
       clientId: pickup.clientId, actualWeightKg: enteredActualWeight, volumetricWeightKg: volKg,
       ownersRisk: riskCover === RISK_COVER.OWNERS_RISK, appointment, isOda, odaRate,
       clientCharges: ACTIVE_CLIENTS_SEED.find((c) => c.id === pickup.clientId)?.charges,
-      paymentTerm, codAmount: Number(invoiceValue) || 0,
+      paymentTerm, codAmount: Number(invoiceValue) || 0, apply: chargesOn, othersApply,
     }),
-    [pickup.clientId, enteredActualWeight, volKg, riskCover, appointment, isOda, odaRate, paymentTerm, invoiceValue]
+    [JSON.stringify(chargesOn), othersApply.join(), pickup.clientId, enteredActualWeight, volKg, riskCover, appointment, isOda, odaRate, paymentTerm, invoiceValue]
   )
 
   const ewayRequired = ewayStatus !== 'manual'
   const ewayNeed = ewayNeedCheck({ value: Number(invoiceValue) || 0, hsn: hsnCode, exempt: exemptGoodsFor(hsnCode), special: ewayMandatorySpecial })
-  const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok'
+  // The declaration only stands while every check passes — change a value and it has to be given again.
+  useEffect(() => { if (ewayDeclared && ewayNeed.state !== 'ok') setEwayDeclared(false) }, [ewayDeclared, ewayNeed.state])
+  const ewayReady = ewayRequired ? ewayStatus === 'done' || ewayStatus === 'unverified' : ewayNeed.state === 'ok' && ewayDeclared
   const canSubmit = !generatedDocket && !!mode &&
     actualWeightKg && packagesCount && packageRows.every((r) => r.boxId) && consigneeName.trim() && !(!pickup.docketNumber && series.exhausted && !seriesAuto) &&
     ewayReady
@@ -1064,6 +1146,7 @@ function DocketForm({ pickup, onGenerated }) {
     createdAt: generatedDocket ? 'Just now' : 'Draft — not yet generated',
     mode,
     ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
+    printPricing, chargesApplied: chargesOn, clientCode: clientCode.trim() || undefined,
     ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
     ewayUnverified: ewayStatus === 'unverified',
     vehicleNo, transporterGstin,
@@ -1098,12 +1181,13 @@ function DocketForm({ pickup, onGenerated }) {
     const docket = enrichDocketDetails(docketNumber, {
       mode,
       ewayBillNo: ewayStatus === 'manual' ? '' : ewayBillNo,
+      printPricing, chargesApplied: chargesOn, clientCode: clientCode.trim() || undefined,
       ewayExemptReason: ewayStatus === 'manual' ? ewayNeed.reason ?? '' : '',
       ewayUnverified: ewayStatus === 'unverified',
       vehicleNo, transporterGstin,
       invoiceNo, invoiceValue: Number(invoiceValue) || 0, declaredValue: Number(invoiceValue) || 0, insuredValue: Number(insuredValue) || 0,
       goodsDescription, hsnCode, invoiceDate, handling, contentType, contentDescription, hazardClass, unNumber, isOda, appointment,
-      awbCount: totalBoxes, totalWeightKg: enteredActualWeight,
+      generated: true, awbCount: totalBoxes, totalWeightKg: enteredActualWeight,
       consignee: { name: consigneeName.trim(), address: consigneeAddress.trim(), city: consigneeCity.trim(), pincode: consigneePincode.trim() },
       consignor: { ...pickup.consignor, name: consignorName.trim(), address: consignorAddress.trim(), city: consignorCity.trim(), pincode: consignorPincode.trim() }, consigneeGstin, packageRows, volumetricWeightKg: volKg,
       paymentTerm, gstPayableBy, riskCover, policyNo,
@@ -1116,6 +1200,10 @@ function DocketForm({ pickup, onGenerated }) {
     setGeneratedDocket(docket)
     onGenerated?.()
   }
+
+  // Filling opens only once a mode is chosen and the docket number exists (already-raised dockets are open).
+  const started = !!pickup.docketNumber || !!generatedDocket || (!!mode && !!draftDocket.docketNumber)
+  const [shareMenuOpen, setShareMenuOpen] = useState(false)
 
   async function handleShare() {
     const { status } = await shareDocket(draftDocket)
@@ -1132,24 +1220,47 @@ function DocketForm({ pickup, onGenerated }) {
             <button key={k} type="button" onClick={() => setView(k)} className={`rounded-lg px-4 py-1.5 transition ${view === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => printDocketSheet(draftDocket)} className={btnSecondary}>
+        <div className="flex items-baseline gap-1.5 text-sm text-slate-500" aria-label="Docket number">
+          Docket No.
+          <span className="text-base font-bold tabular-nums text-slate-900">{draftDocket.docketNumber ? fmtDocket(draftDocket.docketNumber) : '—'}</span>
+          {mode && <span className="text-xs font-medium text-slate-400">{MODE_LABEL[mode]}</span>}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => printDocketSheet(draftDocket)} disabled={!draftDocket.docketNumber} className={`${btnSecondary} disabled:cursor-not-allowed disabled:opacity-40`}>
             <Icon name="invoice" className="h-4 w-4" /> Print
           </button>
-          <button type="button" onClick={() => printDocketSheet(draftDocket)} className={btnSecondary}>
-            <Icon name="download" className="h-4 w-4" /> Save as PDF
-          </button>
-          <button type="button" onClick={handleShare} className={btnSecondary}>
-            <Icon name="upload" className="h-4 w-4" />
-            {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'failed' ? "Couldn't share" : 'Share'}
-          </button>
+          <div className="relative">
+            <button type="button" onClick={() => setShareMenuOpen((o) => !o)} disabled={!draftDocket.docketNumber} aria-expanded={shareMenuOpen} className={`${btnSecondary} disabled:cursor-not-allowed disabled:opacity-40`}>
+              <Icon name="upload" className="h-4 w-4" />
+              {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'failed' ? "Couldn't share" : 'Share'}
+              <Icon name="chevron" className={`h-3.5 w-3.5 text-slate-400 transition-transform ${shareMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {shareMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShareMenuOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-sm shadow-lg">
+                  <button type="button" onClick={() => { setShareMenuOpen(false); printDocketSheet(draftDocket) }} className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50">
+                    <Icon name="download" className="h-4 w-4 text-slate-400" /> Save as PDF
+                  </button>
+                  <button type="button" onClick={() => { setShareMenuOpen(false); handleShare() }} className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-slate-700 hover:bg-slate-50">
+                    <Icon name="upload" className="h-4 w-4 text-slate-400" /> Share / copy details
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         {shareStatus === 'failed' && (
           <p className="basis-full text-xs text-red-600">Sharing and clipboard access were both blocked by the browser — copy the docket number and details manually.</p>
         )}
       </div>
 
-      <div className={`min-w-0 space-y-4 ${view === 'details' ? '' : 'hidden'}`}>
+      {generatedDocket && (
+        <DocketCreatedPanel docket={generatedDocket} packages={Number(generatedDocket.awbCount) || totalBoxes || 1} onViewDashboard={() => navigate(`/docket-module/dashboard?docket=${generatedDocket.docketNumber}`)} />
+      )}
+
+      <fieldset disabled={locked || !started} className={`m-0 min-w-0 space-y-4 border-0 p-0 ${view === 'details' ? '' : 'hidden'} ${started ? '' : '[&>*:not(legend)]:opacity-50'}`}>
+        <legend className="mb-4 block w-full space-y-4 p-0">
         {!pickup.docketNumber && !generatedDocket && series.exhausted && (
           <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${seriesAuto ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-red-200 bg-red-50 text-red-800'}`}>
             {seriesAuto ? (
@@ -1169,7 +1280,7 @@ function DocketForm({ pickup, onGenerated }) {
           <p className="rounded-xl bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Only {series.remaining} number{series.remaining === 1 ? '' : 's'} left in this client's docket series — assign a new one soon.</p>
         )}
         <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
               <label className="flex items-center gap-1.5 text-base text-slate-500">
                 Mode
@@ -1181,6 +1292,10 @@ function DocketForm({ pickup, onGenerated }) {
             <p className="text-slate-500 text-base">Docket No.: <span className="text-lg font-bold text-slate-900">{draftDocket.docketNumber ? fmtDocket(draftDocket.docketNumber) : <span className="text-sm font-medium text-slate-400">{mode ? 'Assigned after series is resolved' : 'Select a mode to get the docket number'}</span>}</span>{series.assigned && !series.exhausted && !pickup.docketNumber && <span className="ml-2 text-[11px] font-medium text-slate-400">assigned series · {series.remaining.toLocaleString('en-IN')} left</span>}</p>
             </div>
           </div>
+          {!started && <p className="mt-2 text-xs text-slate-500">Select a mode to start — the docket number is generated first, then the rest of the form opens.</p>}
+        </div>
+        </legend>
+        <div className="rounded-2xl border border-slate-200/70 bg-white px-4 py-3 shadow-soft">
           <VehicleStrip
             pickup={pickup}
             vehicle={vehicleFleetId ? fleetInfo(FLEET_SEED.find((v) => v.id === vehicleFleetId)) : null}
@@ -1201,7 +1316,7 @@ function DocketForm({ pickup, onGenerated }) {
                   onClick={() => {
                     if (active) return
                     if (k === 'none') { restoreFromPickup(); setEwayStatus('manual'); setEwayError('') }
-                    else { setEwayStatus('idle'); setVehicleNo(''); setEwayMandatorySpecial('') }
+                    else { setEwayStatus('idle'); setVehicleNo(''); setEwayMandatorySpecial(''); setEwayDeclared(false) }
                   }}
                   className={`rounded-lg px-5 py-1.5 transition ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
@@ -1232,6 +1347,9 @@ function DocketForm({ pickup, onGenerated }) {
                   {ewayStatus === 'loading' ? 'Fetching…' : 'Fetch & validate'}
                 </button>
               </div>
+              <p className="text-[11px] text-slate-400">
+                Prototype test number — <button type="button" onClick={() => { setEwayBillNo(TEST_EWAY_BILL_NO); setEwayStatus('idle'); setEwayError(''); restoreFromPickup() }} className="font-medium tabular-nums text-slate-500 underline decoration-dotted hover:text-slate-700">{TEST_EWAY_BILL_NO}</button> fetches a bill (happy path). Ending 11 = not assigned to us, ending 00 = expired.
+              </p>
               {ewayStatus !== 'generate' && (
                 <button type="button" onClick={() => { setEwayStatus('generate'); setEwayError('') }} className="text-xs font-medium text-brand-orange-dark hover:underline">
                   No e-Way Bill yet? Generate one for the consignor
@@ -1276,78 +1394,86 @@ function DocketForm({ pickup, onGenerated }) {
               {ewayStatus === 'error' && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{ewayError}</p>
               )}
-              {ewayStatus === 'done' && ewayData && (
-                <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-                    <Icon name="approve" className="h-4 w-4" /> E-Way Bill {ewayBillNo} {ewayData.generatedBy ? 'generated by LetsTransport' : 'fetched'} — valid until {ewayData.validUntil}
-                  </p>
-                  <div>
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Part A <span className="font-normal normal-case text-emerald-600">— auto-filled from e-Way Bill</span></p>
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
-                      {[
-                        ['Generated on', ewayData.generatedOn],
-                        ['Valid until', ewayData.validUntil],
-                        ['Distance', `${ewayData.distanceKm} km`],
-                        ['Invoice no.', ewayData.invoiceNo],
-                        ['Invoice date', ewayData.invoiceDate],
-                        ['Invoice value', `₹${ewayData.invoiceValue.toLocaleString('en-IN')}`],
-                        ['Consignee', ewayData.consignee.name],
-                        ['Consignee GSTIN', ewayData.consignee.gstin],
-                        ['Deliver to', `${ewayData.consignee.city}, ${ewayData.consignee.state} ${ewayData.consignee.pincode}`],
-                        ['Goods', ewayData.goods.description],
-                        ['HSN code', ewayData.goods.hsn],
-                        ['Quantity', `${ewayData.goods.quantity} ${ewayData.goods.unit}`],
-                      ].map(([label, value]) => (
-                        <div key={label} className="min-w-0">
-                          <dt className="text-[10px] font-medium uppercase tracking-wide text-emerald-600">{label}</dt>
-                          <dd className="truncate text-sm font-semibold text-emerald-900" title={String(value)}>{value}</dd>
+              {ewayStatus === 'done' && ewayData && (() => {
+                const pickupPackages = pickup.packagesCount ?? null
+                // Where the e-Way Bill and the pickup disagree. Each row lets ops pick which value the docket uses.
+                const rows = [
+                  { key: 'name', label: 'Consignee', ewb: ewayData.consignee.name, pu: pickup.consignee?.name, cur: consigneeName,
+                    useEwb: () => setConsigneeName(ewayData.consignee.name), usePu: () => setConsigneeName(pickup.consignee?.name ?? ''), focus: 'input[aria-label="Choose consignee"]' },
+                  { key: 'city', label: 'City', ewb: ewayData.consignee.city, pu: pickup.consignee?.city, cur: consigneeCity,
+                    useEwb: () => setConsigneeCity(ewayData.consignee.city), usePu: () => setConsigneeCity(pickup.consignee?.city ?? ''), focus: 'input[aria-label="Choose consignee"]' },
+                  { key: 'pincode', label: 'Pincode', ewb: ewayData.consignee.pincode, pu: pickup.consignee?.pincode, cur: consigneePincode,
+                    useEwb: () => setConsigneePincode(String(ewayData.consignee.pincode)), usePu: () => setConsigneePincode(String(pickup.consignee?.pincode ?? '')), focus: 'input[aria-label="Choose consignee"]' },
+                  { key: 'packages', label: 'Packages', ewb: ewayData.goods.quantity, pu: pickupPackages, cur: packagesCount,
+                    useEwb: () => setPackagesCount(String(ewayData.goods.quantity)), usePu: () => setPackagesCount(String(pickupPackages ?? '')), focus: '#docket-package-count' },
+                ].filter((r) => !(r.key === 'packages' ? pickupPackages != null && Number(r.ewb) === Number(pickupPackages) : r.key === 'pincode' ? String(r.ewb) === String(r.pu ?? '') : sameText(r.ewb, r.pu)))
+                const partBShown = !!vehicleNo || !!partB.vehicleNo ? (partB.by === 'us' || !sameVehicle(partB.vehicleNo, vehicleNo)) : true
+                const pick = (r, how) => { (how === 'ewb' ? r.useEwb : how === 'pu' ? r.usePu : () => document.querySelector(r.focus)?.focus())(); setEwayDecided((d) => ({ ...d, [r.key]: how })) }
+                const btn = (r, how, text) => (
+                  <button key={how} type="button" onClick={() => pick(r, how)} className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${ewayDecided[r.key] === how ? 'border-emerald-400 bg-emerald-100 text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>{text}</button>
+                )
+                return (
+                  <div className="space-y-3">
+                    <p className="flex flex-wrap items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-medium text-emerald-800">
+                      <Icon name="approve" className="h-4 w-4" />
+                      E-Way Bill {ewayBillNo} {ewayData.generatedBy ? 'generated' : 'fetched'} — fields auto-filled successfully
+                      <span className="ml-auto text-xs font-normal text-emerald-600">valid until {ewayData.validUntil}</span>
+                    </p>
+                    {(rows.length > 0 || partBShown) && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
+                        <p className="mb-1 text-sm font-bold uppercase tracking-wide text-amber-900">Needs attention</p>
+                        {rows.length > 0 && (
+                          <div className="mb-1 mt-3 flex flex-wrap items-center gap-2">
+                            <span className="rounded-md bg-amber-600 px-2 py-0.5 text-xs font-bold tracking-wide text-white">PART A</span>
+                            <span className="text-sm font-semibold text-slate-800">Differs from pickup {pickup.id}</span>
+                            <span className="text-xs text-slate-500">e-Way Bill info is used — change if required</span>
+                          </div>
+                        )}
+                        <div className="divide-y divide-amber-100">
+                          {rows.map((r) => (
+                            <div key={r.key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2">
+                              <div className="min-w-0 flex-1 basis-56">
+                                <p className="text-xs font-semibold text-slate-700">{r.label}</p>
+                                <p className="truncate text-xs text-slate-500">e-Way Bill: <span className="font-medium text-slate-700">{r.ewb ?? '—'}</span> · Pickup: <span className="font-medium text-slate-700">{r.pu ?? 'not on pickup'}</span></p>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {btn(r, 'ewb', 'Use e-Way Bill')}
+                                {btn(r, 'pu', 'Use pickup')}
+                                {btn(r, 'self', 'Correct myself')}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </dl>
-                  </div>
-                  {(() => {
-                    const same = sameText
-                    const pickupPackages = pickup.packagesCount ?? (packagesCount === '' ? null : Number(packagesCount))
-                    const checks = [
-                      ['Consignee', ewayData.consignee.name, pickup.consignee?.name, same(ewayData.consignee.name, pickup.consignee?.name)],
-                      ['City', ewayData.consignee.city, pickup.consignee?.city, same(ewayData.consignee.city, pickup.consignee?.city)],
-                      ['Pincode', ewayData.consignee.pincode, pickup.consignee?.pincode, String(ewayData.consignee.pincode) === String(pickup.consignee?.pincode ?? '')],
-                      ['Packages', ewayData.goods.quantity, pickupPackages, pickupPackages != null && Number(ewayData.goods.quantity) === Number(pickupPackages)],
-                    ]
-                    const diffs = checks.filter((c) => !c[3]).length
-                    return (
-                      <div className="border-t border-emerald-200 pt-3">
-                        <p className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-                          Cross-check with pickup {pickup.id}
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] normal-case ${diffs ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                            {diffs ? `${diffs} difference${diffs > 1 ? 's' : ''} — e-Way Bill values used` : 'All match'}
-                          </span>
-                        </p>
-                        <table className="w-full text-xs">
-                          <thead><tr className="text-left text-[10px] uppercase text-emerald-600"><th className="py-1 font-medium">Field</th><th className="font-medium">e-Way Bill</th><th className="font-medium">Pickup</th><th /></tr></thead>
-                          <tbody>
-                            {checks.map(([label, ewb, pu, ok]) => (
-                              <tr key={label} className="border-t border-emerald-100 text-emerald-900">
-                                <td className="py-1 pr-2 text-emerald-700">{label}</td>
-                                <td className="pr-2 font-medium">{ewb}</td>
-                                <td className="pr-2">{pu ?? <span className="text-emerald-500">Not on pickup</span>}</td>
-                                <td className={`text-right font-semibold ${ok ? 'text-emerald-600' : 'text-amber-700'}`}>{ok ? '✓ Match' : '⚠ Differs'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        {partBShown && (
+                          <div className={rows.length > 0 ? 'mt-3 border-t border-amber-100 pt-2' : 'mt-1'}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-md bg-amber-600 px-2 py-0.5 text-xs font-bold tracking-wide text-white">PART B</span>
+                              <span className="text-sm font-semibold text-slate-800">Vehicle on the e-Way Bill</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-2">
+                              <div className="min-w-0 flex-1 basis-56">
+                                {partB.by === 'us' && !partB.busy ? (
+                                  <p className="text-xs font-medium text-emerald-700">✓ Part B updated to <span className="font-semibold">{partB.vehicleNo}</span>{partB.was && <span className="font-normal text-slate-500"> (bill had {partB.was})</span>}</p>
+                                ) : (
+                                  <>
+                                    <p className="text-xs font-semibold text-slate-700">{partB.vehicleNo ? 'Vehicle on the bill differs' : 'No vehicle on the bill'}</p>
+                                    <p className="truncate text-xs text-slate-500">e-Way Bill: <span className="font-medium text-slate-700">{partB.vehicleNo ?? '—'}</span> · Assigned: <span className="font-medium text-slate-700">{vehicleNo || 'none yet — assign a vehicle above'}</span></p>
+                                  </>
+                                )}
+                              </div>
+                              {!(partB.by === 'us' && !partB.busy) && (
+                                <button type="button" onClick={updatePartBVehicle} disabled={!vehicleNo || partB.busy} className="rounded-lg border border-brand-orange bg-brand-orange px-3 py-1 text-xs font-semibold text-white hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-40">
+                                  {partB.busy ? 'Updating…' : 'Update vehicle'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )
-                  })()}
-                  <div className="border-t border-emerald-200 pt-3">
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Part B <span className="font-normal normal-case text-emerald-600">— vehicle details, filled when goods are loaded</span></p>
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                      <Field label="Vehicle No." value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} placeholder="e.g. DL-01-CZ-5567" />
-                      <Field label="Transporter GSTIN" value={transporterGstin} readOnly hint="LetsTransport" />
-                    </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </>
           ) : (
             <>
@@ -1378,6 +1504,12 @@ function DocketForm({ pickup, onGenerated }) {
                     </select>
                   </label>
                 </div>
+                {ewayNeed.state === 'ok' && (
+                  <label className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm font-medium ${ewayDeclared ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                    <input type="checkbox" checked={ewayDeclared} onChange={(e) => setEwayDeclared(e.target.checked)} className="mt-0.5 h-4 w-4 rounded accent-emerald-600" />
+                    I declare no e-way bill is required for this docket.
+                  </label>
+                )}
               </div>
             </>
           )}
@@ -1385,16 +1517,15 @@ function DocketForm({ pickup, onGenerated }) {
           </div>
         </div>
 
-        {generatedDocket && (
-          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-sm text-emerald-800">
-              <Icon name="approve" className="mr-1.5 inline h-4 w-4" />
-              Docket <span className="font-semibold">{fmtDocket(generatedDocket.docketNumber)}</span> generated — see Docket Dashboard, or open the Docket preview tab.
-            </p>
-          </div>
-        )}
-
-        <SectionCard title="Consignor & consignee">
+        <SectionCard
+          title="Consignor & consignee"
+          action={(
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-500" title="Printed on the docket next to the consignor">
+              Client code
+              <input value={clientCode} onChange={(e) => setClientCode(e.target.value.toUpperCase())} aria-label="Client code" placeholder="—" className="w-36 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm font-semibold tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40" />
+            </label>
+          )}
+        >
           <div className="grid gap-3 md:grid-cols-2">
             {[
               {
@@ -1423,27 +1554,21 @@ function DocketForm({ pickup, onGenerated }) {
                   </p>
                   {(() => {
                     const ro = p.key === 'consignor' && !consignorEditable
-                    const ln = ro ? 'min-w-0 border-0 bg-transparent px-0 py-0.5 focus:outline-none cursor-default' : line
                     return (
                       <>
-                        {p.key === 'consignee' ? (
-                          <ConsigneeNameInput
-                            className={`${line} w-full text-sm font-medium text-slate-800`}
-                            value={p.name}
-                            onChange={p.setName}
-                            clientId={pickup.clientId}
-                            clientName={pickup.clientName}
-                            onPick={(c) => { setConsigneeName(c.name); setConsigneeAddress(c.address ?? ''); setConsigneeCity(c.city ?? ''); setConsigneePincode(c.pincode ?? '') }}
-                          />
-                        ) : (
-                          <input className={`${ln} w-full text-sm font-medium text-slate-800`} value={p.name} onChange={(e) => p.setName(e.target.value)} readOnly={ro} placeholder="Name" aria-label={`${p.key} name`} />
-                        )}
-                        <input className={`${ln} mt-1 w-full text-xs text-slate-500`} value={p.address} onChange={(e) => p.setAddress(e.target.value)} readOnly={ro} placeholder="Address" aria-label={`${p.key} address`} />
-                        <div className="mt-1 flex items-center gap-2">
-                          <input className={`${ln} flex-1 text-xs text-slate-500`} value={p.city} onChange={(e) => p.setCity(e.target.value)} readOnly={ro} placeholder="City" aria-label={`${p.key} city`} />
-                          <span className="text-slate-300">·</span>
-                          <input className={`${ln} w-20 shrink-0 text-xs text-slate-500`} value={p.pincode} onChange={(e) => p.setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} readOnly={ro} placeholder="Pincode" inputMode="numeric" aria-label={`${p.key} pincode`} />
-                        </div>
+                        <PartyPicker
+                          kind={p.key}
+                          className={`${line} w-full text-sm font-medium text-slate-800`}
+                          value={p.name}
+                          clientId={pickup.clientId}
+                          clientName={pickup.clientName}
+                          disabled={ro}
+                          onPick={(c) => { p.setName(c.name); p.setAddress(c.address ?? ''); p.setCity(c.city ?? ''); p.setPincode(c.pincode ?? '') }}
+                        />
+                        <p className="mt-1 min-h-[1.25rem] text-xs text-slate-500" aria-label={`${p.key} address`}>{p.address || <span className="text-slate-300">Address</span>}</p>
+                        <p className="mt-1 text-xs text-slate-500" aria-label={`${p.key} city and pincode`}>
+                          {p.city || <span className="text-slate-300">City</span>} <span className="text-slate-300">·</span> {p.pincode || <span className="text-slate-300">Pincode</span>}
+                        </p>
                       </>
                     )
                   })()}
@@ -1475,7 +1600,7 @@ function DocketForm({ pickup, onGenerated }) {
               )}
             </div>
             <div>
-              <Field dense label="2 · Actual package count *" type="number" min="1" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder={estCount != null ? String(estCount) : '0'} />
+              <Field dense id="docket-package-count" label="2 · Actual package count *" type="number" min="1" value={packagesCount} onChange={(e) => setPackagesCount(e.target.value)} placeholder={estCount != null ? String(estCount) : '0'} />
               {estCount != null && Number(packagesCount) > 0 && Number(packagesCount) !== estCount && (
                 <p className="mt-1 text-[11px] text-amber-600">Estimate was {estCount}</p>
               )}
@@ -1537,25 +1662,32 @@ function DocketForm({ pickup, onGenerated }) {
         </SectionCard>
 
         <SectionCard
-          title="Pricing (auto)"
-          action={(
-            <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-              <label className="flex items-center gap-1.5" title={isOda ? `Consignee pincode ${consigneePincode} is on the ODA list (ODA ${odaEntry.oda})` : 'Consignee pincode is not on the ODA list'}>
-                <input type="checkbox" checked={isOda} disabled readOnly className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
-                ODA delivery
+          title={(
+            <span className="flex items-center gap-3">
+              Pricing
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500" title="Starts from the client's configuration — untick to leave charges off this docket's print">
+                <input type="checkbox" checked={printPricing} onChange={(e) => setPrintPricing(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                Print on docket
               </label>
-              <label className="flex items-center gap-1.5" title="From the pickup booking">
-                <input type="checkbox" checked={appointment} disabled readOnly className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
-                Appointment delivery
-              </label>
-            </div>
+            </span>
           )}
         >
           <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
-            {/* The charge list is fixed — a charge that doesn't apply shows ₹0 (muted) instead of disappearing. */}
+            {/* The charge list is fixed — a charge that doesn't apply shows ₹0 (muted) instead of disappearing. Basic freight, docket, appointment and ODA are automatic; the rest apply once ticked, at the client's rates. */}
             {pricing.lines.map((l) => (
               <div key={l.label} className="flex items-center justify-between px-3 py-1.5 text-sm">
-                <span className="text-slate-500">{l.label}{l.breakup?.length > 0 && <BreakupTip items={l.breakup} />}</span>
+                <span className="flex items-center gap-2 text-slate-500">
+                  {(() => {
+                    // Automatic charges are locked and simply show whether they apply to this docket.
+                    const auto = { 'Basic freight': true, 'Docket charges': true, Appointment: appointment, ODA: isOda }
+                    return l.key ? (
+                      <input type="checkbox" aria-label={`Apply ${l.label}`} checked={chargesOn[l.key]} onChange={(e) => setChargeOverride((c) => ({ ...c, [l.key]: e.target.checked }))} className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                    ) : (
+                      <input type="checkbox" aria-label={`${l.label} (automatic)`} checked={!!auto[l.label]} disabled readOnly title={l.label === 'ODA' ? (isOda ? `Consignee pincode ${consigneePincode} is on the ODA list` : 'Consignee pincode is not on the ODA list') : l.label === 'Appointment' ? 'From the pickup booking' : 'Always applied'} className="h-3.5 w-3.5 rounded border-slate-300 accent-brand-orange" />
+                    )
+                  })()}
+                  <span>{l.label}{l.breakup?.length > 0 && <BreakupTip items={l.breakup} />}</span>
+                </span>
                 <span className={`font-medium tabular-nums ${l.value > 0 ? 'text-slate-800' : 'text-slate-300'}`}>₹{l.value.toLocaleString('en-IN')}</span>
               </div>
             ))}
@@ -1606,22 +1738,22 @@ function DocketForm({ pickup, onGenerated }) {
         </SectionCard>
 
         <SectionCard title="Docket Terms">
-          <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+          <div className="flex flex-nowrap items-start justify-between gap-x-2 overflow-x-auto">
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">Payment term</span>
-              <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} compact />
+              <span className="mb-1 block whitespace-nowrap text-[11px] font-medium text-slate-500">Payment term</span>
+              <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={paymentTerm} onChange={setPaymentTerm} compact small />
             </div>
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">Risk cover</span>
-              <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} compact />
+              <span className="mb-1 block whitespace-nowrap text-[11px] font-medium text-slate-500">Risk cover</span>
+              <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} compact small />
             </div>
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">GST payable by</span>
-              <SegmentedControl options={[{ value: 'consignor', label: 'Consignor' }, { value: 'consignee', label: 'Consignee' }, { value: 'lt', label: 'LT' }]} value={gstPayableBy} onChange={setGstPayableBy} compact />
+              <span className="mb-1 block whitespace-nowrap text-[11px] font-medium text-slate-500">GST payable by</span>
+              <SegmentedControl options={[{ value: 'consignor', label: 'Consignor' }, { value: 'consignee', label: 'Consignee' }, { value: 'lt', label: 'LT' }]} value={gstPayableBy} onChange={setGstPayableBy} compact small />
             </div>
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">Proof of Delivery</span>
-              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} compact />
+              <span className="mb-1 block whitespace-nowrap text-[11px] font-medium text-slate-500">POD</span>
+              <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} compact small />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
@@ -1642,14 +1774,38 @@ function DocketForm({ pickup, onGenerated }) {
         {!generatedDocket && (
           <div className="flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white p-4 shadow-soft">
             {!mode && <p className="text-xs text-amber-700">Select the mode before generating.</p>}
-            {mode && !ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or mark it not required with a reason, before generating.</p>}
-            <button type="button" onClick={handleSubmit} disabled={!canSubmit} className={`ml-auto ${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
+            {mode && !ewayReady && <p className="text-xs text-amber-700">Fetch &amp; validate the e-Way Bill, or tick the “no e-way bill required” declaration, before generating.</p>}
+            <button type="button" onClick={() => setPreviewingCreate(true)} disabled={!canSubmit} className={`ml-auto ${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
               <Icon name="invoice" className="h-4 w-4" />
               Generate Docket
             </button>
           </div>
         )}
-      </div>
+      </fieldset>
+
+      {previewingCreate && createPortal(
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/50 p-4" onClick={() => setPreviewingCreate(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Preview docket</h3>
+                <p className="text-xs text-slate-500">Check everything — once the docket is created it can't be edited.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setPreviewingCreate(false)} className="rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Back to edit</button>
+                <button type="button" onClick={() => { setPreviewingCreate(false); handleSubmit() }} className={btnPrimary}>
+                  <Icon name="invoice" className="h-4 w-4" />
+                  Create docket
+                </button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-5">
+              <DocketSheet docket={draftDocket} />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {view === 'preview' && (
         <div className="rounded-2xl border border-slate-200/70 bg-slate-100 p-6 shadow-soft">

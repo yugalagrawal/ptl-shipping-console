@@ -31,6 +31,11 @@ export function isPlausibleEwayBillNumber(value) {
   return /^\d{12}$/.test(String(value ?? '').trim())
 }
 
+// Prototype test numbers for devs:
+//   123456789001 — happy path: fetched, valid, assigned to LetsTransport, no Part B vehicle on the bill
+//   123456789007 — happy path with a different vehicle already on Part B
+//   …11 / 123456789002 — exists but not assigned to LetsTransport
+//   …00 / 123456789003 — expired
 export function fetchEwayBill(number) {
   const clean = String(number ?? '').trim()
   return new Promise((resolve, reject) => {
@@ -70,9 +75,17 @@ export function fetchEwayBill(number) {
         goods: { ...goods, quantity: 4 + (seed % 20) },
         distanceKm: 50 + (seed % 900),
         validUntil: validUntil.toISOString().slice(0, 10),
+        // Part B (vehicle) — most consignor-raised bills arrive without it; some already carry one.
+        partB: seed % 4 === 0 ? { vehicleNo: 'MH12 ZZ 9999' } : null,
       })
     }, 700)
   })
+}
+
+// Simulated NIC Part-B update (POST /ewayapi/VEHEWB) — puts the vehicle number on a bill that
+// LetsTransport is the transporter of.
+export function updateEwayPartB(number, vehicleNo) {
+  return new Promise((resolve) => setTimeout(() => resolve({ ewayBillNo: number, vehicleNo }), 600))
 }
 
 // Simulated "generate on behalf of the consignor" — stands in for the NIC

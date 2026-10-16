@@ -115,7 +115,8 @@ export function buildDocketSheetBody(docket) {
   const consignorAddr = [cr.address, [cr.city, cr.state].filter(Boolean).join(', '), cr.pincode].filter(Boolean).join(' · ')
   const consigneeAddr = [cn.address, [cn.city, cn.state].filter(Boolean).join(', '), cn.pincode].filter(Boolean).join(' · ')
   // Client config "Pricing Shown on Docket" = No → every charge cell prints blank.
-  const showPricing = !docket.clientId || getClientConfigValues(docket.clientId)['pricing-on-docket'] !== 'No'
+  // A per-docket choice (Create Docket's "Print on docket") wins; otherwise the client's setting decides.
+  const showPricing = typeof docket.printPricing === 'boolean' ? docket.printPricing : (!docket.clientId || getClientConfigValues(docket.clientId)['pricing-on-docket'] !== 'No')
   const charge = (label) => (showPricing ? money(lineValue(pricing, label)) : '')
   const dimTable = dimRows.map((r) => `<tr><td class="v">${dash(r.l)}</td><td class="v">${dash(r.b)}</td><td class="v">${dash(r.h)}</td><td class="v">${dash(r.qty)}</td></tr>`).join('')
 
@@ -207,7 +208,7 @@ export function buildDocketSheetBody(docket) {
         <tr><td class="k">Docket Charges</td><td class="num">${charge('Docket charges')}</td><td class="k">ESS</td><td class="num">${charge('ESS')}</td></tr>
         <tr><td class="k">Exception Charges</td><td class="num">${charge('Exception')}</td><td class="k">Appointment</td><td class="num">${charge('Appointment')}</td></tr>
         <tr><td class="k">FOV: Owner Risk</td><td class="num">${charge('FOV')}</td><td class="k">Handling</td><td class="num">${charge('Handling')}</td></tr>
-        <tr><td class="k">ODA</td><td class="num">${charge('ODA')}</td><td class="k">Others</td><td class="num">${charge('Others')}</td></tr>
+        <tr><td class="k">ODA</td><td class="num">${charge('ODA')}</td><td class="k">Others<div style="font-size:6.5px;font-weight:400;color:#777;line-height:1.2;margin-top:1px">e.g. COD collection, Mathadi / Union, other charges agreed with client</div></td><td class="num">${charge('Others')}</td></tr>
         <tr><td class="k">GST</td><td class="num">${showPricing ? money(pricing?.gst) : ''}</td><td class="k">Total Charges</td><td class="num" style="font-size:12.5px">${showPricing && pricing?.total != null ? `₹${money(pricing.total)}` : ''}</td></tr>
       </table>
     </td>

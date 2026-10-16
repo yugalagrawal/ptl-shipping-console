@@ -151,7 +151,48 @@ function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
   )
 }
 
-function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly, clientId, yetToBuild }) {
+// "Pricing Conditions" — laid out like the docket's Pricing list: a charge per row with when it applies.
+// Others is a group: it expands into every other client charge, each with its own condition.
+function ConditionRow({ field, value, onChange, readOnly, indent }) {
+  const isDefault = value === field.default
+  return (
+    <div className={`flex items-center justify-between gap-4 px-4 py-2.5 text-sm ${indent ? 'bg-slate-50/50 pl-11' : ''}`}>
+      <span className="flex items-center gap-2 font-medium text-slate-700">
+        {field.label}
+        {!isDefault && <span className="rounded-full bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-orange-dark">Overridden</span>}
+      </span>
+      <select
+        aria-label={field.label}
+        value={value}
+        disabled={readOnly}
+        onChange={(e) => onChange(field.id, e.target.value)}
+        className={`w-72 rounded-xl border bg-slate-50/60 px-3 py-2 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 disabled:cursor-not-allowed disabled:opacity-60 ${isDefault ? 'border-slate-200' : 'border-brand-orange/40'}`}
+      >
+        {field.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function PricingConditionsList({ fieldIds, othersFieldIds, values, onChange, readOnly }) {
+  const [open, setOpen] = useState(false)
+  const applied = othersFieldIds.filter((id) => values[id] === 'Always').length
+  return (
+    <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-100">
+      {fieldIds.map((id) => <ConditionRow key={id} field={CLIENT_CONFIG_FIELDS_BY_ID[id]} value={values[id]} onChange={onChange} readOnly={readOnly} />)}
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-sm hover:bg-slate-50/70">
+        <span className="flex items-center gap-2 font-medium text-slate-700">
+          <Icon name="chevron" className={`h-4 w-4 text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+          Others <span className="font-normal text-slate-400">— every other client charge</span>
+        </span>
+        <span className="text-xs font-medium text-slate-500">{applied} of {othersFieldIds.length} applied</span>
+      </button>
+      {open && othersFieldIds.map((id) => <ConditionRow key={id} indent field={CLIENT_CONFIG_FIELDS_BY_ID[id]} value={values[id]} onChange={onChange} readOnly={readOnly} />)}
+    </div>
+  )
+}
+
+function ConfigCard({ title, icon, fieldIds, othersFieldIds, layout, values, onChange, readOnly, clientId, yetToBuild }) {
   return (
     <div className={`space-y-5 p-6 ${card}`}>
       <div className="flex items-center gap-2 border-b border-slate-100 pb-3 text-base font-semibold text-slate-800">
@@ -159,7 +200,9 @@ function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly, clientI
         {title}
         {yetToBuild && <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Yet to be built</span>}
       </div>
-      {/* Yet-to-build cards keep their dropdowns (dimmed, not editable) so nothing is lost for later. */}
+      {layout === 'conditions' ? (
+        <PricingConditionsList fieldIds={fieldIds} othersFieldIds={othersFieldIds} values={values} onChange={onChange} readOnly={readOnly} />
+      ) : (
       <div className={`grid gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 ${yetToBuild ? 'pointer-events-none opacity-50' : ''}`}>
         {fieldIds.map((fieldId) => (
           <Fragment key={fieldId}>
@@ -170,6 +213,7 @@ function ConfigCard({ title, icon, fieldIds, values, onChange, readOnly, clientI
           <SeriesPanel clientId={clientId} ranges={values['docket-series-ranges'] ?? []} onChange={(next) => onChange('docket-series-ranges', next)} readOnly={readOnly} />
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -454,7 +498,7 @@ function ClientConfigForm({ client, canEdit, onBack, initialTab }) {
           <div className={`p-6 text-sm text-slate-400 ${card}`}>Fields for this tab haven't been defined yet.</div>
         ) : (
           currentTab.cards.map((c) => (
-            <ConfigCard key={c.title} title={c.title} icon={c.icon} fieldIds={c.fieldIds} values={values} onChange={handleChange} readOnly={!canEdit} clientId={client.id} yetToBuild={c.yetToBuild} />
+            <ConfigCard key={c.title} title={c.title} icon={c.icon} fieldIds={c.fieldIds} othersFieldIds={c.othersFieldIds} layout={c.layout} values={values} onChange={handleChange} readOnly={!canEdit} clientId={client.id} yetToBuild={c.yetToBuild} />
           ))
         )}
       </div>

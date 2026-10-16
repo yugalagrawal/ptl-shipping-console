@@ -513,3 +513,16 @@ export function activateClient(client) {
   if (idx !== -1) PENDING_CLIENTS_SEED.splice(idx, 1)
   return activated
 }
+
+// The client's customer code as printed on dockets ("CLIENT CODE"). Uses the code captured at
+// onboarding when there is one; the seed active clients predate that field, so the same
+// {Group}-{Entity}-{Payment}-001 rule Client Onboarding derives it from stands in for it.
+const PAYMENT_CODE = { 'Credit Customer': 'CR', 'Prepaid Customer': 'PC', 'Cash Customer': 'CA' }
+const two = (s) => (s || '').replace(/[^a-zA-Z]/g, '').toUpperCase().padEnd(2, 'X').slice(0, 2)
+export function clientCodeFor(clientId, groupNameOf = () => '') {
+  const c = [...ACTIVE_CLIENTS_SEED, ...PENDING_CLIENTS_SEED].find((x) => x.id === clientId)
+  if (!c) return ''
+  const saved = c.details?.company?.customerCode
+  if (saved) return saved
+  return `${two(groupNameOf(c.groupId) || c.name)}-${two(c.name)}-${PAYMENT_CODE[c.paymentType] ?? 'XX'}-001`
+}

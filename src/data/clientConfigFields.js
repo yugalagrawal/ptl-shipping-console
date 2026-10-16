@@ -7,6 +7,9 @@
 export const DOCKET_SERIES_AUTO = 'System Generated (Auto)'
 export const DOCKET_SERIES_ASSIGNED = 'Assigned Series'
 
+// Client charges not covered by a named line above — kept in sync with what Create Docket rolls into "Others".
+export const PRICING_CONDITION_OTHERS = ['pc-others-cod_fee', 'pc-others-mathadi']
+
 export const CLIENT_CONFIG_FIELDS = [
   {
     id: 'docket-series',
@@ -217,6 +220,51 @@ export const CLIENT_CONFIG_FIELDS = [
     options: ['Customer App', 'Track-n-Trace API', 'Daily Email Excel MIS', 'Manual Tele Response'],
     default: 'Customer App',
   },
+  // Pricing Conditions — when each additional charge is applied to this client's dockets. Create
+  // Docket pre-ticks the charge from the option picked here; ops can still tick/untick it per docket.
+  {
+    id: 'pc-exception',
+    label: 'Exception Charges',
+    options: ['Never', 'Always', 'When an exception is raised'],
+    default: 'When an exception is raised',
+  },
+  {
+    id: 'pc-fov',
+    label: 'FOV: Owner Risk',
+    options: ['Never', 'Always', "When Owner's Risk is selected"],
+    default: "When Owner's Risk is selected",
+  },
+  {
+    id: 'pc-fsc',
+    label: 'FSC (Fuel Surcharge)',
+    options: ['Always', 'Never'],
+    default: 'Always',
+  },
+  {
+    id: 'pc-ess',
+    label: 'ESS (Emergency Situation Surcharge)',
+    options: ['Never', 'Always', 'While an emergency is declared'],
+    default: 'While an emergency is declared',
+  },
+  {
+    id: 'pc-handling',
+    label: 'Handling',
+    options: ['Never', 'Always', 'Above 200 kg chargeable weight'],
+    default: 'Above 200 kg chargeable weight',
+  },
+  // "Others" is a group: every client charge the lines above don't cover gets its own condition.
+  {
+    id: 'pc-others-cod_fee',
+    label: 'COD Collection Charges',
+    options: ['Always', 'Never'],
+    default: 'Always',
+  },
+  {
+    id: 'pc-others-mathadi',
+    label: 'Mathadi / Union Charges',
+    options: ['Always', 'Never'],
+    default: 'Always',
+  },
 ]
 
 export const CLIENT_CONFIG_FIELDS_BY_ID = Object.fromEntries(CLIENT_CONFIG_FIELDS.map((f) => [f.id, f]))
@@ -239,6 +287,13 @@ export const CLIENT_CONFIG_TABS = [
       // Only Docket Series is live for now; Booking Sequence and EWB Count Per
       // Docket stay defined above but are hidden until their behaviour is built.
       { title: 'Docket Config', icon: 'invoice', fieldIds: ['docket-series', 'pricing-on-docket'] },
+      {
+        title: 'Pricing Conditions',
+        icon: 'calculator',
+        layout: 'conditions', // listed like the docket's pricing panel; Others expands into its own charges
+        fieldIds: ['pc-exception', 'pc-fov', 'pc-fsc', 'pc-ess', 'pc-handling'],
+        othersFieldIds: PRICING_CONDITION_OTHERS,
+      },
       // Not built yet — the card keeps its dropdowns (dimmed, read-only) under a "Yet to be built" tag.
       {
         title: 'Tracking & Data Exchange',

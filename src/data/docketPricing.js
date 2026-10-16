@@ -68,6 +68,11 @@ const OTHERS_SKIP = new Set(['docket', 'fov', 'fsc', 'oda', 'gst', 'min_wt', 'rt
 export function priceDocket({
   clientId, actualWeightKg, volumetricWeightKg: volKg, ownersRisk = false, appointment = false, hasException = false,
   isOda = false, odaRate = null, clientCharges = STANDARD_CHARGES, paymentTerm = '', codAmount = 0,
+  // Optional charges (exception, fov, fsc, ess, handling, others) apply only when ops ticks them on the
+  // docket; once when-to-apply settings exist they'll pre-tick these. Basic freight, docket, appointment
+  // and ODA are always automatic. Leave `apply` undefined for the old rule-driven behaviour.
+  apply = null,
+  othersApply = null, // ids of the client's other charges that apply; null = all of them
 }) {
   const card = rateCardFor(clientId)
   const c = DEFAULT_CHARGES
@@ -75,24 +80,25 @@ export function priceDocket({
   // Pri Rule + minimum freight: never below the client's minimum (₹400 by default).
   const basicFreight = Math.max(card.minCharge, Math.round(chargeableWeight * card.perKgRate))
   const docketCharge = c.docket
-  const exceptionCharge = hasException ? c.exception : 0
-  const fov = ownersRisk ? c.fovOwnerRisk : 0
-  const fsc = Math.round(basicFreight * (card.fuelSurchargePct / 100))
-  const ess = EMERGENCY_SURCHARGE_ON && chargeableWeight > 0 ? Math.max(Math.round(chargeableWeight * c.essPerKg), c.essMin) : 0
+  const on = (key, ruleDriven) => (apply ? !!apply[key] : ruleDriven)
+  const exceptionCharge = on('exception', hasException) ? c.exception : 0
+  const fov = on('fov', ownersRisk) ? c.fovOwnerRisk : 0
+  const fsc = apply && !apply.fsc ? 0 : Math.round(basicFreight * (card.fuelSurchargePct / 100))
+  const ess = on('ess', EMERGENCY_SURCHARGE_ON) && chargeableWeight > 0 ? Math.max(Math.round(chargeableWeight * c.essPerKg), c.essMin) : 0
   const appointmentCharge = appointment ? c.appointment : 0
-  const handling = chargeableWeight > c.handlingFreeUpToKg ? Math.max(Math.round(chargeableWeight * c.handlingPerKg), c.handlingMin) : 0
+  const handling = (apply ? !!apply.handling : true) && chargeableWeight > c.handlingFreeUpToKg ? Math.max(Math.round(chargeableWeight * c.handlingPerKg), c.handlingMin) : 0
   // ODA: higher of ₹/kg or ₹/docket for the pincode's ODA category (odaRate); falls back to the
   // client's own ODA charge when no category is known.
   const odaRule = clientCharges.find((x) => x.id === 'oda') ?? STANDARD_CHARGES.find((x) => x.id === 'oda')
   const oda = isOda && odaRate ? Math.round(Math.max(odaRate.perKg * chargeableWeight, odaRate.perAwb)) : isOda && odaRule ? Math.round(resolveChargeAmount(odaRule, { chargeableWeightKg: chargeableWeight, baseFreight: basicFreight }) ?? 0) : 0
   // Others: any other charge the client has on their pricing (COD collection only on COD dockets).
   const others = clientCharges
-    .filter((x) => !OTHERS_SKIP.has(x.id) && !x.isWeightFloor && !x.locked && (x.id !== 'cod_fee' || paymentTerm === 'cod'))
+    .filter((x) => !OTHERS_SKIP.has(x.id) && (!othersApply || othersApply.includes(x.id)) && !x.isWeightFloor && !x.locked && (x.id !== 'cod_fee' || paymentTerm === 'cod'))
     .map((x) => {
       const amount = resolveChargeAmount(x, { chargeableWeightKg: chargeableWeight, baseFreight: basicFreight, codAmount })
       return { label: x.label, amount: amount == null ? null : Math.round(amount) } // null = billed at actuals
     })
-  const othersTotal = others.reduce((n, x) => n + (x.amount ?? 0), 0)
+  const othersTotal = apply && !apply.others ? 0 : others.reduce((n, x) => n + (x.amount ?? 0), 0)
   const subtotal = basicFreight + docketCharge + exceptionCharge + fov + fsc + ess + appointmentCharge + handling + oda + othersTotal
   const gst = Math.round(subtotal * 0.18)
   const total = subtotal + gst
@@ -103,14 +109,14 @@ export function priceDocket({
     lines: [
       { label: 'Basic freight', value: basicFreight },
       { label: 'Docket charges', value: docketCharge },
-      { label: 'Exception charges', value: exceptionCharge },
-      { label: 'FOV: Owner Risk', value: fov },
-      { label: `FSC (${card.fuelSurchargePct}%)`, value: fsc },
-      { label: 'ESS (emergency)', value: ess },
+      { label: 'Exception charges', value: exceptionCharge, key: 'exception' },
+      { label: 'FOV: Owner Risk', value: fov, key: 'fov' },
+      { label: `FSC (${card.fuelSurchargePct}%)`, value: fsc, key: 'fsc' },
+      { label: 'ESS (emergency)', value: ess, key: 'ess' },
       { label: 'Appointment', value: appointmentCharge },
-      { label: 'Handling', value: handling },
+      { label: 'Handling', value: handling, key: 'handling' },
       { label: 'ODA', value: oda },
-      { label: 'Others', value: othersTotal, breakup: others },
+      { label: 'Others', value: othersTotal, breakup: others, key: 'others' },
     ],
     subtotal,
     gst,
