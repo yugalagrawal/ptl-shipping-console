@@ -4,6 +4,8 @@ import { card } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
 import { initOrdersSeed, savedPickupAddressesForClient, savedDeliveryAddressesForClient } from '../../data/orders.js'
 import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
+import { PAYMENT_TERM, PAYMENT_TERM_LABEL, RISK_COVER, RISK_COVER_LABEL, POD_TYPE, POD_TYPE_LABEL } from '../../data/dockets.js'
+import { SegmentedControl, GoodsPicker, BoxSizeRows, emptyPackageRow } from '../docket/CreateDocket.jsx'
 import {
   PICKUPS_SEED, PICKUP_STATUS_LABEL, PICKUP_STATUS_BADGE, MINI_HUBS, createPickup,
   PICKUP_TYPE, REPEAT_END_TYPE, createRecurringSeries, refreshPickupLocks, refreshRecurringWindows,
@@ -901,6 +903,12 @@ export default function CreatePickup() {
 
   const [estWeight, setEstWeight] = useState('')
   const [estimatedBoxes, setEstimatedBoxes] = useState('')
+  const [packageRows, setPackageRows] = useState([emptyPackageRow()])
+  // With a single size, its quantity just follows the box count.
+  useEffect(() => {
+    const n = Number(estimatedBoxes) || 0
+    if (n > 0) setPackageRows((rows) => (rows.length === 1 && Number(rows[0].qty) !== n ? [{ ...rows[0], qty: n }] : rows))
+  }, [estimatedBoxes])
   const [pickupDate, setPickupDate] = useState('')
   const [pickupTime, setPickupTime] = useState('')
 
@@ -929,6 +937,21 @@ export default function CreatePickup() {
   const [dropMiniHubId, setDropMiniHubId] = useState('')
   const [paymentTerm, setPaymentTerm] = useState(PAYMENT_TERMS[0])
   const [instructions, setInstructions] = useState('')
+
+  // Docket Info (optional) — same fields as Create Docket's Document + Docket
+  // Terms, captured up front so the docket can be raised from them later.
+  const [ewayBillNo, setEwayBillNo] = useState('')
+  const [invoiceNo, setInvoiceNo] = useState('')
+  const [invoiceDate, setInvoiceDate] = useState('')
+  const [invoiceValue, setInvoiceValue] = useState('')
+  const [goodsDescription, setGoodsDescription] = useState('')
+  const [hsnCode, setHsnCode] = useState('')
+  const [docketPaymentTerm, setDocketPaymentTerm] = useState(PAYMENT_TERM.TO_PAY)
+  const [riskCover, setRiskCover] = useState(RISK_COVER.CARRIERS_RISK)
+  const [gstPayableBy, setGstPayableBy] = useState('')
+  const [podType, setPodType] = useState(POD_TYPE.EPOD)
+  const [policyNo, setPolicyNo] = useState('')
+  const [insuredValue, setInsuredValue] = useState('')
 
   const [showConfirmed, setShowConfirmed] = useState(false)
   const [lastCreated, setLastCreated] = useState(null)
@@ -961,6 +984,13 @@ export default function CreatePickup() {
     // further for fields nothing downstream (PRS/MyOrders) reads yet.
     const details = {
       contentType, contentDescription, fragile, hazardous, hazardClass, unNumber, appointment,
+      boxSizes: packageRows.filter((r) => r.boxId).map((r) => ({ boxId: r.boxId, label: r.label, l: r.l, b: r.b, h: r.h, qty: Number(r.qty) || 0 })),
+      docketInfo: {
+        ewayBillNo: ewayBillNo.trim(), invoiceNo: invoiceNo.trim(), invoiceDate, invoiceValue: invoiceValue ? Number(invoiceValue) : null,
+        goodsDescription: goodsDescription.trim(), hsn: hsnCode,
+        paymentTerm: docketPaymentTerm, riskCover, gstPayableBy, podType,
+        policyNo: policyNo.trim(), insuredValue: insuredValue ? Number(insuredValue) : null,
+      },
       estimatedBoxes: estimatedBoxes ? Number(estimatedBoxes) : null,
       destinations: destinations.filter((d) => consigneeUnknown || d.consignee).map((d, i) => ({
         consignee: consigneeUnknown ? { name: d.destLabel || String.fromCharCode(65 + i) } : d.consignee,
@@ -1030,10 +1060,22 @@ export default function CreatePickup() {
     setUnNumber('')
     setEstWeight('')
     setEstimatedBoxes('')
+    setPackageRows([emptyPackageRow()])
     setPickupDate('')
     setPickupTime('')
-    setEwbApplicable(true)
     setInstructions('')
+    setEwayBillNo('')
+    setInvoiceNo('')
+    setInvoiceDate('')
+    setInvoiceValue('')
+    setGoodsDescription('')
+    setHsnCode('')
+    setDocketPaymentTerm(PAYMENT_TERM.TO_PAY)
+    setRiskCover(RISK_COVER.CARRIERS_RISK)
+    setGstPayableBy('')
+    setPodType(POD_TYPE.EPOD)
+    setPolicyNo('')
+    setInsuredValue('')
     setRepeatPickup(false)
     setRepeatDays([])
     setRepeatEnds('Never')
@@ -1190,6 +1232,11 @@ export default function CreatePickup() {
             </div>
           )}
 
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={appointment} onChange={(e) => setAppointment(e.target.checked)} className="h-4 w-4 rounded accent-brand-orange" />
+            Appointment delivery
+          </label>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Pickup date" required type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} />
             <label className="block">
@@ -1257,6 +1304,7 @@ export default function CreatePickup() {
               <Field label="Estimated weight (kg)" required type="number" value={estWeight} onChange={(e) => setEstWeight(e.target.value)} />
               <Field label="Estimated box count" type="number" value={estimatedBoxes} onChange={(e) => setEstimatedBoxes(e.target.value)} />
             </div>
+            <BoxSizeRows label="Box size" rows={packageRows} setRows={setPackageRows} totalBoxes={Number(estimatedBoxes) || 0} />
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-slate-500">Content type</span>
@@ -1282,10 +1330,6 @@ export default function CreatePickup() {
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={hazardous} onChange={(e) => setHazardous(e.target.checked)} className="h-4 w-4 rounded accent-rose-500" />
                 Hazardous / dangerous goods
-              </label>
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={appointment} onChange={(e) => setAppointment(e.target.checked)} className="h-4 w-4 rounded accent-brand-orange" />
-                Appointment delivery
               </label>
             </div>
             {hazardous && (
@@ -1476,6 +1520,45 @@ export default function CreatePickup() {
                   </>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-xl border border-slate-200 p-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Docket Info <span className="font-normal normal-case tracking-normal">(optional)</span></span>
+            <Field label="E-Way Bill number" value={ewayBillNo} onChange={(e) => setEwayBillNo(e.target.value)} placeholder="12-digit EWB number" />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Invoice no." value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="e.g. BW/OKH/26-27/01177" />
+              <Field label="Invoice date" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+              <Field label="Value incl. GST (₹)" type="number" min="0" value={invoiceValue} onChange={(e) => setInvoiceValue(e.target.value)} placeholder="0" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">Goods description</span>
+                <GoodsPicker value={goodsDescription} onChange={setGoodsDescription} onPick={(g) => { setGoodsDescription(g.name); setHsnCode(g.hsn) }} />
+              </label>
+              <Field label="HSN" value={hsnCode} inputMode="numeric" placeholder="3304" onChange={(e) => setHsnCode(e.target.value.replace(/[^\d]/g, '').slice(0, 8))} />
+            </div>
+            <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">Payment term</span>
+                <SegmentedControl options={Object.values(PAYMENT_TERM).map((v) => ({ value: v, label: PAYMENT_TERM_LABEL[v] }))} value={docketPaymentTerm} onChange={setDocketPaymentTerm} compact />
+              </div>
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">Risk cover</span>
+                <SegmentedControl options={Object.values(RISK_COVER).map((v) => ({ value: v, label: RISK_COVER_LABEL[v] }))} value={riskCover} onChange={setRiskCover} compact />
+              </div>
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">GST payable by</span>
+                <SegmentedControl options={[{ value: 'consignor', label: 'Consignor' }, { value: 'consignee', label: 'Consignee' }, { value: 'lt', label: 'LT' }]} value={gstPayableBy} onChange={setGstPayableBy} compact />
+              </div>
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-500">Proof of Delivery</span>
+                <SegmentedControl options={Object.values(POD_TYPE).map((v) => ({ value: v, label: POD_TYPE_LABEL[v] }))} value={podType} onChange={setPodType} compact />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Insurance · policy name / no." value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} placeholder="e.g. HDFC ERGO / P/123456" />
+              <Field label="Amount covered (₹)" type="number" min="0" value={insuredValue} onChange={(e) => setInsuredValue(e.target.value)} placeholder="0" />
             </div>
           </div>
 

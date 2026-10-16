@@ -58,7 +58,7 @@ function SectionCard({ title, action, children }) {
   )
 }
 
-function SegmentedControl({ options, value, onChange, compact }) {
+export function SegmentedControl({ options, value, onChange, compact }) {
   return (
     <div className={`flex gap-1 rounded-xl bg-slate-100 p-1 text-sm ${compact ? 'w-fit' : 'flex-wrap'}`}>
       {options.map((o) => (
@@ -315,15 +315,125 @@ function PickupSearch({ onSelect }) {
   )
 }
 
-const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, boxId: '', label: '', l: '', b: '', h: '', qty: 1 })
+export const emptyPackageRow = () => ({ id: `pk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, boxId: '', label: '', l: '', b: '', h: '', qty: 1 })
 
 // Goods details beyond what the invoice / e-Way Bill already carries.
 // Same two flags Create Pickup captures, so the docket starts from what the booking said.
 const HANDLING_FLAGS = ['Fragile', 'Hazardous']
 
-function packageVolumeCft(row) {
+export function packageVolumeCft(row) {
   const l = Number(row.l) || 0, b = Number(row.b) || 0, h = Number(row.h) || 0, qty = Number(row.qty) || 0
   return (l * b * h * qty) / 28317 // cm³ per cubic foot
+}
+
+// Box-size rows (box master pick, qty, CFT) — shared by Create Docket and
+// Create Pickup. `rows` live in the parent; the box master and the cm/in
+// switch are local.
+export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalBoxes, label = '5 · Box size' }) {
+  const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
+  // Box dimensions are stored in cm; this only switches how they're shown and
+  // typed (inches convert automatically both ways).
+  const [dimUnit, setDimUnit] = useState('cm')
+  const toUnit = (cm) => (dimUnit === 'in' ? Math.round((Number(cm) / 2.54) * 10) / 10 : cm)
+  const toCm = (v) => (dimUnit === 'in' ? Math.round(Number(v) * 2.54 * 10) / 10 : Number(v))
+  const dims3 = (x) => `${toUnit(x.l)} × ${toUnit(x.b)} × ${toUnit(x.h)}`
+  const [creatingBoxFor, setCreatingBoxFor] = useState(null) // row id
+  const [newBox, setNewBox] = useState({ l: '', b: '', h: '' })
+  const boxesCovered = packageRows.reduce((n, r) => n + (Number(r.qty) || 0), 0)
+
+  function addPackageRow() {
+    // The new size takes the boxes still unassigned; if every box is already
+    // sized, it takes one from the last row that has more than one.
+    setPackageRows((prev) => {
+      const left = totalBoxes - prev.reduce((n, r) => n + (Number(r.qty) || 0), 0)
+      if (left > 0) return [...prev, { ...emptyPackageRow(), qty: left }]
+      const donor = [...prev].reverse().find((r) => Number(r.qty) > 1)
+      const next = donor ? prev.map((r) => (r.id === donor.id ? { ...r, qty: Number(r.qty) - 1 } : r)) : prev
+      return [...next, { ...emptyPackageRow(), qty: 1 }]
+    })
+  }
+  function updatePackageRow(id, patch) {
+    setPackageRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  }
+  function removePackageRow(id) {
+    setPackageRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev))
+  }
+
+  return (
+  <div className="space-y-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+      <span className="flex items-center gap-2 normal-case">
+        <span className="text-xs font-medium text-slate-500">{label} <span className="font-normal text-slate-400">(L × B × H)</span></span>
+        <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold">
+          {['cm', 'in'].map((u) => (
+            <button key={u} type="button" onClick={() => setDimUnit(u)} className={`rounded px-1.5 py-0.5 ${dimUnit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
+          ))}
+        </span>
+      </span>
+      <span>Qty</span><span className="text-right">CFT</span><span />
+    </div>
+    {packageRows.map((row) => {
+      const cell = 'w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1.5 text-sm tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+      return (
+        <div key={row.id} className="space-y-1.5">
+          <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
+            <select
+              value={row.boxId}
+              onChange={(e) => {
+                if (e.target.value === '__create') { setCreatingBoxFor(row.id); setNewBox({ l: '', b: '', h: '' }); return }
+                const x = boxes.find((bx) => bx.id === e.target.value)
+                updatePackageRow(row.id, x ? { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h } : { boxId: '', label: '', l: '', b: '', h: '' })
+              }}
+              className={`${cell} ${row.boxId ? '' : 'text-slate-400'}`}
+              aria-label="Box size"
+            >
+              <option value="">{`Select box (${dimUnit})`}</option>
+              {boxes.map((x) => <option key={x.id} value={x.id}>{x.name} — {dims3(x).replaceAll(' ', '')} {dimUnit}</option>)}
+              <option value="__create">+ Create new box…</option>
+            </select>
+            <input type="number" min="1" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className={cell} aria-label="Quantity" />
+            <span className="text-right text-sm tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</span>
+            <button type="button" onClick={() => removePackageRow(row.id)} disabled={packageRows.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30" aria-label="Remove size"><Icon name="trash" className="h-4 w-4" /></button>
+          </div>
+          {creatingBoxFor === row.id && (
+            <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+              {[['l', 'L'], ['b', 'B'], ['h', 'H']].map(([k, label]) => (
+                <label key={k} className="block"><span className="mb-1 block text-[11px] text-slate-500">{label} ({dimUnit})</span><input type="number" min="1" value={newBox[k]} onChange={(e) => setNewBox({ ...newBox, [k]: e.target.value })} className={`${cell} w-20`} aria-label={`New box ${label}`} /></label>
+              ))}
+              <button
+                type="button"
+                disabled={!(Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0)}
+                onClick={() => {
+                  const x = addBoxToMaster({ l: toCm(newBox.l), b: toCm(newBox.b), h: toCm(newBox.h) })
+                  setBoxes([...BOX_MASTER])
+                  updatePackageRow(row.id, { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h })
+                  setCreatingBoxFor(null)
+                }}
+                className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                Add box
+              </button>
+              <button type="button" onClick={() => setCreatingBoxFor(null)} className="pb-2 text-xs font-medium text-slate-400 hover:text-slate-600">Cancel</button>
+              {dimUnit === 'in' && Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0 && (
+                <span className="basis-full text-[11px] text-slate-400">= {toCm(newBox.l)} × {toCm(newBox.b)} × {toCm(newBox.h)} cm (stored in cm)</span>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    })}
+    <div className="flex items-center justify-between pt-0.5">
+      <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1 text-xs font-medium text-brand-orange-dark hover:underline">
+        <Icon name="plus" className="h-3.5 w-3.5" /> Another size
+      </button>
+      {totalBoxes > 0 && (
+        <span className={`text-xs font-medium ${boxesCovered === totalBoxes ? 'text-emerald-600' : boxesCovered > totalBoxes ? 'text-red-600' : 'text-amber-600'}`}>
+          {boxesCovered === totalBoxes ? `✓ All ${totalBoxes} boxes sized` : boxesCovered > totalBoxes ? `${boxesCovered - totalBoxes} too many — ${totalBoxes} boxes` : `${boxesCovered} of ${totalBoxes} sized — ${totalBoxes - boxesCovered} left`}
+        </span>
+      )}
+    </div>
+  </div>
+  )
 }
 
 function pad2(n) {
@@ -365,7 +475,7 @@ function BreakupTip({ items }) {
 // Goods description with a pick-list from the goods catalog: choosing an entry
 // fills the description and its HSN together (onPick), while free text is
 // still allowed — "Said to contain" is often more specific than the catalog.
-function GoodsPicker({ value, onChange, onPick, inputRef }) {
+export function GoodsPicker({ value, onChange, onPick, inputRef }) {
   const [open, setOpen] = useState(false)
   const results = searchGoods(value)
   return (
@@ -658,7 +768,6 @@ function DocketForm({ pickup, onGenerated }) {
   // ⑨⑩ Packages — dimensions per SKU row, actual weight above, volumetric
   // computed here (auto), chargeable weight = MAX(actual, volumetric).
   const [packageRows, setPackageRows] = useState([emptyPackageRow()])
-  const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
   // Shipment details from Create Pickup — start as booked, editable.
   const [contentType, setContentType] = useState(pickup.details?.contentType ?? '')
   const [contentDescription, setContentDescription] = useState(pickup.details?.contentDescription ?? '')
@@ -668,14 +777,6 @@ function DocketForm({ pickup, onGenerated }) {
     ...(pickup.details?.fragile ? ['Fragile'] : []),
     ...(pickup.details?.hazardous ? ['Hazardous'] : []),
   ])
-  // Box dimensions are stored in cm; this only switches how they're shown and
-  // typed (inches convert automatically both ways).
-  const [dimUnit, setDimUnit] = useState('cm')
-  const toUnit = (cm) => (dimUnit === 'in' ? Math.round((Number(cm) / 2.54) * 10) / 10 : cm)
-  const toCm = (v) => (dimUnit === 'in' ? Math.round(Number(v) * 2.54 * 10) / 10 : Number(v))
-  const dims3 = (x) => `${toUnit(x.l)} × ${toUnit(x.b)} × ${toUnit(x.h)}`
-  const [creatingBoxFor, setCreatingBoxFor] = useState(null) // row id
-  const [newBox, setNewBox] = useState({ l: '', b: '', h: '' })
   const totalVolumeCft = useMemo(() => packageRows.reduce((s, r) => s + packageVolumeCft(r), 0), [packageRows])
   const volKg = useMemo(() => volumetricWeightKg(totalVolumeCft), [totalVolumeCft])
   const enteredActualWeight = Number(actualWeightKg) || 0
@@ -686,7 +787,6 @@ function DocketForm({ pickup, onGenerated }) {
   useEffect(() => {
     if (totalBoxes > 0) setPackageRows((rows) => (rows.length === 1 && Number(rows[0].qty) !== totalBoxes ? [{ ...rows[0], qty: totalBoxes }] : rows))
   }, [totalBoxes])
-  const boxesCovered = packageRows.reduce((n, r) => n + (Number(r.qty) || 0), 0)
 
   // ⑧ ODA — real build resolves this from Location Master's Serviceability
   // (is the consignee's pincode inside a mapped Hub/Mini Hub's coverage?);
@@ -835,24 +935,6 @@ function DocketForm({ pickup, onGenerated }) {
     riskCover, policyNo,
     packageRows, volumetricWeightKg: volKg,
     documents: { declaration: true },
-  }
-
-  function addPackageRow() {
-    // The new size takes the boxes still unassigned; if every box is already
-    // sized, it takes one from the last row that has more than one.
-    setPackageRows((prev) => {
-      const left = totalBoxes - prev.reduce((n, r) => n + (Number(r.qty) || 0), 0)
-      if (left > 0) return [...prev, { ...emptyPackageRow(), qty: left }]
-      const donor = [...prev].reverse().find((r) => Number(r.qty) > 1)
-      const next = donor ? prev.map((r) => (r.id === donor.id ? { ...r, qty: Number(r.qty) - 1 } : r)) : prev
-      return [...next, { ...emptyPackageRow(), qty: 1 }]
-    })
-  }
-  function updatePackageRow(id, patch) {
-    setPackageRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-  }
-  function removePackageRow(id) {
-    setPackageRows((prev) => (prev.length > 1 ? prev.filter((r) => r.id !== id) : prev))
   }
 
   function handleSubmit() {
@@ -1268,79 +1350,7 @@ function DocketForm({ pickup, onGenerated }) {
             <Field dense label="4 · Content description" aria-label="Content description" value={contentDescription} onChange={(e) => setContentDescription(e.target.value)} placeholder="e.g. Cosmetics" />
           </div>
 
-          <div className="space-y-2">
-            <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              <span className="flex items-center gap-2 normal-case">
-                <span className="text-xs font-medium text-slate-500">5 · Box size <span className="font-normal text-slate-400">(L × B × H)</span></span>
-                <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold">
-                  {['cm', 'in'].map((u) => (
-                    <button key={u} type="button" onClick={() => setDimUnit(u)} className={`rounded px-1.5 py-0.5 ${dimUnit === u ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>{u}</button>
-                  ))}
-                </span>
-              </span>
-              <span>Qty</span><span className="text-right">CFT</span><span />
-            </div>
-            {packageRows.map((row) => {
-              const cell = 'w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1.5 text-sm tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
-              return (
-                <div key={row.id} className="space-y-1.5">
-                  <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
-                    <select
-                      value={row.boxId}
-                      onChange={(e) => {
-                        if (e.target.value === '__create') { setCreatingBoxFor(row.id); setNewBox({ l: '', b: '', h: '' }); return }
-                        const x = boxes.find((bx) => bx.id === e.target.value)
-                        updatePackageRow(row.id, x ? { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h } : { boxId: '', label: '', l: '', b: '', h: '' })
-                      }}
-                      className={`${cell} ${row.boxId ? '' : 'text-slate-400'}`}
-                      aria-label="Box size"
-                    >
-                      <option value="">{`Select box (${dimUnit})`}</option>
-                      {boxes.map((x) => <option key={x.id} value={x.id}>{x.name} — {dims3(x).replaceAll(' ', '')} {dimUnit}</option>)}
-                      <option value="__create">+ Create new box…</option>
-                    </select>
-                    <input type="number" min="1" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className={cell} aria-label="Quantity" />
-                    <span className="text-right text-sm tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</span>
-                    <button type="button" onClick={() => removePackageRow(row.id)} disabled={packageRows.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30" aria-label="Remove size"><Icon name="trash" className="h-4 w-4" /></button>
-                  </div>
-                  {creatingBoxFor === row.id && (
-                    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
-                      {[['l', 'L'], ['b', 'B'], ['h', 'H']].map(([k, label]) => (
-                        <label key={k} className="block"><span className="mb-1 block text-[11px] text-slate-500">{label} ({dimUnit})</span><input type="number" min="1" value={newBox[k]} onChange={(e) => setNewBox({ ...newBox, [k]: e.target.value })} className={`${cell} w-20`} aria-label={`New box ${label}`} /></label>
-                      ))}
-                      <button
-                        type="button"
-                        disabled={!(Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0)}
-                        onClick={() => {
-                          const x = addBoxToMaster({ l: toCm(newBox.l), b: toCm(newBox.b), h: toCm(newBox.h) })
-                          setBoxes([...BOX_MASTER])
-                          updatePackageRow(row.id, { boxId: x.id, label: x.name, l: x.l, b: x.b, h: x.h })
-                          setCreatingBoxFor(null)
-                        }}
-                        className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
-                      >
-                        Add box
-                      </button>
-                      <button type="button" onClick={() => setCreatingBoxFor(null)} className="pb-2 text-xs font-medium text-slate-400 hover:text-slate-600">Cancel</button>
-                      {dimUnit === 'in' && Number(newBox.l) > 0 && Number(newBox.b) > 0 && Number(newBox.h) > 0 && (
-                        <span className="basis-full text-[11px] text-slate-400">= {toCm(newBox.l)} × {toCm(newBox.b)} × {toCm(newBox.h)} cm (stored in cm)</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            <div className="flex items-center justify-between pt-0.5">
-              <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1 text-xs font-medium text-brand-orange-dark hover:underline">
-                <Icon name="plus" className="h-3.5 w-3.5" /> Another size
-              </button>
-              {totalBoxes > 0 && (
-                <span className={`text-xs font-medium ${boxesCovered === totalBoxes ? 'text-emerald-600' : boxesCovered > totalBoxes ? 'text-red-600' : 'text-amber-600'}`}>
-                  {boxesCovered === totalBoxes ? `✓ All ${totalBoxes} boxes sized` : boxesCovered > totalBoxes ? `${boxesCovered - totalBoxes} too many — ${totalBoxes} boxes` : `${boxesCovered} of ${totalBoxes} sized — ${totalBoxes - boxesCovered} left`}
-                </span>
-              )}
-            </div>
-          </div>
+          <BoxSizeRows rows={packageRows} setRows={setPackageRows} totalBoxes={totalBoxes} />
 
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
             <div className="flex shrink-0 flex-col gap-1.5">
