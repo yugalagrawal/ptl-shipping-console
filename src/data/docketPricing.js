@@ -42,9 +42,22 @@ export function rateCardFor(clientId) {
   return CLIENT_RATE_CARDS[clientId] ?? DEFAULT_RATE_CARD
 }
 
-export function volumetricWeightKg(totalVolumeCft) {
-  // Sample sheet's own stated convention: 1 CFT = 6 kg.
-  return Math.round(totalVolumeCft * 6 * 10) / 10
+// "CFT to KG conversion" captured per client at onboarding (Air / Surface).
+// Sample values standing in for that lookup; any client not listed uses 6.
+const CLIENT_CFT_TO_KG = {
+  nykaa: { Surface: 6, Air: 8 },
+  lenskart: { Surface: 7, Air: 10 },
+}
+export const CFT_TO_KG_DEFAULT = 6 // 1 CFT = 6 kg
+
+// Air uses the client's Air factor; any other mode — or no mode picked yet — uses Surface.
+export function cftToKgFor(clientId, mode) {
+  const f = CLIENT_CFT_TO_KG[clientId]
+  return (mode === 'air' ? f?.Air : f?.Surface) ?? CFT_TO_KG_DEFAULT
+}
+
+export function volumetricWeightKg(totalVolumeCft, cftToKg = CFT_TO_KG_DEFAULT) {
+  return Math.round(totalVolumeCft * cftToKg * 10) / 10
 }
 
 // Client Pricing charges the docket already prices itself (or that only apply to

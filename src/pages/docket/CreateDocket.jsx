@@ -22,7 +22,7 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import { getAllConsignees, addConsigneeForClient } from '../../data/consignees.js'
 import { FLEET_SEED, VEHICLE_STATUS, VEHICLE_STATUS_LABEL, VEHICLE_STATUS_BADGE } from '../../data/fleet.js'
 import { fetchEwayBill, generateEwayBill, isPlausibleEwayBillNumber, OUR_GSTIN } from '../../data/ewayBill.js'
-import { priceDocket, volumetricWeightKg } from '../../data/docketPricing.js'
+import { priceDocket, volumetricWeightKg, cftToKgFor } from '../../data/docketPricing.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
 import { odaEntryForPincode, getDefaultOdaRate } from '../../data/odaPincodes.js'
 import { printDocketSheet } from './docketPrintSheet.js'
@@ -58,15 +58,15 @@ function SectionCard({ title, action, children }) {
   )
 }
 
-export function SegmentedControl({ options, value, onChange, compact }) {
+export function SegmentedControl({ options, value, onChange, compact, small }) {
   return (
-    <div className={`flex gap-1 rounded-xl bg-slate-100 p-1 text-sm ${compact ? 'w-fit' : 'flex-wrap'}`}>
+    <div className={`flex rounded-xl bg-slate-100 ${small ? 'gap-0.5 rounded-lg p-0.5 text-[11px]' : 'gap-1 p-1 text-sm'} ${compact ? 'w-fit' : 'flex-wrap'}`}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`whitespace-nowrap rounded-lg ${compact ? 'px-2.5' : 'px-3'} py-1.5 font-medium transition-colors ${value === o.value ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`whitespace-nowrap rounded-md ${small ? 'px-1.5 py-1' : `${compact ? 'px-2.5' : 'px-3'} py-1.5`} font-medium transition-colors ${value === o.value ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
         >
           {o.label}
         </button>
@@ -329,7 +329,7 @@ export function packageVolumeCft(row) {
 // Box-size rows (box master pick, qty, CFT) — shared by Create Docket and
 // Create Pickup. `rows` live in the parent; the box master and the cm/in
 // switch are local.
-export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalBoxes, label = '5 · Box size' }) {
+export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalBoxes, label = '5 · Box size', cftToKg = 6 }) {
   const [boxes, setBoxes] = useState(() => [...BOX_MASTER])
   // Box dimensions are stored in cm; this only switches how they're shown and
   // typed (inches convert automatically both ways).
@@ -361,7 +361,7 @@ export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalB
 
   return (
   <div className="space-y-2">
-    <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+    <div className="grid grid-cols-[minmax(0,1fr)_4rem_1.5rem] items-center gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
       <span className="flex items-center gap-2 normal-case">
         <span className="text-xs font-medium text-slate-500">{label} <span className="font-normal text-slate-400">(L × B × H)</span></span>
         <span className="inline-flex rounded-md bg-slate-100 p-0.5 text-[10px] font-semibold">
@@ -370,13 +370,13 @@ export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalB
           ))}
         </span>
       </span>
-      <span>Qty</span><span className="text-right">CFT</span><span />
+      <span>Qty</span><span />
     </div>
     {packageRows.map((row) => {
       const cell = 'w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1.5 text-sm tabular-nums text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
       return (
         <div key={row.id} className="space-y-1.5">
-          <div className="grid grid-cols-[minmax(0,1fr)_4rem_3.5rem_1.5rem] items-center gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_4rem_1.5rem] items-center gap-2">
             <select
               value={row.boxId}
               onChange={(e) => {
@@ -392,7 +392,6 @@ export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalB
               <option value="__create">+ Create new box…</option>
             </select>
             <input type="number" min="1" value={row.qty} onChange={(e) => updatePackageRow(row.id, { qty: e.target.value })} className={cell} aria-label="Quantity" />
-            <span className="text-right text-sm tabular-nums text-slate-500">{packageVolumeCft(row).toFixed(1)}</span>
             <button type="button" onClick={() => removePackageRow(row.id)} disabled={packageRows.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30" aria-label="Remove size"><Icon name="trash" className="h-4 w-4" /></button>
           </div>
           {creatingBoxFor === row.id && (
@@ -426,6 +425,7 @@ export function BoxSizeRows({ rows: packageRows, setRows: setPackageRows, totalB
       <button type="button" onClick={addPackageRow} className="inline-flex items-center gap-1 text-xs font-medium text-brand-orange-dark hover:underline">
         <Icon name="plus" className="h-3.5 w-3.5" /> Another size
       </button>
+      <span className="text-[11px] text-slate-400">Vol. weight = {volumetricWeightKg(packageRows.reduce((n, r) => n + packageVolumeCft(r), 0), cftToKg).toFixed(1)} kg</span>
       {totalBoxes > 0 && (
         <span className={`text-xs font-medium ${boxesCovered === totalBoxes ? 'text-emerald-600' : boxesCovered > totalBoxes ? 'text-red-600' : 'text-amber-600'}`}>
           {boxesCovered === totalBoxes ? `✓ All ${totalBoxes} boxes sized` : boxesCovered > totalBoxes ? `${boxesCovered - totalBoxes} too many — ${totalBoxes} boxes` : `${boxesCovered} of ${totalBoxes} sized — ${totalBoxes - boxesCovered} left`}
@@ -475,7 +475,7 @@ function BreakupTip({ items }) {
 // Goods description with a pick-list from the goods catalog: choosing an entry
 // fills the description and its HSN together (onPick), while free text is
 // still allowed — "Said to contain" is often more specific than the catalog.
-export function GoodsPicker({ value, onChange, onPick, inputRef }) {
+export function GoodsPicker({ value, onChange, onPick, inputRef, placeholder = 'Search goods or type — e.g. Cosmetics' }) {
   const [open, setOpen] = useState(false)
   const results = searchGoods(value)
   return (
@@ -486,7 +486,7 @@ export function GoodsPicker({ value, onChange, onPick, inputRef }) {
         onChange={(e) => { onChange(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
-        placeholder="Search goods or type — e.g. Cosmetics"
+        placeholder={placeholder}
         className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
         aria-label="Goods description"
       />
@@ -777,8 +777,9 @@ function DocketForm({ pickup, onGenerated }) {
     ...(pickup.details?.fragile ? ['Fragile'] : []),
     ...(pickup.details?.hazardous ? ['Hazardous'] : []),
   ])
+  const cftToKg = cftToKgFor(pickup.clientId, mode)
   const totalVolumeCft = useMemo(() => packageRows.reduce((s, r) => s + packageVolumeCft(r), 0), [packageRows])
-  const volKg = useMemo(() => volumetricWeightKg(totalVolumeCft), [totalVolumeCft])
+  const volKg = useMemo(() => volumetricWeightKg(totalVolumeCft, cftToKg), [totalVolumeCft, cftToKg])
   const enteredActualWeight = Number(actualWeightKg) || 0
   const chargeableWeight = Math.max(enteredActualWeight, volKg)
   // Boxes this docket must account for; the size rows' quantities should add up to it.
@@ -1350,7 +1351,7 @@ function DocketForm({ pickup, onGenerated }) {
             <Field dense label="4 · Content description" aria-label="Content description" value={contentDescription} onChange={(e) => setContentDescription(e.target.value)} placeholder="e.g. Cosmetics" />
           </div>
 
-          <BoxSizeRows rows={packageRows} setRows={setPackageRows} totalBoxes={totalBoxes} />
+          <BoxSizeRows rows={packageRows} setRows={setPackageRows} totalBoxes={totalBoxes} cftToKg={cftToKg} />
 
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
             <div className="flex shrink-0 flex-col gap-1.5">
