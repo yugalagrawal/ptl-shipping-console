@@ -18,3 +18,12 @@ export function addBoxToMaster({ l, b, h, name = 'Custom' }) {
   BOX_MASTER.push(box)
   return box
 }
+
+// Edit a box's name / size in place (dimensions in cm). Dockets already created keep
+// the size they were booked with — they copy L × B × H, not a reference.
+export function updateBox(id, { name, l, b, h }) {
+  const box = BOX_MASTER.find((x) => x.id === id)
+  if (!box) return null
+  Object.assign(box, { name: String(name).trim() || box.name, l: Number(l), b: Number(b), h: Number(h) })
+  return box
+}
