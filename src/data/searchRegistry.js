@@ -66,6 +66,7 @@ export const SEARCH_REGISTRY = [
   { id: 'tab-invoicing', kind: 'tab', title: 'Invoicing', subtitle: 'Finance Management — client billing, invoice generation and dispatch', path: '/finance-management/invoicing', permissionKey: 'invoicing', icon: 'invoice' },
   { id: 'tab-collections', kind: 'tab', title: 'Collections', subtitle: 'Finance Management — receivables ageing and collection follow-up', path: '/finance-management/collections', permissionKey: 'collections', icon: 'collections' },
   { id: 'tab-finance-analytics', kind: 'tab', title: 'Finance Analytics', subtitle: 'Finance Management — revenue, margin and DSO trends over time', path: '/finance-management/analytics', permissionKey: 'finance-analytics', icon: 'analytics' },
+  { id: 'tab-costing-concept', kind: 'tab', title: 'Costing Concept', subtitle: 'Costing Module — what costing means in FLOW', path: '/costing-module/concept', permissionKey: 'costing-concept', icon: 'info' },
   { id: 'tab-cost-overview', kind: 'tab', title: 'Cost Overview', subtitle: 'Costing Module — network cost by head, region, hub, lane and client vs budget', path: '/costing-module/overview', permissionKey: 'cost-overview', icon: 'analytics' },
   { id: 'tab-cost-forecast', kind: 'tab', title: 'Cost Forecast & What-if', subtitle: 'Costing Module — six-month cost forecast and scenario levers', path: '/costing-module/forecast', permissionKey: 'cost-forecast', icon: 'calculator' },
 

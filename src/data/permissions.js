@@ -103,6 +103,7 @@ export const FUNCTIONS = [
   { id: 'collections.manage', label: 'Record follow-up', module: 'Finance Management' },
   { id: 'finance-analytics.view', label: 'View', module: 'Finance Management' },
 
+  { id: 'costing-concept.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-overview.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-forecast.view', label: 'View', module: 'Costing Module' },
 
@@ -208,6 +209,7 @@ const RAW_TASKS = [
   { id: 'collections', label: 'Collections', module: 'Finance Management', levels: { 'Read Only': 'collections.view', 'Edit': 'collections.manage' } },
   { id: 'finance-analytics', label: 'Analytics', module: 'Finance Management', levels: { 'Read Only': 'finance-analytics.view' } },
 
+  { id: 'costing-concept', label: 'Costing Concept', module: 'Costing Module', levels: { 'Read Only': 'costing-concept.view' } },
   { id: 'cost-overview', label: 'Cost Overview', module: 'Costing Module', levels: { 'Read Only': 'cost-overview.view' } },
   { id: 'cost-forecast', label: 'Forecast & What-if', module: 'Costing Module', levels: { 'Read Only': 'cost-forecast.view' } },
 

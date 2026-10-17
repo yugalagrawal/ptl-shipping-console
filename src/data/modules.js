@@ -126,6 +126,7 @@ export const MODULES = [
     icon: 'costing',
     tagline: 'Cost-to-serve across the network — where it is incurred, how it tracks to budget, and where it is heading.',
     children: [
+      { key: 'costing-concept', label: 'Costing Concept', to: '/costing-module/concept', icon: 'info', tagline: 'What Costing means in FLOW — the concept, in plain words.' },
       { key: 'cost-overview', label: 'Cost Overview', to: '/costing-module/overview', icon: 'analytics', tagline: 'Network cost by head, region, hub, lane and client — with budget variance and alerts.' },
       { key: 'cost-forecast', label: 'Forecast & What-if', to: '/costing-module/forecast', icon: 'calculator', tagline: 'Six-month cost forecast and scenario levers — diesel, volume, vendor rates, productivity.' },
     ],
