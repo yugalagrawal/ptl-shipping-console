@@ -64,6 +64,8 @@ export const docketSheetCss = `
 .dkt .decl3 .sealbox { flex: 1; border-top: 1px solid var(--ink); min-height: 40px; }
 .dkt .rows { padding: 0; }
 .dkt .rows.sep { border-top: 1px solid var(--ink); }
+.dkt .rows.sep .r:last-child { border-bottom: 1px solid var(--ink); }
+.dkt .msg .cp { border-top: 1px solid var(--ink); padding: 3px 8px; font-size: 9px; font-weight: 800; letter-spacing: .12em; color: var(--acc-d); text-align: left; }
 .dkt .rows .r { display: flex; align-items: stretch; border-bottom: 1px solid var(--ink); }
 .dkt .rows .r:last-child { border-bottom: 0; }
 .dkt .rows .r .k { flex: 0 0 36%; display: flex; align-items: center; padding: 3px 8px; border-right: 1px solid var(--ink); color: var(--mut); font-size: 9.5px; font-weight: 600; }
@@ -90,7 +92,7 @@ export const docketSheetCss = `
 .dkt .docs .r { min-height: 21px; }
 .dkt .ship .r .k { flex: 0 0 134px; white-space: nowrap; }
 .dkt .vnum { display: flex; align-items: center; justify-content: center; height: 28px; font-size: 16px; font-weight: 800; letter-spacing: .08em; padding: 2px 8px; }
-.dkt .copyblk { border-top: 1px solid var(--ink); margin-top: auto; }
+.dkt .copyblk { border-top: 0; }
 .dkt .copyblk .hd { font-size: 10px; letter-spacing: .12em; justify-content: center; }
 .dkt .gstwrap { display: flex; }
 .dkt .gstv { flex: 0 0 22px; display: flex; align-items: center; justify-content: center; background: var(--soft); border-right: 1px solid var(--ink); font-size: 10px; font-weight: 800; letter-spacing: .2em; color: var(--acc-d); writing-mode: vertical-rl; transform: rotate(180deg); }
@@ -98,11 +100,11 @@ export const docketSheetCss = `
 .dkt .gstrows .r .k { flex: 0 0 134px; font-size: 10px; color: var(--ink); }
 .dkt .gstrows .r .v { justify-content: flex-start; text-align: left; font-size: 11.5px; letter-spacing: .06em; }
 .dkt .msg { border-top: 1px solid var(--ink); }
-.dkt .staff { margin-top: 0; }
+.dkt .staff { margin-top: 0; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .dkt .msg .mt { font-size: 8px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--mut); padding: 1px 8px; }
 .dkt .msg .ml { min-height: 15px; border-top: 1px solid var(--ink); padding: 2px 8px; display: flex; align-items: center; font-size: 7px; line-height: 1.25; font-weight: 600; color: #333; }
 .dkt .staff .hd { font-size: 8px; padding: 2px 8px; border-top: 1px solid var(--ink); }
-.dkt .staff .srow { height: 30px; padding: 3px 8px; border-top: 1px solid var(--ink); }
+.dkt .staff .srow { flex: 1; min-height: 30px; padding: 3px 8px; border-top: 1px solid var(--ink); }
 .dkt .staff .sl { font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mut); }
 .dkt .sigcell { flex: 1; min-height: 40px; border-top: 1px solid var(--ink); display: flex; flex-direction: column; }
 .dkt .podrows .r .k { flex: 0 0 90px; }
@@ -273,7 +275,7 @@ export function buildDocketSheetBody(docket, copyLabel = COPY_OPTIONS[0]) {
         <div class="r"><span class="k">Cell no.</span><span class="v"></span></div>
       </div>
       <div class="sigcell"><div class="hd"><span>Receiver seal &amp; signature</span></div></div>
-      <div class="msg"><div class="mt">Message</div><div class="ml">1. Any duties or taxes applicable on the shipment will be paid by the consignee at the time of delivery.</div><div class="ml">2. LT reserves the right of lien on any shipment till all its dues are paid in full.</div><div class="ml">3. In case this shipment contains anything of value, LT recommends insurance of the same.</div></div>
+      <div class="msg"><div class="mt">Message</div><div class="ml">1. Any duties or taxes applicable on the shipment will be paid by the consignee at the time of delivery.</div><div class="ml">2. LT reserves the right of lien on any shipment till all its dues are paid in full.</div><div class="ml">3. In case this shipment contains anything of value, LT recommends insurance of the same.</div><div class="cp">${esc(String(copyLabel).toUpperCase())}</div></div>
     </div>
 
     <div class="box">
@@ -295,7 +297,6 @@ export function buildDocketSheetBody(docket, copyLabel = COPY_OPTIONS[0]) {
         <div class="r"><span class="k">Insurance</span><span class="v">${dash(docket.policyNo)}${docket.insuredValue ? ' · ₹' + money(docket.insuredValue) : ''}</span></div>
       </div>
       <div class="copyblk">
-        <div class="hd"><span>${esc(String(copyLabel).toUpperCase())}</span></div>
         <div class="gstwrap">
           <div class="gstv">GST</div>
           <div class="rows gstrows">
