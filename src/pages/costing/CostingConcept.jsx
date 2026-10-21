@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 import SimpleFlow from './SimpleFlow.jsx'
-import FirstMile from './FirstMile.jsx'
-import MidMile from './MidMile.jsx'
+import Calculation from './Calculation.jsx'
 
 const inr = (n) => '₹' + Math.round(n).toLocaleString('en-IN')
 
@@ -243,7 +242,7 @@ function Detail() {
   )
 }
 
-const TABS = [['simple', 'Simple FLOW'], ['fm', 'First Mile'], ['mm', 'Mid Mile'], ['detail', 'Concept']]
+const TABS = [['simple', 'Simple FLOW'], ['calc', 'Calculation'], ['detail', 'Concept']]
 
 export default function CostingConcept() {
   const [tab, setTab] = useState('simple')
@@ -256,7 +255,7 @@ export default function CostingConcept() {
       <div className="flex gap-2">
         {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={tab === k ? pillActive : pillInactive}>{l}</button>)}
       </div>
-      {tab === 'simple' ? <SimpleFlow /> : tab === 'fm' ? <FirstMile /> : tab === 'mm' ? <MidMile /> : <Detail />}
+      {tab === 'simple' ? <SimpleFlow /> : tab === 'calc' ? <Calculation /> : <Detail />}
     </div>
   )
 }
