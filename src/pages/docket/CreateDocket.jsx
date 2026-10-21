@@ -336,7 +336,7 @@ const DOCKET_COUNTS = new Map()
 
 function candidatePickups() {
   return PICKUPS_SEED.filter((p) => {
-    if (p.status !== PICKUP_STATUS.GROUPED && p.status !== PICKUP_STATUS.ARRIVED) return false
+    if (p.status !== PICKUP_STATUS.ASSIGNED && p.status !== PICKUP_STATUS.ARRIVED) return false
     // A multi-consignee pickup stays listed until every consignee has its docket.
     const dests = p.details?.destinations?.filter((d) => d.consignee?.name) ?? []
     // An ops-set docket count (consignee info missing) overrides the consignee list.

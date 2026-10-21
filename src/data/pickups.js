@@ -11,12 +11,15 @@
 //                 ungrouped pool). A pickup booked with less lead time than
 //                 the lock window skips DRAFT entirely (see `urgent` below).
 //   CREATED     — locked, sitting in the ungrouped pool for PRS
-//   GROUPED     — batched into a PRS (see data/prs.js), vehicle assigned
-//   ARRIVED     — field staff is on-site; actual weight/volumetric/consignee/
-//                 package count get filled in here
-//   SCANNED     — every package individually scanned; AWBs generated and a
-//                 docket number consumed at that instant (see data/dockets.js)
-//   DROPPED     — drop-scanned at the destination hub
+//   pickup_assigned          — batched into a PRS (see data/prs.js), vehicle assigned
+//   arrived_at_pickup_location — driver reached the site and tapped Start pickup
+//   pickup_started           — on-site details captured and the docket punched
+//     (see startPickup) — OR pickup_failed if an exception is marked
+//     (see failPickup; reason is mandatory)
+//   pickup_in_progress       — first parcel scanned
+//   pickup_completed         — last parcel scanned, AWBs generated
+//   reached_at_minihub       — vehicle reached the drop Mini Hub
+//   dropped_at_minihub       — last parcel drop-scanned at the hub
 //
 // One-time vs. recurring pickups (see RECURRING_SERIES_SEED below) share this
 // exact same per-instance lifecycle — a recurring series just materializes
@@ -24,35 +27,58 @@
 // each one by hand.
 import { createDocketFromPickup } from './dockets.js'
 
+// Epoch-ms for a local 'YYYY-MM-DD' + 'HH:MM' — used to stamp demo timings below.
+const at = (d, t) => new Date(`${d}T${t}`).getTime()
+
 export const PICKUP_STATUS = {
   DRAFT: 'draft',
-  CREATED: 'created',
-  GROUPED: 'grouped',
-  ARRIVED: 'arrived',
-  SCANNED: 'scanned',
-  DROPPED: 'dropped',
+  CREATED: 'pickup_created',
+  ASSIGNED: 'pickup_assigned',
+  ARRIVED: 'arrived_at_pickup_location',
+  STARTED: 'pickup_started',
+  FAILED: 'pickup_failed',
+  IN_PROGRESS: 'pickup_in_progress',
+  COMPLETED: 'pickup_completed',
+  AT_HUB: 'reached_at_minihub',
+  DROPPED: 'dropped_at_minihub',
 }
 
-// Labels follow standard PTL/courier pickup-lifecycle terminology (the
-// vocabulary used on the reference ops console) rather than our internal
-// state names, so ops staff reading this screen recognize it immediately.
 export const PICKUP_STATUS_LABEL = {
   [PICKUP_STATUS.DRAFT]: 'Draft (editable)',
-  [PICKUP_STATUS.CREATED]: 'Pickup Booked',
-  [PICKUP_STATUS.GROUPED]: 'Assigned',
-  [PICKUP_STATUS.ARRIVED]: 'Arrived at Pickup',
-  [PICKUP_STATUS.SCANNED]: 'Picked Up',
-  [PICKUP_STATUS.DROPPED]: 'Reached Hub',
+  [PICKUP_STATUS.CREATED]: 'Pickup Created',
+  [PICKUP_STATUS.ASSIGNED]: 'Pickup Assigned',
+  [PICKUP_STATUS.ARRIVED]: 'Arrived at Pickup Location',
+  [PICKUP_STATUS.STARTED]: 'Pickup Started',
+  [PICKUP_STATUS.FAILED]: 'Pickup Failed',
+  [PICKUP_STATUS.IN_PROGRESS]: 'Pickup In Progress',
+  [PICKUP_STATUS.COMPLETED]: 'Pickup Completed',
+  [PICKUP_STATUS.AT_HUB]: 'Reached at Mini Hub',
+  [PICKUP_STATUS.DROPPED]: 'Dropped at Mini Hub',
 }
 
 export const PICKUP_STATUS_BADGE = {
   [PICKUP_STATUS.DRAFT]: 'bg-slate-50 text-slate-400',
   [PICKUP_STATUS.CREATED]: 'bg-slate-100 text-slate-600',
-  [PICKUP_STATUS.GROUPED]: 'bg-sky-50 text-sky-700',
+  [PICKUP_STATUS.ASSIGNED]: 'bg-sky-50 text-sky-700',
   [PICKUP_STATUS.ARRIVED]: 'bg-amber-50 text-amber-700',
-  [PICKUP_STATUS.SCANNED]: 'bg-violet-50 text-violet-700',
+  [PICKUP_STATUS.STARTED]: 'bg-orange-50 text-orange-700',
+  [PICKUP_STATUS.FAILED]: 'bg-red-50 text-red-600',
+  [PICKUP_STATUS.IN_PROGRESS]: 'bg-violet-50 text-violet-700',
+  [PICKUP_STATUS.COMPLETED]: 'bg-indigo-50 text-indigo-700',
+  [PICKUP_STATUS.AT_HUB]: 'bg-cyan-50 text-cyan-700',
   [PICKUP_STATUS.DROPPED]: 'bg-emerald-50 text-emerald-700',
 }
+
+// Why a pickup failed — marked by the driver/ops at the pickup location.
+export const PICKUP_FAIL_REASONS = [
+  'Consignor closed / not available',
+  'Cargo not ready',
+  'Wrong or unreachable address',
+  'Consignor refused to hand over',
+  'Vehicle too small / breakdown',
+  'Hazardous or restricted cargo',
+  'Other',
+]
 
 // PU = one-time pickup, PS = recurring/scheduled pickup — both get an id
 // shaped PU|PSYYYYMMDD#### where the date is the SCHEDULED pickup date (not
@@ -215,7 +241,7 @@ export function assignPickupsToPrs(pickupIds, prsId) {
   pickupIds.forEach((id) => {
     const p = PICKUPS_SEED.find((row) => row.id === id)
     if (p) {
-      p.status = PICKUP_STATUS.GROUPED
+      p.status = PICKUP_STATUS.ASSIGNED
       p.prsId = prsId
     }
   })
@@ -223,13 +249,13 @@ export function assignPickupsToPrs(pickupIds, prsId) {
 
 export function markPickupArrived(pickupId) {
   const p = PICKUPS_SEED.find((row) => row.id === pickupId)
-  if (p) p.status = PICKUP_STATUS.ARRIVED
+  if (p) { p.status = PICKUP_STATUS.ARRIVED; p.arrivedAt = Date.now() }
   return p
 }
 
 // Field staff's on-site update — actual/volumetric weight, consignee and how
 // many packages this pickup actually contains (the number the package-scan
-// counter below counts up to).
+// counter counts up to).
 export function updatePickupFieldDetails(pickupId, { actualWeightKg, volumetricWeightKg, consignee, packagesCount }) {
   const p = PICKUPS_SEED.find((row) => row.id === pickupId)
   if (!p) return null
@@ -240,28 +266,59 @@ export function updatePickupFieldDetails(pickupId, { actualWeightKg, volumetricW
   return p
 }
 
-// One tap = one package scanned. The moment the last package is scanned, an
-// AWB is generated per package and a docket number is consumed in the same
-// instant — mirrors the real "final pickup scan" behavior described: a
-// 10-package pickup shows 1/10 → 10/10 as each is tapped, and only upon
-// reaching packagesCount does it become a docket (see createDocketFromPickup,
-// data/dockets.js), which is what Create Docket > Pending Dockets reads from.
+// Docket punched on site → pickup_started. Needs the on-site details first.
+export function startPickup(pickupId) {
+  const p = PICKUPS_SEED.find((row) => row.id === pickupId)
+  if (!p || p.status !== PICKUP_STATUS.ARRIVED || !p.packagesCount) return p
+  if (!p.docketNumber) p.docketNumber = createDocketFromPickup(p).docketNumber
+  p.status = PICKUP_STATUS.STARTED
+  p.startedAt = Date.now()
+  return p
+}
+
+// Exception marked at the pickup location → pickup_failed. Reason is mandatory.
+export function failPickup(pickupId, { reason, note = '' }) {
+  const p = PICKUPS_SEED.find((row) => row.id === pickupId)
+  if (!p || p.status !== PICKUP_STATUS.ARRIVED || !reason) return p
+  p.status = PICKUP_STATUS.FAILED
+  p.failure = { reason, note: note.trim() }
+  p.failedAt = Date.now()
+  return p
+}
+
+// One tap = one package scanned. First scan → pickup_in_progress, last scan →
+// pickup_completed. The docket is normally already punched at pickup_started;
+// the Create Docket fast-track skips that step, so it is raised here instead
+// when still missing (see createDocketFromPickup, data/dockets.js).
 export function scanPackage(pickupId) {
   const p = PICKUPS_SEED.find((row) => row.id === pickupId)
   if (!p || p.scannedCount >= p.packagesCount) return p
   p.scannedCount += 1
   p.awbNumbers.push(`${p.id}-AWB-${String(p.scannedCount).padStart(2, '0')}`)
-  if (p.scannedCount === p.packagesCount) {
-    p.status = PICKUP_STATUS.SCANNED
-    const docket = createDocketFromPickup(p)
-    p.docketNumber = docket.docketNumber
+  p.status = p.scannedCount === p.packagesCount ? PICKUP_STATUS.COMPLETED : PICKUP_STATUS.IN_PROGRESS
+  if (p.status === PICKUP_STATUS.COMPLETED) p.completedAt = Date.now()
+  if (p.status === PICKUP_STATUS.COMPLETED && !p.docketNumber) {
+    p.docketNumber = createDocketFromPickup(p).docketNumber
   }
   return p
 }
 
-export function dropScanPickup(pickupId) {
+export function markReachedAtMiniHub(pickupId) {
   const p = PICKUPS_SEED.find((row) => row.id === pickupId)
-  if (p) p.status = PICKUP_STATUS.DROPPED
+  if (p && p.status === PICKUP_STATUS.COMPLETED) {
+    p.status = PICKUP_STATUS.AT_HUB
+    p.reachedHubAt = Date.now()
+    p.droppedCount = p.droppedCount ?? 0
+  }
+  return p
+}
+
+// One tap = one package drop-scanned at the hub; the last one → dropped_at_minihub.
+export function dropScanPackage(pickupId) {
+  const p = PICKUPS_SEED.find((row) => row.id === pickupId)
+  if (!p || p.status !== PICKUP_STATUS.AT_HUB) return p
+  p.droppedCount = (p.droppedCount ?? 0) + 1
+  if (p.droppedCount >= p.packagesCount) { p.status = PICKUP_STATUS.DROPPED; p.droppedAt = Date.now() }
   return p
 }
 
@@ -378,9 +435,10 @@ export function refreshRecurringWindows() {
 export const PICKUPS_SEED = [
   {
     id: 'PU-3390', clientId: 'nykaa', clientName: 'Nykaa',
+    scheduledDate: '2026-10-19', scheduledTime: '09:00', arrivedAt: at('2026-10-19', '08:50'), startedAt: at('2026-10-19', '09:05'), completedAt: at('2026-10-19', '09:40'), reachedHubAt: at('2026-10-19', '10:50'), droppedAt: at('2026-10-19', '11:10'),
     consignor: { name: 'Nykaa FC Bhiwandi', company: 'Nykaa', phone: '9820011223', email: 'fc.bhiwandi@nykaa.com', address: 'Plot 12, MIDC Industrial Area', pincode: '400001', city: 'Mumbai', state: 'Maharashtra' },
     dropMiniHubId: 'mh-andheri-depot', dropMiniHubName: 'Andheri Depot',
-    estWeightKg: 180, status: PICKUP_STATUS.DROPPED, prsId: 'PRS-101',
+    estWeightKg: 180, status: PICKUP_STATUS.DROPPED, prsId: 'PRS-101', droppedCount: 6,
     actualWeightKg: 176, volumetricWeightKg: 190,
     consignee: { name: 'Nykaa Luxe Store — Indiranagar', city: 'Bengaluru', pincode: '560001' },
     // Two consignees on one pickup (the Create Pickup "Consignee List") — lets E-way Bill's consignee picker be demoed.
@@ -394,9 +452,10 @@ export const PICKUPS_SEED = [
   },
   {
     id: 'PU-3395', clientId: 'lenskart', clientName: 'Lenskart',
+    scheduledDate: '2026-10-19', scheduledTime: '10:00', arrivedAt: at('2026-10-19', '10:35'), startedAt: at('2026-10-19', '10:45'), completedAt: at('2026-10-19', '11:20'),
     consignor: { name: 'Lenskart Warehouse', company: 'Lenskart Solutions Pvt Ltd', phone: '9911022334', email: 'warehouse@lenskart.com', address: 'Udyog Vihar Phase 4', pincode: '122001', city: 'Gurugram', state: 'Haryana' },
     dropMiniHubId: 'mh-udyog-vihar-yard', dropMiniHubName: 'Udyog Vihar Yard',
-    estWeightKg: 95, status: PICKUP_STATUS.SCANNED, prsId: 'PRS-102',
+    estWeightKg: 95, status: PICKUP_STATUS.COMPLETED, prsId: 'PRS-102',
     actualWeightKg: 98, volumetricWeightKg: 88,
     consignee: { name: 'Lenskart Store — Lajpat Nagar', city: 'New Delhi', pincode: '110001' },
     details: { destinations: [
@@ -410,9 +469,10 @@ export const PICKUPS_SEED = [
   },
   {
     id: 'PU-3398', clientId: 'oriflame', clientName: 'Oriflame',
+    scheduledDate: '2026-10-20', scheduledTime: '09:00', arrivedAt: at('2026-10-20', '09:10'), startedAt: at('2026-10-20', '09:20'),
     consignor: { name: 'Oriflame Hub', company: 'Oriflame India Pvt Ltd', phone: '9900112233', email: 'hub.blr@oriflame.com', address: 'Peenya Industrial Area', pincode: '560001', city: 'Bengaluru', state: 'Karnataka' },
     dropMiniHubId: 'mh-whitefield-depot', dropMiniHubName: 'Whitefield Depot',
-    estWeightKg: 140, status: PICKUP_STATUS.ARRIVED, prsId: 'PRS-102',
+    estWeightKg: 140, status: PICKUP_STATUS.IN_PROGRESS, prsId: 'PRS-102',
     actualWeightKg: 145, volumetricWeightKg: 150,
     consignee: { name: 'Oriflame Distributor — Vazhuthacaud', city: 'Kochi', pincode: '682001' },
     // Two consignees on one pickup — a docket is raised per consignee (Create Docket asks which).
@@ -426,9 +486,10 @@ export const PICKUPS_SEED = [
   },
   {
     id: 'PU-3399', clientId: 'mamaearth', clientName: 'Mamaearth',
+    scheduledDate: '2026-10-21', scheduledTime: '15:00',
     consignor: { name: 'Mamaearth Gurugram DC', company: 'Honasa Consumer Ltd', phone: '9812345670', email: 'dc.gurugram@mamaearth.in', address: 'Sector 18, Udyog Vihar', pincode: '122001', city: 'Gurugram', state: 'Haryana' },
     dropMiniHubId: 'mh-udyog-vihar-yard', dropMiniHubName: 'Udyog Vihar Yard',
-    estWeightKg: 60, status: PICKUP_STATUS.GROUPED, prsId: 'PRS-102',
+    estWeightKg: 60, status: PICKUP_STATUS.ASSIGNED, prsId: 'PRS-102',
     actualWeightKg: null, volumetricWeightKg: null, consignee: null,
     packagesCount: null, scannedCount: 0, awbNumbers: [], docketNumber: null, createdAt: '5 hours ago',
   },
@@ -469,6 +530,7 @@ export const PICKUPS_SEED = [
   // since ARRIVED only happens after a pickup has been grouped and dispatched.
   {
     id: 'PU-3403', clientId: 'purplle', clientName: 'Purplle',
+    scheduledDate: '2026-10-20', scheduledTime: '11:00', arrivedAt: at('2026-10-20', '10:55'),
     consignor: { name: 'Purplle Warehouse', company: 'Purplle.com', phone: '9900112244', email: 'wh.blr@purplle.com', address: 'Electronic City Phase 1', pincode: '560100', city: 'Bengaluru', state: 'Karnataka' },
     dropMiniHubId: 'mh-electronic-city-yard', dropMiniHubName: 'Electronic City Yard',
     estWeightKg: 85, status: PICKUP_STATUS.ARRIVED, prsId: 'PRS-100',
@@ -493,25 +555,28 @@ export const PICKUPS_SEED = [
   // two still just Assigned, one mid-scan, one freshly Arrived.
   {
     id: 'PU-3405', clientId: 'myglamm', clientName: 'MyGlamm',
+    scheduledDate: '2026-10-21', scheduledTime: '16:00',
     consignor: { name: 'MyGlamm Warehouse', company: 'MyGlamm', phone: '9820033441', email: 'wh.mumbai@myglamm.com', address: 'Kandivali East Industrial Area', pincode: '400101', city: 'Mumbai', state: 'Maharashtra' },
     dropMiniHubId: 'mh-andheri-depot', dropMiniHubName: 'Andheri Depot',
-    estWeightKg: 150, status: PICKUP_STATUS.GROUPED, prsId: 'PRS-99',
+    estWeightKg: 150, status: PICKUP_STATUS.ASSIGNED, prsId: 'PRS-99',
     actualWeightKg: null, volumetricWeightKg: null, consignee: null,
     packagesCount: null, scannedCount: 0, awbNumbers: [], docketNumber: null, createdAt: '3 days ago',
   },
   {
     id: 'PU-3406', clientId: 'bella-vita-organic', clientName: 'Bella Vita Organic',
+    scheduledDate: '2026-10-20', scheduledTime: '12:00', arrivedAt: at('2026-10-20', '12:10'), failedAt: at('2026-10-20', '12:25'), failure: { reason: 'Consignor closed / not available', note: '' },
     consignor: { name: 'Bella Vita Organic FC', company: 'Bella Vita Organic', phone: '9820033442', email: 'fc.mumbai@bellavitaorganic.com', address: 'Vikhroli Industrial Estate', pincode: '400079', city: 'Mumbai', state: 'Maharashtra' },
     dropMiniHubId: 'mh-andheri-depot', dropMiniHubName: 'Andheri Depot',
-    estWeightKg: 90, status: PICKUP_STATUS.GROUPED, prsId: 'PRS-99',
+    estWeightKg: 90, status: PICKUP_STATUS.FAILED, prsId: 'PRS-99',
     actualWeightKg: null, volumetricWeightKg: null, consignee: null,
     packagesCount: null, scannedCount: 0, awbNumbers: [], docketNumber: null, createdAt: '3 days ago',
   },
   {
     id: 'PU-3407', clientId: 'wellbeing-nutrition', clientName: 'Wellbeing Nutrition',
+    scheduledDate: '2026-10-20', scheduledTime: '08:30', arrivedAt: at('2026-10-20', '09:20'), startedAt: at('2026-10-20', '09:30'),
     consignor: { name: 'Wellbeing Nutrition DC', company: 'Wellbeing Nutrition', phone: '9820033443', email: 'dc.mumbai@wellbeingnutrition.com', address: 'Powai Industrial Estate', pincode: '400076', city: 'Mumbai', state: 'Maharashtra' },
     dropMiniHubId: 'mh-andheri-depot', dropMiniHubName: 'Andheri Depot',
-    estWeightKg: 160, status: PICKUP_STATUS.ARRIVED, prsId: 'PRS-99',
+    estWeightKg: 160, status: PICKUP_STATUS.IN_PROGRESS, prsId: 'PRS-99',
     actualWeightKg: 165, volumetricWeightKg: 150,
     consignee: { name: 'Wellbeing Nutrition Store — Malviya Nagar', city: 'Jaipur', pincode: '302017' },
     packagesCount: 5, scannedCount: 2,
@@ -520,6 +585,7 @@ export const PICKUPS_SEED = [
   },
   {
     id: 'PU-3408', clientId: 'bombae', clientName: 'Bombae',
+    scheduledDate: '2026-10-20', scheduledTime: '10:00', arrivedAt: at('2026-10-20', '10:05'),
     consignor: { name: 'Bombae Fulfilment Center', company: 'Bombae', phone: '9820033444', email: 'fc.mumbai@bombae.co', address: 'Goregaon East Industrial Area', pincode: '400063', city: 'Mumbai', state: 'Maharashtra' },
     dropMiniHubId: 'mh-andheri-depot', dropMiniHubName: 'Andheri Depot',
     estWeightKg: 120, status: PICKUP_STATUS.ARRIVED, prsId: 'PRS-99',
