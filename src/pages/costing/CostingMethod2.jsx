@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 
-const TABS = [['t1', 'PRS/DRS'], ['t2', 'Manifest']]
+const TABS = [['t1', 'PRS/DRS'], ['t2', 'Manifest'], ['t3', 'Mix']]
 
 // The nine Partner Pricing payment types, split by what the vendor invoice is driven by (PRS/DRS — FM/LM only)
 const SECTIONS = [
@@ -564,6 +564,157 @@ function ManifestTab() {
   )
 }
 
+// Mix — one attached vehicle (one fixed monthly deal) doing manifests and PRS/DRS. Same cumulative month-to-date method as the other tabs:
+// the cost so far (daily cost × days, idle days included; for Fixed + rate also the rate on whatever goes beyond the cover so far) is one pool for the
+// vehicle. Every day the pool is split between PRS/DRS and Manifest by the docket kg each has carried so far, so the split keeps revising until month end.
+// Each side's bucket then runs through its own method (PRS/DRS: dockets by weight · Manifest: manifests by weight × km, then dockets).
+const MIX_DAYS = 6
+const MIX_COVER = { perDay: 200, rate: 5 } // Fixed + Per Kg: 5,200 kg a month = 200 kg per operational day
+const MIX_PRS_DOCKETS = [
+  { day: 3, id: 'DKT-A', kg: 120 }, { day: 3, id: 'DKT-B', kg: 300 }, { day: 3, id: 'DKT-C', kg: 80 },
+  { day: 5, id: 'DKT-D', kg: 200 }, { day: 6, id: 'DKT-E', kg: 150 },
+]
+const MIX_MFS = [
+  { id: 'A-B', day: 1, km: 100, dockets: [['DKT-2', 200], ['DKT-7', 100]] },
+  { id: 'B-D', day: 2, km: 350, dockets: [['DKT-5', 120], ['DKT-2', 200]] },
+  { id: 'A-D', day: 5, km: 450, dockets: [['DKT-1', 400]] },
+].map((m) => { const kg = m.dockets.reduce((t, [, k]) => t + k, 0); return { ...m, kg, kgKm: kg * m.km } })
+const mixCalc = (withCover) => {
+  const out = []
+  for (let day = 1; day <= MIX_DAYS; day++) {
+    const pKg = MIX_PRS_DOCKETS.filter((d) => d.day <= day).reduce((t, d) => t + d.kg, 0)
+    const mKg = MIX_MFS.filter((m) => m.day <= day).reduce((t, m) => t + m.kg, 0)
+    const tot = pKg + mKg
+    const fixed = DAILY * day
+    const cover = MIX_COVER.perDay * day
+    const excess = withCover ? Math.max(0, tot - cover) : 0
+    const pool = fixed + excess * MIX_COVER.rate
+    const pShare = tot ? pKg / tot : 0
+    out.push({ day, pKg, mKg, tot, fixed, cover, excess, pool, pShare, pB: tot ? pool * pShare : 0, mB: tot ? pool * (1 - pShare) : 0,
+      pDay: MIX_PRS_DOCKETS.filter((d) => d.day === day).reduce((t, d) => t + d.kg, 0), mDay: MIX_MFS.filter((m) => m.day === day).reduce((t, m) => t + m.kg, 0) })
+  }
+  return out
+}
+const MIX_PRS_KG = MIX_PRS_DOCKETS.reduce((t, d) => t + d.kg, 0)
+const MIX_MF_DEN = MIX_MFS.reduce((t, m) => t + m.kgKm, 0)
+const mixWhat = (r) => {
+  const parts = MIX_MFS.filter((m) => m.day === r.day).map((m) => `Manifest ${m.id}`)
+  if (r.pDay) parts.push('PRS/DRS')
+  return parts.join(' + ') || 'Idle'
+}
+const pct = (n) => Math.round(n * 1000) / 10 + '%'
+
+function MixTab() {
+  const [withCover, setWithCover] = useState(false)
+  const rows = mixCalc(withCover)
+  const last = rows[rows.length - 1]
+  const th = 'py-1.5 pr-3 text-right font-medium'
+  const td = 'py-2 pr-3 text-right tabular-nums'
+  return (
+    <div className="space-y-4">
+      <div className={`p-4 ${card}`}>
+        <p className="text-sm font-semibold text-slate-900">Mix — one vehicle, two jobs, one fixed bill</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">An attached vehicle is contracted for mid mile and runs manifests most days, but on spare days it also does PRS/DRS (first or last mile). The partner still sends <b>one</b> fixed monthly bill for the vehicle. Costing has to decide how much of it belongs to the manifests and how much to the PRS/DRS, without collecting km or hours on every run. Only time based deals have this problem: with Per Kg, Per Trip and the other docket or trip types, each job is already priced on its own.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          {['1 · One cumulative pool for the vehicle', '2 · Split the pool by docket kg so far', '3 · Each bucket runs its own method'].map((t, i) => (
+            <span key={t} className="flex items-center gap-2">{i > 0 && <span className="text-slate-300">→</span>}<span className="rounded-lg bg-slate-900 px-2.5 py-1 font-medium text-white">{t}</span></span>
+          ))}
+        </div>
+      </div>
+
+      <div className={`p-4 ${card}`}>
+        <p className="text-sm font-semibold text-slate-900">1 + 2 · One pool, split by the docket kg each job has carried so far</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">Same as the other tabs. Daily cost = {inr(FIXED.monthly)} ÷ {FIXED.opDays} operational days = <b>{inr(r2(DAILY))}</b>. Every day the cost of all days so far goes into the vehicle’s pool — idle days included, they just wait in it. The pool is split between PRS/DRS and Manifest by the docket kg each has carried <b>so far this month</b>. If only one of them has run so far, it takes all of it. The split keeps revising every day, and the whole fixed amount is distributed by month end. It restarts every new month.</p>
+        <div className="mt-3 flex gap-2">
+          {[[false, 'Monthly fixed'], [true, 'Fixed + Per Kg']].map(([v, l]) => <button key={l} onClick={() => setWithCover(v)} className={withCover === v ? pillActive : pillInactive}>{l}</button>)}
+        </div>
+        {withCover && <p className="mt-2 text-xs leading-relaxed text-slate-500">The fixed amount covers {(MIX_COVER.perDay * FIXED.opDays).toLocaleString('en-IN')} kg a month ({MIX_COVER.perDay} kg per operational day; unused cover carries forward). The cover and the kg are counted for the <b>vehicle as a whole</b>, PRS/DRS and manifests together. Weight beyond the cover so far earns ₹{MIX_COVER.rate} / kg, and that extra goes into the pool before the split, so it is shared like the fixed part.</p>}
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-[11px] text-slate-400">
+                <th className="py-1.5 pr-3 font-medium">Day</th>
+                <th className="py-1.5 pr-3 font-medium">What ran</th>
+                <th className={th}>PRS/DRS kg so far</th>
+                <th className={th}>Manifest kg so far</th>
+                {withCover && <th className={th}>Beyond cover</th>}
+                <th className={th}>Pool so far</th>
+                <th className={th}>PRS/DRS share</th>
+                <th className={th}>Manifest bucket</th>
+                <th className="py-1.5 text-right font-medium">PRS/DRS bucket</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.day} className="border-b border-slate-100">
+                  <td className="py-2 pr-3 font-semibold text-slate-800">{r.day}</td>
+                  <td className={`py-2 pr-3 ${mixWhat(r) === 'Idle' ? 'text-slate-400' : 'text-slate-600'}`}>{mixWhat(r)}</td>
+                  <td className={`${td} text-slate-600`}>{r.pKg || '—'}</td>
+                  <td className={`${td} text-slate-600`}>{r.mKg || '—'}</td>
+                  {withCover && <td className={`${td} text-slate-600`}>{r2(r.excess)} kg</td>}
+                  <td className={`${td} text-slate-600`}>{inr(Math.round(r.pool))}</td>
+                  <td className={`${td} text-slate-600`}>{r.tot ? pct(r.pShare) : '—'}</td>
+                  <td className={`${td} font-semibold text-slate-900`}>{inr(Math.round(r.mB))}</td>
+                  <td className="py-2 text-right font-semibold tabular-nums text-slate-900">{inr(Math.round(r.pB))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <ul className="mt-3 space-y-1.5 text-xs leading-relaxed text-slate-600">
+          <li><b className="text-slate-800">Days 1, 2:</b> only manifests have run, so Manifest holds the whole pool ({inr(Math.round(rows[1].pool))} by Day 2).</li>
+          <li><b className="text-slate-800">Day 3:</b> the first PRS/DRS run brings 500 kg against 620 kg of manifests, so PRS/DRS takes {pct(rows[2].pShare)} of the pool — a part of the cost of Days 1 and 2 moves across with it.</li>
+          <li><b className="text-slate-800">Day 4:</b> idle. No new kg, so the share stays at {pct(rows[3].pShare)}; the pool grows by {inr(r2(DAILY))} and both buckets grow in that ratio{withCover ? '. The cover also grows, so the excess falls from ' + r2(rows[2].excess) + ' kg to ' + r2(rows[3].excess) + ' kg' : ''}.</li>
+          <li><b className="text-slate-800">Day 5:</b> A-D (400 kg) and 200 kg of PRS/DRS both ran, so the share moves to {pct(rows[4].pShare)}.</li>
+          <li><b className="text-slate-800">Day 6:</b> 150 kg more of PRS/DRS; the share is {pct(rows[5].pShare)} and the pool is {inr(Math.round(last.pool))}, split {inr(Math.round(last.mB))} Manifest and {inr(Math.round(last.pB))} PRS/DRS. The two always add up to the pool, so nothing is lost or counted twice.</li>
+        </ul>
+      </div>
+
+      <div className={`p-4 ${card}`}>
+        <p className="text-sm font-semibold text-slate-900">3 · Each bucket goes into the method you already have</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">The split only decides how much of the bill each job gets. From there it is exactly the PRS/DRS and Manifest tabs, revising every day until month end. Numbers below are as of Day {MIX_DAYS}.</p>
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-900">PRS/DRS bucket {inr(Math.round(last.pB))} → dockets by % weight</p>
+            <p className="mt-1 text-[11px] text-slate-500">Same as the PRS/DRS tab: the bucket is shared by all PRS/DRS dockets of the month so far, by weight ({MIX_PRS_KG} kg).</p>
+            <ul className="mt-2 space-y-1">
+              {MIX_PRS_DOCKETS.map((d) => (
+                <li key={d.id} className="flex justify-between text-[11px] text-slate-600"><span>{d.id} · Day {d.day} · {d.kg} kg · {pct(d.kg / MIX_PRS_KG)}</span><span className="font-semibold tabular-nums text-slate-900">{inr(Math.round((last.pB * d.kg) / MIX_PRS_KG))}</span></li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+            <p className="text-xs font-semibold text-slate-900">Manifest bucket {inr(Math.round(last.mB))} → manifests → dockets</p>
+            <p className="mt-1 text-[11px] text-slate-500">Same as the Manifest tab: the bucket is shared by manifests by weight × km, then each manifest’s cost goes to its dockets by weight.</p>
+            <ul className="mt-2 space-y-2">
+              {MIX_MFS.map((m) => {
+                const mc = (last.mB * m.kgKm) / MIX_MF_DEN
+                return (
+                  <li key={m.id}>
+                    <p className="flex justify-between text-[11px] font-semibold text-slate-800"><span>{m.id} · {m.kg} kg × {m.km} km · {pct(m.kgKm / MIX_MF_DEN)}</span><span className="tabular-nums">{inr(Math.round(mc))}</span></p>
+                    {m.dockets.map(([id, kg]) => <p key={id} className="flex justify-between pl-3 text-[11px] text-slate-600"><span>{id} · {kg} kg</span><span className="tabular-nums text-slate-900">{inr(Math.round((mc * kg) / m.kg))}</span></p>)}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className={`p-4 ${card}`}>
+        <p className="text-sm font-semibold text-slate-900">Other cases</p>
+        <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600">
+          <li><b className="text-slate-800">Other “Fixed + …” types:</b> the same, with the deal’s own quantity (dockets, boxes, trips, ₹ freight, ₹ invoice) counted for the vehicle as a whole.</li>
+          <li><b className="text-slate-800">Fixed + Per Km:</b> the vehicle’s total km for the month (partner invoice, GPS or odometer) gives the cover and the excess for the whole vehicle. During the month a standard km is used and the month-end figure trues it up. The split between PRS/DRS and Manifest still follows the kg, so no km is needed per run.</li>
+          <li><b className="text-slate-800">Docket on two manifests:</b> it counts its kg on each manifest it rode.</li>
+          <li><b className="text-slate-800">No dockets yet this month:</b> the pool waits and is split as soon as the first docket arrives.</li>
+          <li><b className="text-slate-800">Month change:</b> pool and kg restart on the 1st. A vehicle that never does PRS/DRS has a PRS/DRS bucket of ₹0 and behaves exactly like the Manifest tab.</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 export default function CostingMethod2() {
   const [tab, setTab] = useState('t1')
   return (
@@ -572,7 +723,7 @@ export default function CostingMethod2() {
       <div className="flex gap-2">
         {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={tab === k ? pillActive : pillInactive}>{l}</button>)}
       </div>
-      {tab === 't1' ? <Type1 /> : <ManifestTab />}
+      {tab === 't1' ? <Type1 /> : tab === 't2' ? <ManifestTab /> : <MixTab />}
     </div>
   )
 }
