@@ -42,6 +42,7 @@ import WarehouseHubOps from './pages/WarehouseHubOps.jsx'
 import RouteCostSimulator from './pages/network/RouteCostSimulator.jsx'
 import FreightCalculator from './pages/network/FreightCalculator.jsx'
 import CostingConcept from './pages/costing/CostingConcept.jsx'
+import CostingMethod2 from './pages/costing/CostingMethod2.jsx'
 import CostOverview from './pages/costing/CostOverview.jsx'
 import CostForecast from './pages/costing/CostForecast.jsx'
 import Mis from './pages/finance/Mis.jsx'
@@ -110,6 +111,7 @@ export default function App() {
         <Route path="/finance-management/collections" element={<Collections />} />
         <Route path="/finance-management/analytics" element={<FinanceAnalytics />} />
         <Route path="/costing-module/concept" element={<CostingConcept />} />
+        <Route path="/costing-module/method-2" element={<CostingMethod2 />} />
         <Route path="/costing-module/overview" element={<CostOverview />} />
         <Route path="/costing-module/forecast" element={<CostForecast />} />
         <Route path="/logic-engine" element={<LogicEngine />} />
