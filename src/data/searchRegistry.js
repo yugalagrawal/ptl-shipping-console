@@ -68,6 +68,7 @@ export const SEARCH_REGISTRY = [
   { id: 'tab-finance-analytics', kind: 'tab', title: 'Finance Analytics', subtitle: 'Finance Management — revenue, margin and DSO trends over time', path: '/finance-management/analytics', permissionKey: 'finance-analytics', icon: 'analytics' },
   { id: 'tab-costing-concept', kind: 'tab', title: 'Costing Concept', subtitle: 'Costing Module — what costing means in FLOW', path: '/costing-module/concept', permissionKey: 'costing-concept', icon: 'info' },
   { id: 'tab-costing-method-2', kind: 'tab', title: 'Costing Method 2', subtitle: 'Costing Module — second costing method', path: '/costing-module/method-2', permissionKey: 'costing-method-2', icon: 'calculator' },
+  { id: 'tab-costing-method-3', kind: 'tab', title: 'Costing Method 3', subtitle: 'Costing Module — third costing method', path: '/costing-module/method-3', permissionKey: 'costing-method-3', icon: 'calculator' },
   { id: 'tab-cost-overview', kind: 'tab', title: 'Cost Overview', subtitle: 'Costing Module — network cost by head, region, hub, lane and client vs budget', path: '/costing-module/overview', permissionKey: 'cost-overview', icon: 'analytics' },
   { id: 'tab-cost-forecast', kind: 'tab', title: 'Cost Forecast & What-if', subtitle: 'Costing Module — six-month cost forecast and scenario levers', path: '/costing-module/forecast', permissionKey: 'cost-forecast', icon: 'calculator' },
 

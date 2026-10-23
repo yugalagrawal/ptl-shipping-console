@@ -128,6 +128,7 @@ export const MODULES = [
     children: [
       { key: 'costing-concept', label: 'Costing Concept', to: '/costing-module/concept', icon: 'info', tagline: 'What Costing means in FLOW — the concept, in plain words.' },
       { key: 'costing-method-2', label: 'Costing Method 2', to: '/costing-module/method-2', icon: 'calculator', tagline: 'Second costing method.' },
+      { key: 'costing-method-3', label: 'Costing Method 3', to: '/costing-module/method-3', icon: 'calculator', tagline: 'Third costing method.' },
       { key: 'cost-overview', label: 'Cost Overview', to: '/costing-module/overview', icon: 'analytics', tagline: 'Network cost by head, region, hub, lane and client — with budget variance and alerts.' },
       { key: 'cost-forecast', label: 'Forecast & What-if', to: '/costing-module/forecast', icon: 'calculator', tagline: 'Six-month cost forecast and scenario levers — diesel, volume, vendor rates, productivity.' },
     ],

@@ -105,6 +105,7 @@ export const FUNCTIONS = [
 
   { id: 'costing-concept.view', label: 'View', module: 'Costing Module' },
   { id: 'costing-method-2.view', label: 'View', module: 'Costing Module' },
+  { id: 'costing-method-3.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-overview.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-forecast.view', label: 'View', module: 'Costing Module' },
 
@@ -212,6 +213,7 @@ const RAW_TASKS = [
 
   { id: 'costing-concept', label: 'Costing Concept', module: 'Costing Module', levels: { 'Read Only': 'costing-concept.view' } },
   { id: 'costing-method-2', label: 'Costing Method 2', module: 'Costing Module', levels: { 'Read Only': 'costing-method-2.view' } },
+  { id: 'costing-method-3', label: 'Costing Method 3', module: 'Costing Module', levels: { 'Read Only': 'costing-method-3.view' } },
   { id: 'cost-overview', label: 'Cost Overview', module: 'Costing Module', levels: { 'Read Only': 'cost-overview.view' } },
   { id: 'cost-forecast', label: 'Forecast & What-if', module: 'Costing Module', levels: { 'Read Only': 'cost-forecast.view' } },
 
