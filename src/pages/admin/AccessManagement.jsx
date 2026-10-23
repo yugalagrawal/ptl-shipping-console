@@ -25,7 +25,7 @@ const MODULE_ICON = {
   'Docket Module': 'invoice',
   'Trip Module': 'trip',
   'Supply & Fleet Module': 'supply',
-  'Warehouse & Hub Ops': 'warehouse',
+  'Warehouse Module': 'warehouse',
   'Network Simulator': 'route',
   'Finance Management': 'finance',
   'Costing Module': 'costing',

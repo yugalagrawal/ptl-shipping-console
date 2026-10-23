@@ -37,7 +37,7 @@
 //   it — see the toggle* cascades in AccessManagement.jsx. First rough pass,
 //   flagged for refinement.
 
-export const MODULE_ORDER = ['Birdview', 'Client Module', 'Partner Module', 'Pickup Module', 'Docket Module', 'Trip Module', 'Supply & Fleet Module', 'Warehouse & Hub Ops', 'Network Simulator', 'Finance Management', 'Costing Module', 'Master Module', 'Logic Engine', 'Admin', 'System Info']
+export const MODULE_ORDER = ['Birdview', 'Client Module', 'Partner Module', 'Pickup Module', 'Docket Module', 'Trip Module', 'Supply & Fleet Module', 'Warehouse Module', 'Network Simulator', 'Finance Management', 'Costing Module', 'Master Module', 'Logic Engine', 'Admin', 'System Info']
 
 export const FUNCTIONS = [
   { id: 'dashboard.view', label: 'View', module: 'Birdview' },
@@ -91,7 +91,9 @@ export const FUNCTIONS = [
   { id: 'truck-assignment.view', label: 'View', module: 'Supply & Fleet Module' },
   { id: 'truck-assignment.manage', label: 'Assign / reassign trucks', module: 'Supply & Fleet Module' },
 
-  { id: 'warehouse-hub-ops.view', label: 'View', module: 'Warehouse & Hub Ops' },
+  { id: 'warehouse-hub-ops.view', label: 'View', module: 'Warehouse Module' },
+  { id: 'hub-cost-ledger.view', label: 'View', module: 'Warehouse Module' },
+  { id: 'hub-cost-ledger.manage', label: 'Add / remove hub costs', module: 'Warehouse Module' },
 
   { id: 'route-cost-simulator.view', label: 'View', module: 'Network Simulator' },
   { id: 'freight-calculator.view', label: 'View', module: 'Network Simulator' },
@@ -106,6 +108,8 @@ export const FUNCTIONS = [
   { id: 'costing-concept.view', label: 'View', module: 'Costing Module' },
   { id: 'costing-method-2.view', label: 'View', module: 'Costing Module' },
   { id: 'costing-method-3.view', label: 'View', module: 'Costing Module' },
+  { id: 'hub-cost-method.view', label: 'View', module: 'Costing Module' },
+  { id: 'net-cost.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-overview.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-forecast.view', label: 'View', module: 'Costing Module' },
 
@@ -201,7 +205,8 @@ const RAW_TASKS = [
   { id: 'fleet-roster', label: 'Fleet & Vendor Roster', module: 'Supply & Fleet Module', levels: { 'Read Only': 'fleet-roster.view', 'Create': 'fleet-roster.manage' } },
   { id: 'truck-assignment', label: 'Truck Assignment', module: 'Supply & Fleet Module', levels: { 'Read Only': 'truck-assignment.view', 'Edit': 'truck-assignment.manage' } },
 
-  { id: 'warehouse-hub-ops', label: 'Warehouse & Hub Ops', module: 'Warehouse & Hub Ops', levels: { 'Read Only': 'warehouse-hub-ops.view' } },
+  { id: 'warehouse-hub-ops', label: 'Ops', module: 'Warehouse Module', levels: { 'Read Only': 'warehouse-hub-ops.view' } },
+  { id: 'hub-cost-ledger', label: 'Hub Cost Ledger', module: 'Warehouse Module', levels: { 'Read Only': 'hub-cost-ledger.view', 'Create': 'hub-cost-ledger.manage' } },
 
   { id: 'route-cost-simulator', label: 'Route & Cost Simulator', module: 'Network Simulator', levels: { 'Read Only': 'route-cost-simulator.view' } },
   { id: 'freight-calculator', label: 'Freight Calculator', module: 'Network Simulator', levels: { 'Read Only': 'freight-calculator.view' } },
@@ -211,9 +216,11 @@ const RAW_TASKS = [
   { id: 'collections', label: 'Collections', module: 'Finance Management', levels: { 'Read Only': 'collections.view', 'Edit': 'collections.manage' } },
   { id: 'finance-analytics', label: 'Analytics', module: 'Finance Management', levels: { 'Read Only': 'finance-analytics.view' } },
 
-  { id: 'costing-concept', label: 'Costing Concept', module: 'Costing Module', levels: { 'Read Only': 'costing-concept.view' } },
-  { id: 'costing-method-2', label: 'Costing Method 2', module: 'Costing Module', levels: { 'Read Only': 'costing-method-2.view' } },
-  { id: 'costing-method-3', label: 'Costing Method 3', module: 'Costing Module', levels: { 'Read Only': 'costing-method-3.view' } },
+  { id: 'costing-concept', label: 'Concept 1', module: 'Costing Module', levels: { 'Read Only': 'costing-concept.view' } },
+  { id: 'costing-method-2', label: 'Concept 2', module: 'Costing Module', levels: { 'Read Only': 'costing-method-2.view' } },
+  { id: 'costing-method-3', label: 'Level 1 Cost', module: 'Costing Module', levels: { 'Read Only': 'costing-method-3.view' } },
+  { id: 'hub-cost-method', label: 'Level 2 Cost', module: 'Costing Module', levels: { 'Read Only': 'hub-cost-method.view' } },
+  { id: 'net-cost', label: 'Level 3 Cost', module: 'Costing Module', levels: { 'Read Only': 'net-cost.view' } },
   { id: 'cost-overview', label: 'Cost Overview', module: 'Costing Module', levels: { 'Read Only': 'cost-overview.view' } },
   { id: 'cost-forecast', label: 'Forecast & What-if', module: 'Costing Module', levels: { 'Read Only': 'cost-forecast.view' } },
 
@@ -272,7 +279,7 @@ export const ROLE_DEFAULTS = {
     'trip-tracking.view', 'past-trips.view', 'trip-analytics.view',
     'trip-ops.view', 'trip-ops.manage',
     'fleet-roster.view', 'fleet-roster.manage', 'truck-assignment.view', 'truck-assignment.manage',
-    'warehouse-hub-ops.view',
+    'warehouse-hub-ops.view', 'hub-cost-ledger.view', 'hub-cost-ledger.manage',
     'route-cost-simulator.view', 'freight-calculator.view',
     'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
     'system-info.view',

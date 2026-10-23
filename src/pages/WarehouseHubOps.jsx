@@ -43,7 +43,7 @@ export default function WarehouseHubOps() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Warehouse & Hub Ops</h1>
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Ops</h1>
         <p className="mt-1 text-slate-500">Barcode/QR scan events and what's currently on the floor at each hub.</p>
       </div>
 

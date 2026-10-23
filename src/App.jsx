@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedLayout from './components/ProtectedLayout.jsx'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -39,11 +39,14 @@ import TripOps from './pages/trip/TripOps.jsx'
 import FleetRoster from './pages/supply-fleet/FleetRoster.jsx'
 import TruckAssignment from './pages/supply-fleet/TruckAssignment.jsx'
 import WarehouseHubOps from './pages/WarehouseHubOps.jsx'
+import HubCostLedger from './pages/warehouse/HubCostLedger.jsx'
 import RouteCostSimulator from './pages/network/RouteCostSimulator.jsx'
 import FreightCalculator from './pages/network/FreightCalculator.jsx'
 import CostingConcept from './pages/costing/CostingConcept.jsx'
 import CostingMethod2 from './pages/costing/CostingMethod2.jsx'
 import CostingMethod3 from './pages/costing/CostingMethod3.jsx'
+import HubCostMethod from './pages/costing/HubCostMethod.jsx'
+import NetCost from './pages/costing/NetCost.jsx'
 import CostOverview from './pages/costing/CostOverview.jsx'
 import CostForecast from './pages/costing/CostForecast.jsx'
 import Mis from './pages/finance/Mis.jsx'
@@ -104,7 +107,9 @@ export default function App() {
         <Route path="/trip-management/trip-ops/final-arrival" element={<TripOps screen="final-arrival" />} />
         <Route path="/supply-fleet-module/fleet-roster" element={<FleetRoster />} />
         <Route path="/supply-fleet-module/truck-assignment" element={<TruckAssignment />} />
-        <Route path="/warehouse-hub-ops" element={<WarehouseHubOps />} />
+        <Route path="/warehouse-module/ops" element={<WarehouseHubOps />} />
+        <Route path="/warehouse-module/hub-cost-ledger" element={<HubCostLedger />} />
+        <Route path="/warehouse-hub-ops" element={<Navigate to="/warehouse-module/ops" replace />} />
         <Route path="/network-simulator/route-cost" element={<RouteCostSimulator />} />
         <Route path="/network-simulator/freight-calculator" element={<FreightCalculator />} />
         <Route path="/finance-management/mis" element={<Mis />} />
@@ -114,6 +119,8 @@ export default function App() {
         <Route path="/costing-module/concept" element={<CostingConcept />} />
         <Route path="/costing-module/method-2" element={<CostingMethod2 />} />
         <Route path="/costing-module/method-3" element={<CostingMethod3 />} />
+        <Route path="/costing-module/hub-cost" element={<HubCostMethod />} />
+        <Route path="/costing-module/net-cost" element={<NetCost />} />
         <Route path="/costing-module/overview" element={<CostOverview />} />
         <Route path="/costing-module/forecast" element={<CostForecast />} />
         <Route path="/logic-engine" element={<LogicEngine />} />

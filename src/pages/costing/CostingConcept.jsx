@@ -249,7 +249,7 @@ export default function CostingConcept() {
   return (
     <div className="max-w-5xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Costing Concept</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Concept 1</h1>
         <p className="mt-1 text-sm text-slate-500">How FLOW arrives at cost and profit for every docket — simple enough to run, real enough to decide on.</p>
       </div>
       <div className="flex gap-2">

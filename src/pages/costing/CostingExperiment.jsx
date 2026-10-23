@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 
-// Experimenter for Costing Method 3 — type dockets and a deal, see the cost. Same rules as the other tabs:
+// Experimenter for Level 1 Cost — type dockets and a deal, see the cost. Same rules as the other tabs:
 // Docket based: each docket priced on its own · Trip based: trip cost → (manifests by weight × km) → dockets by weight
 // Time based: cost so far ÷ weight so far (actual kg), cover is one monthly quantity · Failed pickup = ₹0.
 const inr = (n) => '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })

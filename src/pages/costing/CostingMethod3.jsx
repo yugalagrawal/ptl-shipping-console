@@ -646,7 +646,34 @@ export default function CostingMethod3() {
   const [tab, setTab] = useState('t1')
   return (
     <div className="max-w-5xl space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Costing Method 3</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Level 1 Cost</h1>
+      <div className={`p-4 ${card}`}>
+        <p className="text-sm font-semibold text-slate-900">Level 1 cost = direct transportation cost (PRS + DRS + Manifest)</p>
+        <p className="mt-1 text-xs text-slate-500">All direct cost of truck movement: pickup runs (PRS), delivery runs (DRS) and hub-to-hub manifests. Hub and facility cost is excluded and sits in Level 2.</p>
+        <div className="mx-auto mt-4 flex max-w-md flex-col gap-2">
+          <div className="rounded-xl border px-3 py-2 border-slate-900 bg-slate-900 text-white">
+            <p className="text-sm font-semibold">Net revenue</p>
+            <p className="text-[11px] opacity-80">What the client pays</p>
+          </div>
+          <div className="rounded-xl border px-3 py-2 border-orange-200 bg-orange-50/60 text-slate-900">
+            <p className="text-sm font-semibold">− First mile (PRS)</p>
+            <p className="text-[11px] opacity-80">Pickup run: pickup partner or truck</p>
+          </div>
+          <div className="rounded-xl border px-3 py-2 border-orange-200 bg-orange-50/60 text-slate-900">
+            <p className="text-sm font-semibold">− Mid mile (Manifest)</p>
+            <p className="text-[11px] opacity-80">Truck between hubs: one manifest, one docket</p>
+          </div>
+          <div className="rounded-xl border px-3 py-2 border-orange-200 bg-orange-50/60 text-slate-900">
+            <p className="text-sm font-semibold">− Last mile (DRS)</p>
+            <p className="text-[11px] opacity-80">Delivery run to the consignee</p>
+          </div>
+          <div className="rounded-xl border px-3 py-2 border-orange-500 bg-orange-500 text-white">
+            <p className="text-sm font-semibold">= Level 1 margin</p>
+            <p className="text-[11px] opacity-80">Net revenue minus Level 1 cost</p>
+          </div>
+        </div>
+        <p className="mt-3 text-center text-xs font-medium text-slate-600">Level 1 cost = PRS/DRS cost + Manifest cost. The tabs below show how each is attributed.</p>
+      </div>
       <div className="flex gap-2">
         {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={tab === k ? pillActive : pillInactive}>{l}</button>)}
       </div>

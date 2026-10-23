@@ -719,7 +719,7 @@ export default function CostingMethod2() {
   const [tab, setTab] = useState('t1')
   return (
     <div className="max-w-5xl space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Costing Method 2</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Concept 2</h1>
       <div className="flex gap-2">
         {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={tab === k ? pillActive : pillInactive}>{l}</button>)}
       </div>

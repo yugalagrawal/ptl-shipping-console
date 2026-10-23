@@ -11,7 +11,7 @@ const FLOW = [
   { key: 'order', label: 'Pickup Module', to: '/order-module/create-order', icon: 'order', blurb: 'Pickup booked against an activated client — AWB generated.' },
   { key: 'routing', label: 'Trip Module · Routing Simulator', to: '/trip-management/routing-simulator', icon: 'route', blurb: 'Orders past "Inward at Origin Hub" aggregated into a manifest by lane.' },
   { key: 'assignment', label: 'Supply & Fleet Module · Truck Assignment', to: '/supply-fleet-module/truck-assignment', icon: 'swap', blurb: 'Best-fit available truck matched to the manifest.' },
-  { key: 'warehouse', label: 'Warehouse & Hub Ops', to: '/warehouse-hub-ops', icon: 'warehouse', blurb: 'Scan, sort and pallet events as the manifest moves through hubs.' },
+  { key: 'warehouse', label: 'Warehouse Module · Ops', to: '/warehouse-module/ops', icon: 'warehouse', blurb: 'Scan, sort and pallet events as the manifest moves through hubs.' },
   { key: 'tracking', label: 'Trip Module · Trip Tracking', to: '/trip-management/tracking', icon: 'tracking', blurb: 'Live location and status until delivery; closes out to Past Trips.' },
   { key: 'finance', label: 'Finance Management', to: '/finance-management/invoicing', icon: 'invoice', blurb: 'Invoice generated from the executed trip against contract rates.' },
 ]
@@ -63,7 +63,7 @@ const DEFINITIONS = [
   { module: 'Pickup Module', definition: 'Pickup intake (AWB booking) and per-pickup tracking up to hub inward.', owns: 'AWB, consignor/consignee, chargeable weight, freight preview.', handsOff: 'Trip Module — once a pickup is Inward at Origin Hub.' },
   { module: 'Trip Module', definition: 'Order aggregation, multi-leg (FM/MM/LM) trip construction and execution tracking.', owns: 'Manifests, trip legs, live trip status, trip history.', handsOff: 'Supply & Fleet Module (needs a truck); Finance Management (once delivered).' },
   { module: 'Supply & Fleet Module', definition: 'Vendor fleet, owned assets, drivers and truck-to-manifest matching.', owns: 'Vehicle & driver roster, compliance status, assignment queue.', handsOff: 'Trip Module (assigned vehicle); Warehouse & Hub Ops (loading events).' },
-  { module: 'Warehouse & Hub Ops', definition: 'Pallet allotment, barcode/QR scanning and hub-level sorting logs.', owns: 'Scan events, dwell times, sort-location logs.', handsOff: 'Trip Module — a "loaded on vehicle" scan is what starts a trip leg.' },
+  { module: 'Warehouse Module', definition: 'Hub operations (pallet allotment, barcode/QR scanning, sorting logs) and the hub cost ledger.', owns: 'Scan events, dwell times, sort-location logs.', handsOff: 'Trip Module — a "loaded on vehicle" scan is what starts a trip leg.' },
   { module: 'Network Simulator', definition: 'Hub-and-spoke lane simulator plus a standalone freight calculator.', owns: 'Illustrative lane cost/capacity; ad-hoc freight quotes.', handsOff: 'Nothing — exploratory only, doesn’t feed real data anywhere.' },
   { module: 'Finance Management', definition: 'Cost allocation, invoicing and collections, LR by LR.', owns: 'Invoices, receivables ageing, margin.', handsOff: '— end of the operational chain.' },
   { module: 'Logic Engine', definition: 'The rules that steer every other module.', owns: 'Client tiering/SLA rules, supply-demand matching, route planning, prioritization.', handsOff: 'Client Module, Trip Module, Supply & Fleet Module — as inputs, not a handoff.' },
