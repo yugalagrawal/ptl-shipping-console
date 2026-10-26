@@ -50,6 +50,11 @@ import NetCost from './pages/costing/NetCost.jsx'
 import CostOverview from './pages/costing/CostOverview.jsx'
 import CostForecast from './pages/costing/CostForecast.jsx'
 import FinanceDashboard from './pages/costing/FinanceDashboard.jsx'
+import DispatchOverview from './pages/trip/dispatch/Overview.jsx'
+import DispatchRoutes from './pages/trip/dispatch/Routes.jsx'
+import DispatchVehicles from './pages/trip/dispatch/Vehicles.jsx'
+import DispatchManifests from './pages/trip/dispatch/Manifests.jsx'
+import DispatchThc from './pages/trip/dispatch/Thc.jsx'
 import Mis from './pages/finance/Mis.jsx'
 import Invoicing from './pages/finance/Invoicing.jsx'
 import Collections from './pages/finance/Collections.jsx'
@@ -99,6 +104,11 @@ export default function App() {
         <Route path="/trip-management/tracking" element={<Tracking />} />
         <Route path="/trip-management/past-trips" element={<PastTrips />} />
         <Route path="/trip-management/analytics" element={<TripAnalytics />} />
+        <Route path="/trip-management/dispatch/overview" element={<DispatchOverview />} />
+        <Route path="/trip-management/dispatch/routes" element={<DispatchRoutes />} />
+        <Route path="/trip-management/dispatch/vehicles" element={<DispatchVehicles />} />
+        <Route path="/trip-management/dispatch/manifests" element={<DispatchManifests />} />
+        <Route path="/trip-management/dispatch/thc" element={<DispatchThc />} />
         <Route path="/trip-management/trip-ops/overview" element={<TripOps screen="overview" />} />
         <Route path="/trip-management/trip-ops/route-pricing" element={<TripOps screen="route-pricing" />} />
         <Route path="/trip-management/trip-ops/vehicle-assign" element={<TripOps screen="vehicle-assign" />} />

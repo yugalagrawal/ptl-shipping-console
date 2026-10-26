@@ -127,52 +127,24 @@ import './screensA.js'
   // =====================================================================================================
   // CEWB
   // =====================================================================================================
+  // Decided CEWB logic, written out for the team. Text only; the CEWB generation itself is not built yet.
+  function logicCard() {
+    var li = function (b, t) { return e('li', { key: b, style: { marginBottom: 6 } }, e('b', null, b + ' '), t); };
+    return ui.Card('CEWB logic (decided, not built yet)', ui.Chip('text only', 'ph'), e('ul', { style: { margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.55, color: '#475569' } }, [
+      li('Level.', 'One CEWB per vehicle per leg. It bundles the e-way bills of every docket on that vehicle into one document.'),
+      li('Where it is made.', 'On the mid-mile manifest (this page) and on the DRS. It is not made on the PRS: pickups keep being added on the way, so the load is never final there. For the PRS leg each e-way bill is valid on its own.'),
+      li('When it is auto-generated.', 'Manifest: when the manifest is closed (locked) and a vehicle is assigned. DRS: when the DRS is dispatched and locked. In both cases only if at least one docket has an e-way bill. No button press is needed; the Generate button stays as a retry.'),
+      li('What goes in.', 'Only dockets that have an e-way bill. Dockets without one (below the value threshold or exempt goods) travel on the invoice and are left out. One CEWB holds up to ' + T.EWB_MAX_PER_CEWB + ' e-way bills (confirm against the NIC portal); a bigger load is split into more than one CEWB.'),
+      li('Checks before generating.', 'Every e-way bill must be valid for the whole route and schedule. A missing or expired one is a blocker. One that expires early is a warning that can be extended or acknowledged.'),
+      li('Changes.', 'A CEWB cannot be edited once generated. If a docket is added or removed, or the vehicle changes, a new version is generated and the old one is marked replaced. The version history on this page shows each one, and the latest is the current one.'),
+      li('New vehicle at a hub.', 'The next leg has its own vehicle, so it gets its own CEWB, and the Part-B vehicle number is updated on its e-way bills.'),
+      li('If generation fails.', 'The page shows Failed with a retry. A vehicle carrying dockets with e-way bills should not depart without a valid CEWB.'),
+      li('Register.', 'Every CEWB, from the manifest and the DRS, is listed in the E-way Bill Console under a Consolidated tab (to be built).')
+    ]));
+  }
+
   export const Cewb = function () {
-    var y = Y(); T.useStore();
-    var t = T.pickTrip(function (x) { return x.leg.fwd.locked || (x.leg.ret && x.leg.ret.locked); }) || T.pickTrip();
-    var st = y.useState({ dir: null, ack: false, msg: null, ext: null }); var S = st[0]; function up(p) { st[1](Object.assign({}, S, p)); }
-    if (!t) return e('div', { className: 'lt4-wrap mx-auto max-w-6xl' }, ui.Header('CEWB', 'No trips.'), ui.Empty('Plan a trip first.'));
-    T.applyCtx(t);
-    var dir = S.dir && t.leg[S.dir] ? S.dir : (T.hashParam('dir') && t.leg[T.hashParam('dir')] ? T.hashParam('dir') : (t.leg.fwd.locked || !t.leg.ret || !t.leg.ret.locked ? 'fwd' : 'ret'));
-    var L = t.leg[dir];
-    var head = [ui.Header('Consolidated E-Way Bill', 'One CEWB per vehicle trip, built from the locked manifest — checks every docket’s e-way bill against the route schedule.'), ui.StageBar(t, 4), e('div', { className: 'lt2-row', style: { justifyContent: 'space-between' } }, ui.TripPicker(t), legTabs(t, dir, function (d) { up({ dir: d }); }))];
-    if (!L.locked) return e('div', { className: 'lt4-wrap mx-auto max-w-6xl' }, head, e('div', { className: 'lt2-banner', style: { background: '#fffbeb', color: '#92400e' } }, 'The ' + (dir === 'fwd' ? 'forward' : 'return') + ' manifest of ' + t.id + ' is not locked yet.  ', Btn('Go to Manifest →', function () { T.go('/trip-ops/manifest', t.id); }, 'primary', { sm: true })));
-    var chk = T.cewbCheck(t, L), c = L.cewb, ds = T.legDockets(L), km = T.pathKm(L.path), days = T.ewbDays(km);
-    var stale = T.cewbStale(t, L);
-    var withEwb = ds.filter(function (d) { return d.ewbNo; }).length;
-    function extend(d) { var n = T.extendEwb(d, L); T.emit(); up({ msg: 'EWB of ' + T.fmtDocket(d.no) + ' extended by ' + n + ' day(s)' }); }
-    function fetchEwb(d) { d.ewbNo = '3' + F.pad(T.hash(d.no + 'x') % 100000000000, 11); d.ewbValidTill = Math.max(T.NOW, L.departTs) + days * 86400000; T.emit(); up({ msg: 'Part-A e-way bill ' + d.ewbNo + ' recorded for ' + T.fmtDocket(d.no) }); }
-    function gen() { T.generateCEWB(t, L, 'Initial generation'); L.cewb.status = 'Active'; ds.forEach(function (d) { d.status = 'Locked (CEWB)'; }); T.emit(); up({ msg: 'CEWB ' + L.cewb.no + ' generated — vehicle locked for further loading except at pit-stops' }); }
-    function regen() { T.generateCEWB(t, L, 'Re-generated (' + (stale ? 'Part-B vehicle change' : 'validity/extension update') + ')'); T.emit(); up({ msg: 'CEWB v' + L.cewb.version + ' issued' }); }
-    function print() {
-      printHtml('CEWB ' + (c ? c.no : ''), '<h1>Consolidated E-Way Bill ' + (c ? c.no : '(draft)') + '</h1><div class="k"><div>Trip: <b>' + t.id + '</b></div><div>Vehicle: <b>' + (t.vehicle ? t.vehicle.regNo : '—') + '</b></div><div>THC: <b>' + (t.thc ? t.thc.no : '—') + '</b></div><div>From: ' + T.facLabel(L.path[0]) + '</div><div>To: ' + T.facLabel(L.path[L.path.length - 1]) + '</div><div>Distance: ' + km + ' km</div></div>' +
-        '<table><tr><th>#</th><th>Docket</th><th>Client</th><th>EWB no.</th><th>Valid till</th><th>Offload at</th><th>Packs</th><th>kg</th></tr>' + ds.map(function (d, i) { return '<tr><td>' + (i + 1) + '</td><td>' + T.fmtDocket(d.no) + '</td><td>' + d.client + '</td><td>' + (d.ewbNo || 'exempt') + '</td><td>' + (d.ewbValidTill ? F.dt(d.ewbValidTill) : '—') + '</td><td>' + T.facShort(d.dest) + '</td><td>' + d.packs + '</td><td>' + Math.round(d.actWt) + '</td></tr>'; }).join('') + '</table>');
-    }
-    var blockMsg = chk.blockers ? chk.blockers + ' blocker' + (chk.blockers > 1 ? 's' : '') + ' — fix the red rows before generating.' : '';
-    var canGen = !c && chk.blockers === 0 && (chk.warns === 0 || S.ack);
-
-    var rows = ui.Card('E-way bill check · ' + ds.length + ' dockets', e('div', { className: 'lt2-row' }, ui.Chip(chk.blockers + ' blockers', chk.blockers ? 'red' : 'green'), ui.Chip(chk.warns + ' warnings', chk.warns ? 'amber' : 'green'), ui.Chip(withEwb + ' with EWB', 'blue')),
-      e('div', { className: 'lt4-tbl-wrap', style: { maxHeight: 440, overflowY: 'auto' } }, e('table', { className: 'lt2-table' }, Th(['Docket', 'EWB no.', { t: 'Invoice', num: 1 }, 'Valid till', 'Drop · ETA', 'Result', '']),
-        e('tbody', null, chk.rows.map(function (r, i) {
-          var d = r.d; if (!d) return e('tr', { key: 'x' + i }, e('td', { colSpan: 7 }, stateChip('block', r.msg)));
-          return e('tr', { key: d.no }, e('td', null, T.fmtDocket(d.no), e('div', { className: 'lt2-muted' }, d.client)), e('td', null, d.ewbNo || '—'), e('td', { className: 'lt4-num' }, inr(d.invoice)), e('td', null, d.ewbValidTill ? F.dt(d.ewbValidTill) : '—'), e('td', null, T.facShort(d.dest) + ' · ' + F.dt(r.eta)),
-            e('td', { style: { whiteSpace: 'normal', minWidth: 190 } }, stateChip(r.state === 'exempt' ? 'ok' : r.state, r.state === 'ok' ? 'valid' : (r.state === 'exempt' ? 'exempt' : (r.state === 'warn' ? 'expires early' : 'blocker'))), e('div', { className: 'lt2-muted' }, r.msg)),
-            e('td', null, r.state === 'warn' ? Btn('Extend', function () { extend(d); }, 'ghost', { sm: true }) : (r.state === 'block' ? Btn(d.ewbNo ? 'Re-issue EWB' : 'Record EWB', function () { fetchEwb(d); }, 'ghost', { sm: true }) : null)));
-        })))), e('div', { className: 'lt4-note', style: { marginTop: 8 } }, 'Validity: 1 day per ' + T.EWB_KM_PER_DAY + ' km or part thereof (' + km + ' km → ' + days + ' day' + (days > 1 ? 's' : '') + '). A CEWB groups the dockets’ EWBs for one vehicle; each EWB keeps its own validity, so the CEWB is only as long-lived as its earliest EWB. Extension is possible close to expiry (GST rules allow a window around it) — this prototype does not enforce the window. Invoice < ₹50,000: EWB optional (Docket QCP exemption); other exemptions (books & periodicals, agri commodities, used household articles, < 20 km) are flagged in the docket QC.'));
-
-    var cewbCard = ui.Card('CEWB', c ? ui.Chip(stale ? 'Part-B stale' : c.status, stale ? 'amber' : 'green') : ui.Chip('not generated', 'ph'), e('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-      c ? e('div', null, ui.Two('CEWB no.', e('b', null, c.no + (c.version > 1 ? ' · v' + c.version : ''))), ui.Two('Generated', F.dt(c.genAt)), ui.Two('Vehicle (Part-B)', c.vehicle), ui.Two('From → To', T.facShort(c.from) + ' → ' + T.facShort(c.to)), ui.Two('EWBs consolidated', c.ewbNos.length + ' of ' + c.docketCount + ' dockets'),
-        ui.Two('Effective validity (earliest EWB)', c.effectiveValidity ? F.dt(c.effectiveValidity) : '—'), ui.Two('Manifest', L.mnfNo)) : e('div', { className: 'lt4-note' }, 'Generate once every row above is valid or exempt. Dockets stay locked and the vehicle is locked for further loading (except at pit-stops) from this moment.'),
-      stale ? e('div', { className: 'lt2-banner', style: { background: '#fffbeb', color: '#92400e' } }, 'Vehicle changed to ' + t.vehicle.regNo + ' — Part-B must be updated.  ', Btn('Update Part-B', regen, 'primary', { sm: true })) : null,
-      !c && chk.warns > 0 && chk.blockers === 0 ? e('label', { className: 'lt2-row', style: { fontSize: 12.5, fontWeight: 600 } }, e('input', { type: 'checkbox', checked: S.ack, onChange: function (ev) { up({ ack: ev.target.checked }); } }), 'Proceed despite ' + chk.warns + ' expiry warning' + (chk.warns > 1 ? 's' : '') + ' (will extend en route)') : null,
-      blockMsg ? e('div', { className: 'lt2-muted', style: { color: '#b91c1c' } }, blockMsg) : null,
-      e('div', { className: 'lt2-row' }, !c ? Btn('Generate CEWB', gen, 'primary', { disabled: !canGen }) : Btn('Re-generate', regen, 'ghost', { sm: true }), Btn('🖨 Print CEWB + manifest', print, 'ghost', { sm: true }))));
-    var hist = c && c.history.length ? ui.Card('Version history', null, e('table', { className: 'lt2-table' }, Th(['Version', 'Issued', 'Reason']), e('tbody', null, c.history.concat([{ no: c.no, version: c.version, at: c.genAt, reason: c.reason }]).map(function (h, i) { return e('tr', { key: i }, e('td', null, h.no + ' · v' + h.version), e('td', null, F.dt(h.at)), e('td', { style: { whiteSpace: 'normal' } }, h.reason)); })))) : null;
-
-    return e('div', { className: 'lt4-wrap mx-auto max-w-6xl' }, head, S.msg ? e('div', { className: 'lt2-banner success' }, S.msg) : null,
-      ui.Card(t.id + ' · ' + (dir === 'fwd' ? 'Forward' : 'Return') + ' leg', ui.Chip(L.mnfNo, 'blue'), ui.Path(L.path)),
-      e('div', { className: 'lt4-grid lt4-g-cewb' }, rows, e('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } }, cewbCard, hist)),
-      e('div', { className: 'lt2-row', style: { justifyContent: 'flex-end' } }, c ? Btn('Next: Scan → Descan →', function () { t.activeDir = dir; T.go('/trip-ops/scan-descan', t.id); }, 'primary') : e('span', { className: 'lt2-muted' }, 'Generate the CEWB to start loading scans.')));
+    return e('div', { className: 'lt4-wrap mx-auto max-w-6xl' }, ui.Header('Consolidated E-Way Bill', 'How the CEWB will work in the Trip Module.'), logicCard());
   };
 
   // =====================================================================================================

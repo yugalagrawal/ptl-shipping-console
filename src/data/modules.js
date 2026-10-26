@@ -68,6 +68,11 @@ export const MODULES = [
     icon: 'trip',
     tagline: 'Order aggregation, multi-leg trip construction, and execution tracking.',
     children: [
+      { key: 'dispatch-overview', label: 'Dispatch Overview (New)', to: '/trip-management/dispatch/overview', icon: 'grid', tagline: 'From the source mini hub: docket stock, planning rules and the whole dispatch flow.' },
+      { key: 'dispatch-routes', label: 'Route Plan (New)', to: '/trip-management/dispatch/routes', icon: 'route', tagline: 'Routes planned automatically from the source mini hub to the destination, leg by leg.' },
+      { key: 'dispatch-vehicles', label: 'Vehicle Plan (New)', to: '/trip-management/dispatch/vehicles', icon: 'truck', tagline: 'A vehicle assigned to every leg from the hub pool, with utilization and document checks.' },
+      { key: 'dispatch-manifests', label: 'Manifest Plan (New)', to: '/trip-management/dispatch/manifests', icon: 'file', tagline: 'Manifests suggested by utilization for every vehicle trip, then locked.' },
+      { key: 'dispatch-thc', label: 'THC (New)', to: '/trip-management/dispatch/thc', icon: 'invoice', tagline: 'Trip Hire Challan per vehicle, collecting its manifests, hire terms and CEWB.' },
       { key: 'routing-simulator', label: 'Routing Simulator', to: '/trip-management/routing-simulator', icon: 'route', tagline: 'Aggregate orders by lane and build multi-leg (FM/MM/LM) trips.' },
       { key: 'trip-tracking', label: 'Trip Tracking', to: '/trip-management/tracking', icon: 'tracking', tagline: 'Live manifest, vehicle location and exception alerts.' },
       { key: 'past-trips', label: 'Past Trips', to: '/trip-management/past-trips', icon: 'history', tagline: 'Completed manifests, POD and trip-level history.' },
