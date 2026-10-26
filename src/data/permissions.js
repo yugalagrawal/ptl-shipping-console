@@ -93,7 +93,7 @@ export const FUNCTIONS = [
 
   { id: 'warehouse-hub-ops.view', label: 'View', module: 'Warehouse Module' },
   { id: 'hub-cost-ledger.view', label: 'View', module: 'Warehouse Module' },
-  { id: 'hub-cost-ledger.manage', label: 'Add / remove hub costs', module: 'Warehouse Module' },
+  { id: 'hub-cost-ledger.manage', label: 'Add / remove warehouse costs', module: 'Warehouse Module' },
 
   { id: 'route-cost-simulator.view', label: 'View', module: 'Network Simulator' },
   { id: 'freight-calculator.view', label: 'View', module: 'Network Simulator' },
@@ -110,6 +110,7 @@ export const FUNCTIONS = [
   { id: 'costing-method-3.view', label: 'View', module: 'Costing Module' },
   { id: 'hub-cost-method.view', label: 'View', module: 'Costing Module' },
   { id: 'net-cost.view', label: 'View', module: 'Costing Module' },
+  { id: 'finance-dashboard.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-overview.view', label: 'View', module: 'Costing Module' },
   { id: 'cost-forecast.view', label: 'View', module: 'Costing Module' },
 
@@ -206,7 +207,7 @@ const RAW_TASKS = [
   { id: 'truck-assignment', label: 'Truck Assignment', module: 'Supply & Fleet Module', levels: { 'Read Only': 'truck-assignment.view', 'Edit': 'truck-assignment.manage' } },
 
   { id: 'warehouse-hub-ops', label: 'Ops', module: 'Warehouse Module', levels: { 'Read Only': 'warehouse-hub-ops.view' } },
-  { id: 'hub-cost-ledger', label: 'Hub Cost Ledger', module: 'Warehouse Module', levels: { 'Read Only': 'hub-cost-ledger.view', 'Create': 'hub-cost-ledger.manage' } },
+  { id: 'hub-cost-ledger', label: 'Warehouse Cost Ledger', module: 'Warehouse Module', levels: { 'Read Only': 'hub-cost-ledger.view', 'Create': 'hub-cost-ledger.manage' } },
 
   { id: 'route-cost-simulator', label: 'Route & Cost Simulator', module: 'Network Simulator', levels: { 'Read Only': 'route-cost-simulator.view' } },
   { id: 'freight-calculator', label: 'Freight Calculator', module: 'Network Simulator', levels: { 'Read Only': 'freight-calculator.view' } },
@@ -221,6 +222,7 @@ const RAW_TASKS = [
   { id: 'costing-method-3', label: 'Level 1 Cost', module: 'Costing Module', levels: { 'Read Only': 'costing-method-3.view' } },
   { id: 'hub-cost-method', label: 'Level 2 Cost', module: 'Costing Module', levels: { 'Read Only': 'hub-cost-method.view' } },
   { id: 'net-cost', label: 'Level 3 Cost', module: 'Costing Module', levels: { 'Read Only': 'net-cost.view' } },
+  { id: 'finance-dashboard', label: 'Finance Dashboard', module: 'Costing Module', levels: { 'Read Only': 'finance-dashboard.view' } },
   { id: 'cost-overview', label: 'Cost Overview', module: 'Costing Module', levels: { 'Read Only': 'cost-overview.view' } },
   { id: 'cost-forecast', label: 'Forecast & What-if', module: 'Costing Module', levels: { 'Read Only': 'cost-forecast.view' } },
 

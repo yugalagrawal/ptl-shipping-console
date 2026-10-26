@@ -651,9 +651,15 @@ export default function CostingMethod3() {
         <p className="text-sm font-semibold text-slate-900">Level 1 cost = direct transportation cost (PRS + DRS + Manifest)</p>
         <p className="mt-1 text-xs text-slate-500">All direct cost of truck movement: pickup runs (PRS), delivery runs (DRS) and hub-to-hub manifests. Hub and facility cost is excluded and sits in Level 2.</p>
         <div className="mx-auto mt-4 flex max-w-md flex-col gap-2">
-          <div className="rounded-xl border px-3 py-2 border-slate-900 bg-slate-900 text-white">
-            <p className="text-sm font-semibold">Net revenue</p>
-            <p className="text-[11px] opacity-80">What the client pays</p>
+          <div className="flex gap-2">
+            <div className="flex-1 rounded-xl border px-3 py-2 border-slate-900 bg-slate-900 text-white">
+              <p className="text-sm font-semibold">Gross revenue</p>
+              <p className="text-[11px] opacity-80">Revenue booked, plus incidentals if any</p>
+            </div>
+            <div className="flex-1 rounded-xl border px-3 py-2 border-slate-900 bg-slate-900 text-white">
+              <p className="text-sm font-semibold">Net revenue</p>
+              <p className="text-[11px] opacity-80">Gross revenue minus client deductions = what the client actually paid</p>
+            </div>
           </div>
           <div className="rounded-xl border px-3 py-2 border-orange-200 bg-orange-50/60 text-slate-900">
             <p className="text-sm font-semibold">− First mile (PRS)</p>
@@ -669,7 +675,6 @@ export default function CostingMethod3() {
           </div>
           <div className="rounded-xl border px-3 py-2 border-orange-500 bg-orange-500 text-white">
             <p className="text-sm font-semibold">= Level 1 margin</p>
-            <p className="text-[11px] opacity-80">Net revenue minus Level 1 cost</p>
           </div>
         </div>
         <p className="mt-3 text-center text-xs font-medium text-slate-600">Level 1 cost = PRS/DRS cost + Manifest cost. The tabs below show how each is attributed.</p>

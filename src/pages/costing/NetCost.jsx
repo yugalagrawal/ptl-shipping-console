@@ -10,11 +10,11 @@ const DOCKETS = [
 ]
 
 const LADDER = [
-  ['Net revenue', 'What the client pays', 'border-slate-900 bg-slate-900 text-white'],
+  [[['Gross revenue', 'Revenue booked, plus incidentals if any'], ['Net revenue', 'Gross revenue minus client deductions = what the client actually paid']], '', 'border-slate-900 bg-slate-900 text-white'],
   ['− Level 1 cost', 'Direct transportation cost: PRS, DRS and manifest', 'border-orange-200 bg-orange-50/60 text-slate-900'],
-  ['− Level 2 cost', 'Hub cost: facility, labour and handling', 'border-sky-200 bg-sky-50/60 text-slate-900'],
-  ['− Level 3 cost', 'Everything else that could not be attributed in Level 1 or Level 2', 'border-slate-300 bg-slate-100 text-slate-900'],
-  ['= Level 3 margin', 'Net revenue minus total cost', 'border-orange-500 bg-orange-500 text-white'],
+  ['− Level 2 cost', 'Warehouse cost incl. hub payroll: sortation (by weight) + storage (by kg-hours beyond sortation hours)', 'border-sky-200 bg-sky-50/60 text-slate-900'],
+  ['− Level 3 cost', 'Non-warehouse cost not attributed in Level 1 or Level 2. e.g. managers, corporate overheads (head office rent, finance, HR, admin), R&D and technology, sales and marketing, claims, bad debt. Hub-only payroll is in Level 2', 'border-slate-300 bg-slate-100 text-slate-900'],
+  ['= Level 3 margin', '', 'border-orange-500 bg-orange-500 text-white'],
 ]
 
 export default function NetCost() {
@@ -30,17 +30,56 @@ export default function NetCost() {
       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Level 3 Cost</h1>
 
       <div className={`p-4 ${card}`}>
-        <p className="text-sm font-semibold text-slate-900">Level 3 cost = everything else that cannot be attributed in Level 1 or Level 2</p>
-        <p className="mt-1 text-xs text-slate-500">Level 1 covers transportation and Level 2 covers hubs. Level 3 picks up everything else that cannot be attributed to a docket in those two, such as people, corporate overheads and claims, and allocates it across dockets. Total cost of a docket = Level 1 + Level 2 + Level 3.</p>
+        <p className="text-sm font-semibold text-slate-900">Level 3 cost = non-warehouse cost that cannot be attributed in Level 1 or Level 2</p>
+        <p className="mt-1 text-xs text-slate-500">Level 1 covers transportation and Level 2 covers everything a warehouse costs, including payroll of people who work for the hub only. Level 3 picks up only the non-warehouse cost, such as managers, corporate overheads, R&D, sales and marketing and claims, and allocates it across dockets. Total cost of a docket = Level 1 + Level 2 + Level 3.</p>
         <div className="mx-auto mt-4 flex max-w-md flex-col gap-2">
-          {LADDER.map(([t, d, tone]) => (
+          {LADDER.map(([t, d, tone]) => Array.isArray(t) ? (
+            <div key="rev" className="flex gap-2">
+              {t.map(([a, b]) => (
+                <div key={a} className={`flex-1 rounded-xl border px-3 py-2 ${tone}`}>
+                  <p className="text-sm font-semibold">{a}</p>
+                  <p className="text-[11px] opacity-80">{b}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
             <div key={t} className={`rounded-xl border px-3 py-2 ${tone}`}>
               <p className="text-sm font-semibold">{t}</p>
-              <p className="text-[11px] opacity-80">{d}</p>
+              {d && <p className="text-[11px] opacity-80">{d}</p>}
             </div>
           ))}
         </div>
         <p className="mt-3 text-center text-xs font-medium text-slate-600">Total cost = Level 1 cost + Level 2 cost + Level 3 cost</p>
+      </div>
+
+      <div className={`p-4 ${card}`}>
+        <p className="text-sm font-semibold text-slate-900">Where does a cost go? Level 2 or Level 3</p>
+        <p className="mt-1 text-xs text-slate-500">One test: <b className="text-slate-800">does the person or bill exist only for running a hub?</b> If yes, it is Level 2. If it also serves the wider company, it is Level 3.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">Level 2 · Warehouse cost</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">Hub payroll: people who work for the hub only</p>
+            <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
+              <li>· Loaders, unloaders and sorters</li>
+              <li>· Hub supervisors and hub staff</li>
+              <li>· Hub accountant or data-entry staff posted at the hub</li>
+              <li>· Hub rent, electricity, security, housekeeping</li>
+              <li>· Extra labour on a peak day</li>
+            </ul>
+          </div>
+          <div className="rounded-xl border border-slate-300 bg-slate-100 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">Level 3 · Non-warehouse cost</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">Managers and corporate: people who serve more than the hub</p>
+            <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-slate-600">
+              <li>· Managers: branch, regional, zonal and city heads</li>
+              <li>· Head office rent, finance, HR and admin</li>
+              <li>· R&amp;D and technology</li>
+              <li>· Sales and marketing</li>
+              <li>· Claims and bad debt</li>
+            </ul>
+          </div>
+        </div>
+        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600"><b className="text-slate-800">Example:</b> a loader at the Kolkata hub is Level 2 for that hub. The regional manager who oversees Kolkata and five other hubs is Level 3.</p>
       </div>
 
       <div className={`p-4 ${card}`}>

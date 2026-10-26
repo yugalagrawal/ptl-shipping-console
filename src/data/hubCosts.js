@@ -1,6 +1,6 @@
 import { ZONES } from './logistics.js'
 
-// Hub Cost Ledger — the source of Level 2 cost. One sheet per hub per month.
+// Warehouse Cost Ledger — the source of Level 2 cost. One sheet per hub per month.
 //  Fixed sheet    — monthly bills (rent, electricity, salaries…). Cost per day = monthly amount ÷ calendar days in that month, added every day.
 //  Variable sheet — ad-hoc costs on a date (extra labour, packing material…). Added on that day.
 // Kept in memory until the console is wired to a backend. Amounts start blank.
@@ -12,11 +12,7 @@ export const FACILITIES = ZONES.flatMap((z) => [
 ])
 
 // Cost lines common to a hub in the industry. Amount left blank for the hub to fill in.
-export const DEFAULT_FIXED_ITEMS = ['Rent', 'Electricity', 'Water', 'Salaries — supervisors & staff', 'Security', 'Housekeeping & maintenance', 'Internet & IT', 'Insurance']
-
-// Default Space / Work tag. Space cost grows with time in the hub (floor, premises); Work cost is done once per docket (labour, handling).
-export const FIXED_TAG = { 'Rent': 'space', 'Electricity': 'space', 'Water': 'space', 'Salaries — supervisors & staff': 'work', 'Security': 'space', 'Housekeeping & maintenance': 'space', 'Internet & IT': 'work', 'Insurance': 'space' }
-export const VAR_TAG = { 'Extra labour': 'work', 'Packing material': 'work', 'Equipment & fuel': 'work', 'Repairs': 'space', 'Housekeeping': 'space', 'Other': 'work' }
+export const DEFAULT_FIXED_ITEMS = ['Rent', 'Electricity', 'Water', 'Payroll — hub-only staff (not managers)', 'Security', 'Housekeeping & maintenance', 'Internet & IT', 'Insurance']
 
 export const VARIABLE_CATEGORIES = ['Extra labour', 'Packing material', 'Equipment & fuel', 'Repairs', 'Housekeeping', 'Other']
 
@@ -24,13 +20,13 @@ const SHEETS = {}
 let seq = 1
 const rid = () => `r${seq++}`
 
-export const blankVariableRow = (month) => ({ id: rid(), date: `${month}-01`, category: VARIABLE_CATEGORIES[0], tag: VAR_TAG[VARIABLE_CATEGORIES[0]], note: '', amount: '' })
+export const blankVariableRow = (month) => ({ id: rid(), date: `${month}-01`, category: VARIABLE_CATEGORIES[0], note: '', amount: '' })
 
 export function getSheet(code, month) {
   const k = `${code}|${month}`
   if (!SHEETS[k]) {
     SHEETS[k] = {
-      fixed: DEFAULT_FIXED_ITEMS.map((item) => ({ id: rid(), item, tag: FIXED_TAG[item] || 'work', note: '', amount: '', custom: false })),
+      fixed: DEFAULT_FIXED_ITEMS.map((item) => ({ id: rid(), item, note: '', amount: '', custom: false })),
       variable: [blankVariableRow(month), blankVariableRow(month), blankVariableRow(month)],
     }
   }
@@ -40,7 +36,7 @@ export function getSheet(code, month) {
 export const hasSheet = (code, month) => !!SHEETS[`${code}|${month}`]
 
 export function addFixedRow(code, month) {
-  getSheet(code, month).fixed.push({ id: rid(), item: '', tag: 'work', note: '', amount: '', custom: true })
+  getSheet(code, month).fixed.push({ id: rid(), item: '', note: '', amount: '', custom: true })
 }
 export function addVariableRow(code, month) {
   getSheet(code, month).variable.push(blankVariableRow(month))
@@ -71,12 +67,8 @@ export const daysInMonth = (ym) => {
 
 export const num = (v) => Math.max(0, parseFloat(v) || 0)
 
-// Waiting factor per hub — typed by the hub's configurer. Recommended = Space cost ÷ (Space cost + Work cost).
-const FACTORS = {}
-export const getFactor = (code) => FACTORS[code] ?? null
-export const setFactor = (code, v) => { FACTORS[code] = v }
-export function spaceWork(sheet) {
-  let space = 0, work = 0
-  ;[...sheet.fixed, ...sheet.variable].forEach((r) => { if (r.tag === 'space') space += num(r.amount); else work += num(r.amount) })
-  return { space, work, factor: space + work ? space / (space + work) : null }
-}
+// Hub factor per hub = sortation hours ÷ 24 (1/24 to 24/24). It splits the month's cost into Sortation cost and Storage cost.
+// A docket's billable storage hours are the hours beyond the sortation hours. Default is 24 until the hub is configured.
+const SORT_HOURS = {}
+export const getSortHours = (code) => SORT_HOURS[code] ?? null
+export const setSortHours = (code, h) => { SORT_HOURS[code] = Math.min(24, Math.max(1, Math.round(h) || 24)) }

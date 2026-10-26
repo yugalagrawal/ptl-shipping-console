@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { card, pill, pillActive, pillInactive } from '../../components/ui.js'
-import { FACILITIES, VARIABLE_CATEGORIES, getSheet, hasSheet, addFixedRow, addVariableRow, removeRow, updateRow, copyFixedFrom, prevMonth, daysInMonth, num, getFactor, setFactor, spaceWork, VAR_TAG } from '../../data/hubCosts.js'
+import { FACILITIES, VARIABLE_CATEGORIES, getSheet, hasSheet, addFixedRow, addVariableRow, removeRow, updateRow, copyFixedFrom, prevMonth, daysInMonth, num, getSortHours, setSortHours } from '../../data/hubCosts.js'
 
 const inr = (n) => '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const TODAY = '2026-10-23'
@@ -43,74 +43,44 @@ const cellIn = 'w-full bg-transparent px-3 py-2 text-sm text-slate-800 outline-n
 const sheetTh = 'border-b border-r border-slate-200 bg-slate-50 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500 last:border-r-0'
 const sheetTd = 'border-b border-r border-slate-100 p-0 last:border-r-0'
 
-function WaitingFactor({ fac, month, sheet, bump }) {
+function HubFactor({ fac, total, bump }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
-  const factor = getFactor(fac.code)
-  const sw = spaceWork(sheet)
-  const rec = sw.factor
-  const fmt = (v) => (v == null ? '—' : (Math.round(v * 100) / 100).toString())
-  const rows = [
-    ...sheet.fixed.filter((r) => r.item || num(r.amount)).map((r) => ({ ...r, kind: 'fixed', label: r.item || 'Untitled', sub: 'Fixed' })),
-    ...sheet.variable.filter((r) => num(r.amount)).map((r) => ({ ...r, kind: 'variable', label: r.category, sub: `Variable · ${r.date}` })),
-  ]
-  const save = (v) => { const n = Math.min(1, Math.max(0, parseFloat(v) || 0)); setFactor(fac.code, n); setTyped(String(n)); bump() }
+  const set = getSortHours(fac.code)
+  const hours = set ?? 24
+  const factor = hours / 24
+  const pct = (v) => `${Math.round(v * 1000) / 10}%`
+  const save = () => { setSortHours(fac.code, parseFloat(typed)); bump(); setOpen(false) }
   return (
     <div className={`p-5 ${card}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Waiting factor — {fac.name}</p>
-          <p className="mt-1 text-[11px] text-slate-500">Used in Level 2 Cost. A docket staying beyond 24 hours counts for extra weight of kg × factor for each extra day.</p>
+          <p className="text-sm font-semibold text-slate-900">Hub factor — {fac.name}</p>
+          <p className="mt-1 text-[11px] text-slate-500">Used in Level 2 Cost. Hub factor = sortation hours ÷ 24. It splits the month’s cost into Sortation cost (shared by weight) and Storage cost (shared by kg-hours beyond the sortation hours).</p>
         </div>
-        <button onClick={() => { setOpen((o) => !o); setTyped(factor == null ? '' : String(factor)) }} className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800">{open ? 'Close' : 'Configure Waiting Factor'}</button>
-      </div>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">Configured factor</p><p className="text-xl font-semibold tabular-nums text-slate-900">{factor == null ? 'Not set' : fmt(factor)}</p></div>
-        <div className="rounded-xl bg-sky-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">Recommended ({month})</p><p className="text-xl font-semibold tabular-nums text-slate-900">{fmt(rec)}</p></div>
-        <div className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">How it is calculated</p><p className="text-xs leading-snug text-slate-700">Space ÷ (Space + Work)<br /><span className="tabular-nums text-slate-500">{inr(sw.space)} ÷ ({inr(sw.space)} + {inr(sw.work)})</span></p></div>
+        <button onClick={() => { setOpen((o) => !o); setTyped(String(hours)) }} className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800">{open ? 'Close' : 'Configure Hub Factor'}</button>
       </div>
 
       {open && (
-        <div className="mt-4 space-y-4 rounded-xl border border-slate-200 p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Waiting factor (0 to 1)</span>
-              <input type="number" min="0" max="1" step="0.01" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="e.g. 0.3" className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400" /></label>
-            <button onClick={() => save(typed)} className="rounded-xl bg-brand-orange px-4 py-2 text-sm font-medium text-white hover:bg-brand-orange-dark">Save factor</button>
-            <button disabled={rec == null} onClick={() => save(rec)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40">Use recommended ({fmt(rec)})</button>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-800">Recommendation: mark each cost as Space or Work</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-500"><b className="text-slate-700">Space cost</b> grows with time a docket spends in the hub (rent, electricity, security of the floor). <b className="text-slate-700">Work cost</b> is done once per docket (labour, handling, packing). The recommended factor is the Space share of the month’s total. Change a tag and the recommendation updates. Only costs with an amount count.</p>
-            {rows.length === 0 ? (
-              <p className="mt-3 text-xs text-slate-400">Enter costs in the sheets above to get a recommendation.</p>
-            ) : (
-              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full min-w-[480px] text-xs">
-                  <thead><tr className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-400"><th className="px-3 py-2 text-left font-medium">Cost</th><th className="px-3 py-2 text-right font-medium">Amount</th><th className="px-3 py-2 text-left font-medium">Counts as</th></tr></thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.id} className="border-t border-slate-100">
-                        <td className="px-3 py-1.5"><span className="font-medium text-slate-800">{r.label}</span> <span className="text-slate-400">· {r.sub}</span></td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">{inr(num(r.amount))}</td>
-                        <td className="px-3 py-1.5">
-                          <div className="inline-flex overflow-hidden rounded-lg border border-slate-200">
-                            {['space', 'work'].map((t) => <button key={t} onClick={() => { updateRow(fac.code, month, r.kind, r.id, { tag: t }); bump() }} className={`px-2.5 py-1 text-[11px] font-medium capitalize ${r.tag === t ? (t === 'space' ? 'bg-sky-500 text-white' : 'bg-orange-500 text-white') : 'bg-white text-slate-500 hover:bg-slate-50'}`}>{t}</button>)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-900">
-                      <td className="px-3 py-2">Space {inr(sw.space)} · Work {inr(sw.work)}</td><td className="px-3 py-2 text-right tabular-nums">{inr(sw.space + sw.work)}</td><td className="px-3 py-2">Factor ≈ {fmt(rec)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 p-4">
+          <label className="block"><span className="mb-1 block text-xs font-medium text-slate-500">Sortation hours (1 to 24)</span>
+            <input type="number" min="1" max="24" step="1" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="e.g. 16" className="w-40 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400" /></label>
+          <button onClick={save} className="rounded-xl bg-brand-orange px-4 py-2 text-sm font-medium text-white hover:bg-brand-orange-dark">Save</button>
+          <p className="text-[11px] text-slate-400">Hub factor will be {Math.min(24, Math.max(1, Math.round(parseFloat(typed)) || 24))}/24</p>
         </div>
       )}
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-4">
+        <div className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">Sortation hours</p><p className="text-xl font-semibold tabular-nums text-slate-900">{hours} h{set == null && <span className="ml-1 text-[11px] font-normal text-slate-400">default</span>}</p></div>
+        <div className="rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">Hub factor</p><p className="text-xl font-semibold tabular-nums text-slate-900">{hours}/24</p><p className="text-[11px] text-slate-400">sortation hours ÷ 24</p></div>
+        <div className="rounded-xl bg-orange-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">A. Sortation cost this month</p><p className="text-xl font-semibold tabular-nums text-slate-900">{inr(total * factor)}</p><p className="text-[11px] text-slate-400">{inr(total)} × {hours}/24 ({pct(factor)})</p></div>
+        <div className="rounded-xl bg-sky-50 px-3 py-2.5"><p className="text-[11px] text-slate-500">B. Storage cost this month</p><p className="text-xl font-semibold tabular-nums text-slate-900">{inr(total * (1 - factor))}</p><p className="text-[11px] text-slate-400">{inr(total)} × {24 - hours}/24 ({pct(1 - factor)})</p></div>
+      </div>
+      <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+        <span className="bg-orange-400" style={{ width: pct(factor) }} />
+        <span className="bg-sky-400" style={{ width: pct(1 - factor) }} />
+      </div>
+      <p className="mt-2 text-[11px] text-slate-400">A docket that leaves within {hours} h pays sortation only. Beyond {hours} h it also takes a share of storage. Each month is its own pool; a docket staying over a month end pays storage to both months.</p>
     </div>
   )
 }
@@ -147,7 +117,7 @@ function Ledger({ fac, onBack }) {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
-        {[['Fixed (monthly)', inr(fixedTotal)], [`Fixed per day (÷ ${days} days)`, inr(fixedTotal / days)], ['Variable this month', inr(varTotal)], ['Hub cost for the month', inr(fixedTotal + varTotal)]].map(([l, v], i) => (
+        {[['Fixed (monthly)', inr(fixedTotal)], [`Fixed per day (÷ ${days} days)`, inr(fixedTotal / days)], ['Variable this month', inr(varTotal)], ['Warehouse cost for the month', inr(fixedTotal + varTotal)]].map(([l, v], i) => (
           <div key={l} className={`rounded-2xl border px-4 py-3 ${i === 3 ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200/70 bg-white'}`}>
             <p className={`text-[11px] ${i === 3 ? 'text-slate-300' : 'text-slate-500'}`}>{l}</p>
             <p className="text-xl font-semibold tabular-nums">{v}</p>
@@ -155,7 +125,7 @@ function Ledger({ fac, onBack }) {
         ))}
       </div>
 
-      <WaitingFactor fac={fac} month={month} sheet={sheet} bump={bump} />
+      <HubFactor fac={fac} total={fixedTotal + varTotal} bump={bump} />
 
       <div className={card}>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
@@ -207,7 +177,7 @@ function Ledger({ fac, onBack }) {
                 <tr key={r.id}>
                   <td className={`${sheetTd} bg-slate-50/60 text-center text-xs text-slate-400`}>{i + 1}</td>
                   <td className={sheetTd}><input type="date" min={first} max={last} value={r.date} onChange={(e) => upd('variable', r.id, { date: e.target.value })} className={cellIn} /></td>
-                  <td className={sheetTd}><select value={r.category} onChange={(e) => upd('variable', r.id, { category: e.target.value, tag: VAR_TAG[e.target.value] })} className={cellIn}>{VARIABLE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></td>
+                  <td className={sheetTd}><select value={r.category} onChange={(e) => upd('variable', r.id, { category: e.target.value })} className={cellIn}>{VARIABLE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></td>
                   <td className={sheetTd}><input value={r.note} onChange={(e) => upd('variable', r.id, { note: e.target.value })} placeholder="e.g. 8 extra loaders for peak day" className={`${cellIn} text-slate-500`} /></td>
                   <td className={sheetTd}><input type="number" min="0" value={r.amount} onChange={(e) => upd('variable', r.id, { amount: e.target.value })} placeholder="0" className={`${cellIn} text-right tabular-nums`} /></td>
                   <td className={`${sheetTd} text-center`}><button onClick={() => { removeRow(fac.code, month, 'variable', r.id); bump() }} className="text-slate-300 hover:text-red-500" title="Remove row">✕</button></td>
@@ -230,8 +200,8 @@ export default function HubCostLedger() {
   return (
     <div className="max-w-6xl space-y-5">
       <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Hub Cost Ledger</h1>
-        <p className="mt-1 text-sm text-slate-500">Log what each hub or mini hub costs. Level 2 Cost reads from here: fixed bills are spread over the calendar days of the month, and variable costs are added on the day they happen.</p>
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Warehouse Cost Ledger</h1>
+        <p className="mt-1 text-sm text-slate-500">Log what each hub or mini warehouse costs. Level 2 Cost reads from here: fixed bills are spread over the calendar days of the month, and variable costs are added on the day they happen.</p>
       </div>
       {fac ? <Ledger fac={fac} onBack={() => setFac(null)} /> : <Picker onPick={setFac} />}
     </div>

@@ -95,10 +95,10 @@ export const MODULES = [
     key: 'warehouse-module',
     label: 'Warehouse Module',
     icon: 'warehouse',
-    tagline: 'Hub operations and the hub cost ledger.',
+    tagline: 'Hub operations and the warehouse cost ledger.',
     children: [
       { key: 'warehouse-hub-ops', label: 'Ops', to: '/warehouse-module/ops', icon: 'warehouse', tagline: 'Pallet allotment, barcode/QR scanning and hub-level sorting logs.' },
-      { key: 'hub-cost-ledger', label: 'Hub Cost Ledger', to: '/warehouse-module/hub-cost-ledger', icon: 'calculator', tagline: 'Log fixed and variable hub costs — the source of Level 2 Cost.' },
+      { key: 'hub-cost-ledger', label: 'Warehouse Cost Ledger', to: '/warehouse-module/hub-cost-ledger', icon: 'calculator', tagline: 'Log fixed and variable warehouse costs — the source of Level 2 Cost.' },
     ],
   },
   {
@@ -132,8 +132,9 @@ export const MODULES = [
       { key: 'costing-concept', label: 'Concept 1', to: '/costing-module/concept', icon: 'info', tagline: 'What Costing means in FLOW — the concept, in plain words.' },
       { key: 'costing-method-2', label: 'Concept 2', to: '/costing-module/method-2', icon: 'calculator', tagline: 'Concept 2.' },
       { key: 'costing-method-3', label: 'Level 1 Cost', to: '/costing-module/method-3', icon: 'calculator', tagline: 'Level 1 — transport cost to docket.' },
-      { key: 'hub-cost-method', label: 'Level 2 Cost', to: '/costing-module/hub-cost', icon: 'calculator', tagline: 'Level 2 — hub cost to docket.' },
+      { key: 'hub-cost-method', label: 'Level 2 Cost', to: '/costing-module/hub-cost', icon: 'calculator', tagline: 'Level 2 — warehouse cost to docket.' },
       { key: 'net-cost', label: 'Level 3 Cost', to: '/costing-module/net-cost', icon: 'calculator', tagline: 'Everything not attributed in Level 1 or Level 2 — fully loaded cost.' },
+      { key: 'finance-dashboard', label: 'Finance Dashboard', to: '/costing-module/finance-dashboard', icon: 'analytics', tagline: 'Gross revenue to Level 3 margin — trends, lanes, clients, hubs and insights.' },
       { key: 'cost-overview', label: 'Cost Overview', to: '/costing-module/overview', icon: 'analytics', tagline: 'Network cost by head, region, hub, lane and client — with budget variance and alerts.' },
       { key: 'cost-forecast', label: 'Forecast & What-if', to: '/costing-module/forecast', icon: 'calculator', tagline: 'Six-month cost forecast and scenario levers — diesel, volume, vendor rates, productivity.' },
     ],

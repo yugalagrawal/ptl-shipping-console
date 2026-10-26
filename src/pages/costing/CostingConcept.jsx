@@ -29,9 +29,9 @@ const Chip = ({ children, tone = 'slate' }) => {
 const LIFECYCLE = [
   { step: 'Order booked', what: 'Revenue identified', src: 'Docket', basis: 'Billed freight (net of SLA deductions)', tone: 'green' },
   { step: 'Pickup', what: 'First-mile cost', src: 'Pickup / FM trip', basis: '% of revenue (commission) — partner is paid a share', tone: 'orange' },
-  { step: 'Mid mile · source hub', what: 'Hub cost', src: 'Hub ops + rent', basis: '₹/kg/day × days the docket sat in the hub', tone: 'orange' },
+  { step: 'Mid mile · source hub', what: 'Warehouse cost', src: 'Hub ops + rent', basis: '₹/kg/day × days the docket sat in the hub', tone: 'orange' },
   { step: 'Mid mile · trip', what: 'Feeder / line-haul cost', src: 'Trips · vendor invoices', basis: 'Trip cost shared by charged weight × km actually ridden', tone: 'orange' },
-  { step: 'Mid mile · dest. hub', what: 'Hub cost', src: 'Hub ops + rent', basis: '₹/kg/day × dwell days', tone: 'orange' },
+  { step: 'Mid mile · dest. hub', what: 'Warehouse cost', src: 'Hub ops + rent', basis: '₹/kg/day × dwell days', tone: 'orange' },
   { step: 'Last mile', what: 'Delivery cost', src: 'Delivery / LM trip', basis: '₹/kg (rate card)', tone: 'orange' },
 ]
 
@@ -69,7 +69,7 @@ const PNL = [
   { t: 'Hub handling', k: 'cost' },
   { t: 'Hub rent', k: 'cost' },
   { t: 'Hub other opex', k: 'cost' },
-  { t: 'Total hub cost', k: 'sub' },
+  { t: 'Total warehouse cost', k: 'sub' },
   { t: 'Contribution / margin', k: 'total' },
   { t: 'On-roll people', k: 'cost2' },
   { t: 'Corporate overheads', k: 'cost2' },
@@ -98,7 +98,7 @@ function Detail() {
           </div>
         </div>
         <p className="mt-3 text-sm text-slate-700">
-          <b>Goal:</b> docket revenue − docket cost = <b>docket P&amp;L</b>. So the work is to <b>push trip and hub cost down onto the dockets</b> that used them, with rules a business user can read in one line.
+          <b>Goal:</b> docket revenue − docket cost = <b>docket P&amp;L</b>. So the work is to <b>push trip and warehouse cost down onto the dockets</b> that used them, with rules a business user can read in one line.
         </p>
       </Section>
 
@@ -176,7 +176,7 @@ function Detail() {
         </div>
       </Section>
 
-      <Section n="5" title="Hub cost: fixed + variable, blended into ₹/kg/day" sub="Second board — a hub is a space-and-time resource">
+      <Section n="5" title="Warehouse cost: fixed + variable, blended into ₹/kg/day" sub="Second board — a hub is a space-and-time resource">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 text-sm text-slate-700">
             <p><b>Fixed</b> — rent, supervisors, utilities. Same whether the floor is full or empty.</p>

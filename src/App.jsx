@@ -49,6 +49,7 @@ import HubCostMethod from './pages/costing/HubCostMethod.jsx'
 import NetCost from './pages/costing/NetCost.jsx'
 import CostOverview from './pages/costing/CostOverview.jsx'
 import CostForecast from './pages/costing/CostForecast.jsx'
+import FinanceDashboard from './pages/costing/FinanceDashboard.jsx'
 import Mis from './pages/finance/Mis.jsx'
 import Invoicing from './pages/finance/Invoicing.jsx'
 import Collections from './pages/finance/Collections.jsx'
@@ -123,6 +124,7 @@ export default function App() {
         <Route path="/costing-module/net-cost" element={<NetCost />} />
         <Route path="/costing-module/overview" element={<CostOverview />} />
         <Route path="/costing-module/forecast" element={<CostForecast />} />
+        <Route path="/costing-module/finance-dashboard" element={<FinanceDashboard />} />
         <Route path="/logic-engine" element={<LogicEngine />} />
         <Route path="/user-module/access-management" element={<AccessManagement />} />
         <Route path="/user-module/user-relations" element={<UserRelations />} />
