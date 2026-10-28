@@ -23,6 +23,31 @@ export const CLIENT_CONFIG_FIELDS = [
     options: ['Yes', 'No'],
     default: 'Yes',
   },
+  // Docket terms — what a new docket starts on for this client (the driver/ops can still change it per docket).
+  {
+    id: 'docket-payment-term',
+    label: 'Payment Term',
+    options: ['Paid', 'To-Pay', 'TBB'],
+    default: 'To-Pay',
+  },
+  {
+    id: 'docket-risk-cover',
+    label: 'Risk Cover',
+    options: ["Owner's Risk", "Carrier's Risk"],
+    default: "Carrier's Risk",
+  },
+  {
+    id: 'docket-pod-type',
+    label: 'Proof of Delivery',
+    options: ['ePOD', 'Hardcopy', 'Consignor DC'],
+    default: 'ePOD',
+  },
+  {
+    id: 'docket-gst-payable-by',
+    label: 'GST Payable By',
+    options: ['Consignor', 'Consignee', 'LT'],
+    default: 'Consignor',
+  },
   {
     id: 'booking-data-exchange',
     label: 'Booking Data Exchange',
@@ -286,7 +311,12 @@ export const CLIENT_CONFIG_TABS = [
     cards: [
       // Only Docket Series is live for now; Booking Sequence and EWB Count Per
       // Docket stay defined above but are hidden until their behaviour is built.
-      { title: 'Docket Config', icon: 'invoice', fieldIds: ['docket-series', 'pricing-on-docket'] },
+      {
+        title: 'Docket Settings',
+        icon: 'invoice',
+        fieldIds: ['docket-series', 'pricing-on-docket', 'docket-payment-term', 'docket-risk-cover', 'docket-pod-type', 'docket-gst-payable-by'],
+        rows: [['docket-series', 'pricing-on-docket'], ['docket-payment-term', 'docket-risk-cover', 'docket-pod-type', 'docket-gst-payable-by']],
+      },
       {
         title: 'Pricing Conditions',
         icon: 'calculator',

@@ -192,7 +192,7 @@ function PricingConditionsList({ fieldIds, othersFieldIds, values, onChange, rea
   )
 }
 
-function ConfigCard({ title, icon, fieldIds, othersFieldIds, layout, values, onChange, readOnly, clientId, yetToBuild }) {
+function ConfigCard({ title, icon, fieldIds, othersFieldIds, layout, columns, rows, values, onChange, readOnly, clientId, yetToBuild }) {
   return (
     <div className={`space-y-5 p-6 ${card}`}>
       <div className="flex items-center gap-2 border-b border-slate-100 pb-3 text-base font-semibold text-slate-800">
@@ -202,8 +202,21 @@ function ConfigCard({ title, icon, fieldIds, othersFieldIds, layout, values, onC
       </div>
       {layout === 'conditions' ? (
         <PricingConditionsList fieldIds={fieldIds} othersFieldIds={othersFieldIds} values={values} onChange={onChange} readOnly={readOnly} />
+      ) : rows ? (
+        <div className="space-y-6">
+          {rows.map((row, i) => (
+            <Fragment key={i}>
+              <div className={`grid gap-x-6 gap-y-6 sm:grid-cols-2 ${row.length >= 4 ? 'lg:grid-cols-4' : row.length === 3 ? 'lg:grid-cols-3' : ''}`}>
+                {row.map((fieldId) => <ConfigField key={fieldId} field={CLIENT_CONFIG_FIELDS_BY_ID[fieldId]} value={values[fieldId]} onChange={onChange} readOnly={readOnly} />)}
+              </div>
+              {row.includes('docket-series') && values['docket-series'] === DOCKET_SERIES_ASSIGNED && (
+                <SeriesPanel clientId={clientId} ranges={values['docket-series-ranges'] ?? []} onChange={(next) => onChange('docket-series-ranges', next)} readOnly={readOnly} />
+              )}
+            </Fragment>
+          ))}
+        </div>
       ) : (
-      <div className={`grid gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 ${yetToBuild ? 'pointer-events-none opacity-50' : ''}`}>
+      <div className={`grid gap-x-6 gap-y-6 sm:grid-cols-2 ${columns === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} ${yetToBuild ? 'pointer-events-none opacity-50' : ''}`}>
         {fieldIds.map((fieldId) => (
           <Fragment key={fieldId}>
             <ConfigField field={CLIENT_CONFIG_FIELDS_BY_ID[fieldId]} value={values[fieldId]} onChange={onChange} readOnly={readOnly || yetToBuild} />
@@ -498,7 +511,7 @@ function ClientConfigForm({ client, canEdit, onBack, initialTab }) {
           <div className={`p-6 text-sm text-slate-400 ${card}`}>Fields for this tab haven't been defined yet.</div>
         ) : (
           currentTab.cards.map((c) => (
-            <ConfigCard key={c.title} title={c.title} icon={c.icon} fieldIds={c.fieldIds} othersFieldIds={c.othersFieldIds} layout={c.layout} values={values} onChange={handleChange} readOnly={!canEdit} clientId={client.id} yetToBuild={c.yetToBuild} />
+            <ConfigCard key={c.title} title={c.title} icon={c.icon} fieldIds={c.fieldIds} othersFieldIds={c.othersFieldIds} layout={c.layout} columns={c.columns} rows={c.rows} values={values} onChange={handleChange} readOnly={!canEdit} clientId={client.id} yetToBuild={c.yetToBuild} />
           ))
         )}
       </div>
