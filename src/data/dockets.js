@@ -101,8 +101,8 @@ export const PAYMENT_TERM_LABEL = { [PAYMENT_TERM.PAID]: 'Paid', [PAYMENT_TERM.T
 export const RISK_COVER = { OWNERS_RISK: 'owners_risk', CARRIERS_RISK: 'carriers_risk' }
 export const RISK_COVER_LABEL = { [RISK_COVER.OWNERS_RISK]: 'Owner', [RISK_COVER.CARRIERS_RISK]: 'Carrier' }
 
-export const POD_TYPE = { EPOD: 'epod', HARDCOPY: 'hardcopy', CONSIGNOR_DC: 'consignor_dc' }
-export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'Hardcopy', [POD_TYPE.CONSIGNOR_DC]: 'Consignor DC' }
+export const POD_TYPE = { EPOD: 'epod', HARDCOPY: 'hardcopy', CONSIGNOR_DC: 'consignor_dc', CONSIGNEE_GRN: 'consignee_grn' }
+export const POD_TYPE_LABEL = { [POD_TYPE.EPOD]: 'ePOD', [POD_TYPE.HARDCOPY]: 'Hardcopy', [POD_TYPE.CONSIGNOR_DC]: 'Consignor DC', [POD_TYPE.CONSIGNEE_GRN]: 'Consignee GRN' }
 
 // Called once, at the moment a pickup's last package is scanned — carries
 // exactly what's known at that instant (tentative: actual weight, package/

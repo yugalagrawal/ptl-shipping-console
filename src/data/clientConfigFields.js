@@ -39,7 +39,7 @@ export const CLIENT_CONFIG_FIELDS = [
   {
     id: 'docket-pod-type',
     label: 'Proof of Delivery',
-    options: ['ePOD', 'Hardcopy', 'Consignor DC'],
+    options: ['ePOD', 'Hardcopy', 'Consignor DC', 'Consignee GRN'],
     default: 'ePOD',
   },
   {

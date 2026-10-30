@@ -196,7 +196,7 @@ function lineValue(pricing, label) {
 }
 
 const MODE_TEXT = { surface: 'SURFACE', air: 'AIR', rail: 'RAIL', sea: 'SEA' }
-const POD_TEXT = { epod: 'ePOD', hardcopy: 'Hardcopy', consignor_dc: 'Consignor DC' }
+const POD_TEXT = { epod: 'ePOD', hardcopy: 'Hardcopy', consignor_dc: 'Consignor DC', consignee_grn: 'Consignee GRN' }
 
 export function buildDocketSheetBody(docket, copyLabel = COPY_OPTIONS[0]) {
   const cn = docket.consignee ?? {}

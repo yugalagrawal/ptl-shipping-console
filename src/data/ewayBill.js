@@ -38,9 +38,12 @@ export const TEST_EWAY_BILLS = [
   { no: '123456789002', label: 'Fetched · other vehicle on Part B' },
   { no: '123456789003', label: 'Not assigned to LetsTransport' },
   { no: '123456789004', label: 'Expired' },
+  { no: '123456789005', label: 'Matches the pickup\'s 1st consignee' },
+  { no: '123456789006', label: 'Matches the pickup\'s 2nd consignee' },
 ]
 
-export function fetchEwayBill(number) {
+// `hint.consignees` = the consignees already on the pickup; the 005 / 006 test bills resolve to the 1st / 2nd of them.
+export function fetchEwayBill(number, hint = {}) {
   const clean = String(number ?? '').trim()
   return new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -69,7 +72,8 @@ export function fetchEwayBill(number) {
       }
       const validForDays = 3 + (seed % 5)
       const validUntil = new Date(Date.now() + validForDays * 24 * 60 * 60 * 1000)
-      const consignee = SAMPLE_CONSIGNEES[seed % SAMPLE_CONSIGNEES.length]
+      const hinted = /^12345678900[56]$/.test(clean) ? hint.consignees?.[Number(clean.slice(-1)) - 5] : null
+      const consignee = hinted ? { gstin: '', ...hinted } : SAMPLE_CONSIGNEES[seed % SAMPLE_CONSIGNEES.length]
       const goods = SAMPLE_GOODS[seed % SAMPLE_GOODS.length]
       const invoiceValue = 15000 + (seed % 90) * 1250
       const generatedOn = new Date(Date.now() - 24 * 60 * 60 * 1000)
