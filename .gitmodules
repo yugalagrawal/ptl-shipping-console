@@ -1,0 +1,3 @@
+[submodule "StageAPP-prototype"]
+	path = StageAPP-prototype
+	url = https://github.com/yugalagrawal/stageapp-prototype.git
