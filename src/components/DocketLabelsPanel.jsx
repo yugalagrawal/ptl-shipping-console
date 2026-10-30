@@ -7,7 +7,7 @@ import { allocateAutomated, linkStock, packagesOfDocket, sourceOfPackage, fmtPac
 // Package labels for one docket — print system-generated ones, or link pre-printed stock labels
 // (the same two routes PTL APP offers at pickup). Used right after a docket is created and from
 // the Docket Dashboard's "Pending Label Print" tab.
-export default function DocketLabelsPanel({ docket, packages, onChange }) {
+export default function DocketLabelsPanel({ docket, packages, onChange, title = 'Package labels', titleNote }) {
   const [, bump] = useState(0)
   const [route, setRoute] = useState(null) // 'print' | 'stock'
   const [stock, setStock] = useState('')
@@ -31,7 +31,7 @@ export default function DocketLabelsPanel({ docket, packages, onChange }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-slate-900">Package labels <span className="font-normal text-slate-500">· {packages} package{packages === 1 ? '' : 's'}</span></p>
+          <p className="text-sm font-semibold text-slate-900">{title} <span className="font-normal text-slate-500">{titleNote ? `· ${titleNote} ` : ''}· {packages} package{packages === 1 ? '' : 's'}</span></p>
           {labels.length > 0 && <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${need === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{labels.length} of {packages} assigned</span>}
         </div>
 

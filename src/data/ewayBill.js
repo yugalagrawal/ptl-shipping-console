@@ -18,6 +18,8 @@ const SAMPLE_CONSIGNEES = [
   { name: 'Apollo Pharmacies Ltd', gstin: '29AAACA1234B1Z7', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' },
   { name: 'Vishal Mega Mart Pvt Ltd', gstin: '07AAECV5678C1Z2', city: 'New Delhi', state: 'Delhi', pincode: '110001' },
 ]
+// The "From" side of a bill. Most test bills name the pickup's own consignor (so they match); 002 names someone else (a mismatch).
+const OTHER_CONSIGNOR = { name: 'Sunrise Traders Pvt Ltd', gstin: '27AAECS4321M1Z5', city: 'Pune', state: 'Maharashtra', pincode: '411001' }
 const SAMPLE_GOODS = [
   { description: 'Cosmetics & personal care', hsn: '3304', unit: 'BOX' },
   { description: 'Medical consumables', hsn: '3005', unit: 'CTN' },
@@ -75,6 +77,8 @@ export function fetchEwayBill(number, hint = {}) {
       const hinted = /^12345678900[56]$/.test(clean) ? hint.consignees?.[Number(clean.slice(-1)) - 5] : null
       const consignee = hinted ? { gstin: '', ...hinted } : SAMPLE_CONSIGNEES[seed % SAMPLE_CONSIGNEES.length]
       const goods = SAMPLE_GOODS[seed % SAMPLE_GOODS.length]
+      const pc = hint.consignor
+      const consignor = clean === '123456789002' || !pc?.name ? OTHER_CONSIGNOR : { name: pc.name, gstin: '', city: pc.city, state: pc.state, pincode: pc.pincode }
       const invoiceValue = 15000 + (seed % 90) * 1250
       const generatedOn = new Date(Date.now() - 24 * 60 * 60 * 1000)
       resolve({
@@ -83,6 +87,7 @@ export function fetchEwayBill(number, hint = {}) {
         invoiceNo: `INV/26-27/${String(1000 + (seed % 9000))}`,
         invoiceDate: generatedOn.toISOString().slice(0, 10),
         invoiceValue,
+        consignor,
         consignee,
         goods: { ...goods, quantity: 4 + (seed % 20) },
         distanceKm: 50 + (seed % 900),
