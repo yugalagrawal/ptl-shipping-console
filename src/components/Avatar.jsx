@@ -13,9 +13,12 @@ function hash(str) {
   return h
 }
 
-const SIZES = { sm: 'h-7 w-7 text-xs', md: 'h-9 w-9 text-sm' }
+const SIZES = { sm: 'h-7 w-7 text-xs', md: 'h-9 w-9 text-sm', lg: 'h-16 w-16 text-xl' }
 
-export default function Avatar({ name, size = 'md' }) {
+export default function Avatar({ name, size = 'md', src }) {
+  if (src) {
+    return <img src={src} alt={name} className={`shrink-0 rounded-full object-cover ${SIZES[size]}`} />
+  }
   const initials = name
     .split(' ')
     .map((w) => w[0])

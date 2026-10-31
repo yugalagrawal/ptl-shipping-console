@@ -30,7 +30,7 @@ const MODULE_ICON = {
   'Finance Management': 'finance',
   'Costing Module': 'costing',
   'Logic Engine': 'logic',
-  Admin: 'shield',
+  'User Module': 'shield',
   'System Info': 'info',
 }
 

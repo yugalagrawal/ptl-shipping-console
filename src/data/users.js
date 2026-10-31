@@ -29,8 +29,8 @@
 // (data/permissions.js USER_TAGS) — metadata only, shown read-only on My
 // Profile; no longer editable from User Management, which now edits
 // `products` instead (see below).
-// `products` are which internal apps this login can use (FLOW, Hub
-// App, Scan Tool, …) — set at creation and editable from User Management's
+// `products` are which internal apps this login can use (Flow Web, Flow
+// App) — set at creation and editable from User Management's
 // search panel; metadata only for now, not read by any permission check.
 // `firstName`/`lastName`/`mobile` are identity/contact details shown in
 // Access Management once a user is selected — split from `name` (kept as-is
@@ -43,7 +43,7 @@
 // null for every current LT Team user since none of them are that kind.
 //
 // `departments` is the new Access Management "Function" field (Operations /
-// Sales / Finance / Tech / External Partners) — multi-select department tags
+// Sales / Finance / Tech / Partner / Client) — multi-select department tags
 // that narrow which Role Presets are offered for this user
 // (data/permissions.js ROLE_DEPARTMENT/rolesForDepartments). Seeded to match
 // each user's existing role so nothing changes for them; not itself read by
@@ -77,7 +77,7 @@ export const LT_USERS = [
     managerEmail: null,
     delegatedFunctions: [],
     tags: ['LT Admin'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'rahul.mehta@letstransport.team',
@@ -88,8 +88,8 @@ export const LT_USERS = [
     parentEmail: null,
     departments: ['Finance'],
     phoneVerified: true,
-    roleLabel: 'Finance Manager',
-    roles: ['Finance Manager'],
+    roleLabel: 'Finance Admin',
+    roles: ['Finance Admin'],
     functionOverrides: null,
     regions: [],
     zones: [],
@@ -103,7 +103,7 @@ export const LT_USERS = [
     managerEmail: 'priya.sharma@letstransport.team',
     delegatedFunctions: [],
     tags: ['LT Finance'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'admin@letstransport.team',
@@ -129,7 +129,7 @@ export const LT_USERS = [
     managerEmail: null,
     delegatedFunctions: [],
     tags: ['LT Admin'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'karan.verma@letstransport.team',
@@ -155,7 +155,7 @@ export const LT_USERS = [
     managerEmail: 'rahul.mehta@letstransport.team',
     delegatedFunctions: [],
     tags: ['LT Ops'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'sonal.kapoor@letstransport.team',
@@ -181,7 +181,7 @@ export const LT_USERS = [
     managerEmail: null,
     delegatedFunctions: [],
     tags: ['LT Sales'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'arjun.nair@letstransport.team',
@@ -207,7 +207,7 @@ export const LT_USERS = [
     managerEmail: null,
     delegatedFunctions: [],
     tags: ['LT Sales'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'neha.iyer@letstransport.team',
@@ -233,7 +233,7 @@ export const LT_USERS = [
     managerEmail: 'rahul.mehta@letstransport.team',
     delegatedFunctions: [],
     tags: ['LT Finance'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'meera.krishnan@letstransport.team',
@@ -242,7 +242,7 @@ export const LT_USERS = [
     lastName: 'Krishnan',
     mobile: '+919811100008',
     parentEmail: null,
-    departments: ['Supply'],
+    departments: ['Operations'],
     phoneVerified: true,
     roleLabel: 'Supply Executive',
     roles: ['Supply Executive'],
@@ -259,7 +259,7 @@ export const LT_USERS = [
     managerEmail: null,
     delegatedFunctions: [],
     tags: ['LT Ops'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
   {
     email: 'vikram.rao@letstransport.team',
@@ -268,7 +268,7 @@ export const LT_USERS = [
     lastName: 'Rao',
     mobile: '+919811100009',
     parentEmail: null,
-    departments: ['Supply'],
+    departments: ['Operations'],
     phoneVerified: true,
     roleLabel: 'Supply Admin',
     roles: ['Supply Admin'],
@@ -285,7 +285,7 @@ export const LT_USERS = [
     managerEmail: null,
     delegatedFunctions: [],
     tags: ['LT Ops'],
-    products: [],
+    products: ['Flow Web', 'Flow App'],
   },
 ]
 

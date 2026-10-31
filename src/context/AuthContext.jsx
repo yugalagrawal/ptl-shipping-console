@@ -28,6 +28,12 @@ export function AuthProvider({ children }) {
     setUser({ persona: 'partner', ...partnerUser, permissions: PARTNER_PERMISSIONS })
   }
 
+  // Profile picture is held on the signed-in user (data URL) so every Avatar
+  // for this login — My Profile, top bar — picks it up. Prototype: in-memory only.
+  function setPhoto(photo) {
+    setUser((u) => (u ? { ...u, photo } : u))
+  }
+
   function logout() {
     setUser(null)
   }
@@ -41,7 +47,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loginAsLtUser, loginAsClient, loginAsPartner, logout, can, hasFunction }}>
+    <AuthContext.Provider value={{ user, loginAsLtUser, loginAsClient, loginAsPartner, logout, can, hasFunction, setPhoto }}>
       {children}
     </AuthContext.Provider>
   )

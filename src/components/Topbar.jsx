@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import Icon from './Icon.jsx'
 import Avatar from './Avatar.jsx'
@@ -46,21 +47,23 @@ export default function Topbar() {
 
         <div className="h-7 w-px shrink-0 bg-white/10" />
 
-        <div className="flex shrink-0 items-center gap-2.5 px-2">
-          <Avatar name={user?.name ?? '?'} size="sm" />
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-xs font-medium text-white">{user?.name}</div>
-            <div className="truncate text-[11px] text-slate-400">
-              {user?.roleLabel ?? (user?.persona === 'partner' ? 'Partner' : 'Client')}
-            </div>
+        <Link
+          to="/user-module/my-profile"
+          title="My Profile"
+          className="flex min-w-0 shrink items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-white/10"
+        >
+          <Avatar name={user?.name ?? '?'} src={user?.photo} />
+          <div className="hidden min-w-0 leading-tight sm:block">
+            <div className="truncate text-sm font-semibold text-white">{user?.name}</div>
+            <div className="max-w-[220px] truncate text-xs text-slate-400">{user?.email}</div>
           </div>
-        </div>
+        </Link>
 
         <button
           type="button"
           onClick={logout}
           title="Log out"
-          className="shrink-0 p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+          className="shrink-0 rounded-lg p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
         >
           <Icon name="logout" className="h-4 w-4" />
         </button>

@@ -37,7 +37,7 @@
 //   it — see the toggle* cascades in AccessManagement.jsx. First rough pass,
 //   flagged for refinement.
 
-export const MODULE_ORDER = ['Birdview', 'Client Module', 'Partner Module', 'Pickup Module', 'Docket Module', 'Trip Module', 'Supply & Fleet Module', 'Warehouse Module', 'Network Simulator', 'Finance Management', 'Costing Module', 'Master Module', 'Logic Engine', 'Admin', 'System Info']
+export const MODULE_ORDER = ['Birdview', 'Client Module', 'Partner Module', 'Pickup Module', 'Docket Module', 'Trip Module', 'Supply & Fleet Module', 'Warehouse Module', 'Network Simulator', 'Finance Management', 'Costing Module', 'Master Module', 'Logic Engine', 'User Module', 'System Info']
 
 export const FUNCTIONS = [
   { id: 'dashboard.view', label: 'View', module: 'Birdview' },
@@ -128,8 +128,9 @@ export const FUNCTIONS = [
   { id: 'logic-engine.view', label: 'View', module: 'Logic Engine' },
   { id: 'logic-engine.manage', label: 'Edit rules', module: 'Logic Engine' },
 
-  { id: 'access-management.manage', label: 'Manage roles, permissions & city access', module: 'Admin' },
-  { id: 'user-relations.manage', label: 'Manage manager mapping (org-wide)', module: 'Admin' },
+  { id: 'access-management.manage', label: 'Manage roles, permissions & city access', module: 'User Module' },
+  { id: 'user-relations.manage', label: 'Manage manager mapping (org-wide)', module: 'User Module' },
+  { id: 'my-profile.view', label: 'View own profile', module: 'User Module' },
 
   // Read-only reference page — granted to every LT Team role by default
   // (added explicitly below to each named role, not just Super Admin/Read
@@ -239,8 +240,9 @@ const RAW_TASKS = [
 
   { id: 'logic-engine', label: 'Logic Engine', module: 'Logic Engine', levels: { 'Read Only': 'logic-engine.view', 'Edit': 'logic-engine.manage' } },
 
-  { id: 'access-management', label: 'Access Management', module: 'Admin', levels: { 'Edit': 'access-management.manage' } },
-  { id: 'user-relations', label: 'User Management', module: 'Admin', levels: { 'Edit': 'user-relations.manage' } },
+  { id: 'access-management', label: 'Access Management', module: 'User Module', levels: { 'Edit': 'access-management.manage' } },
+  { id: 'user-relations', label: 'User Management', module: 'User Module', levels: { 'Edit': 'user-relations.manage' } },
+  { id: 'my-profile', label: 'My Profile', module: 'User Module', levels: { 'Read Only': 'my-profile.view' } },
 
   { id: 'system-info', label: 'System Info', module: 'System Info', levels: { 'Read Only': 'system-info.view' } },
 ]
@@ -263,126 +265,41 @@ export const TASKS_BY_MODULE = MODULE_ORDER.map((moduleName) => ({
 // Every task now carries all 4 levels (real id or synthesized), so deriving
 // the full id catalog and the "Read Only" subset from TASKS instead of the
 // old FUNCTIONS-only filter picks up the synthesized ids too — otherwise
-// Super Admin (`ALL_FUNCTION_IDS`) and Tech Executive (`ALL_VIEW_IDS`) would show
-// the new Edit/Approve/Create pills as unchecked even where they should be
-// "everything"/"every view", by construction.
+// Super Admin (`ALL_FUNCTION_IDS`) would show the new Edit/Approve/Create pills
+// as unchecked even where they should be "everything", by construction.
 const ALL_FUNCTION_IDS = [...new Set([...FUNCTIONS.map((f) => f.id), ...TASKS.flatMap((t) => Object.values(t.levels))])]
-const ALL_VIEW_IDS = TASKS.map((t) => t.levels['Read Only'])
+const USER_MODULE_IDS = TASKS.filter((t) => t.module === 'User Module').flatMap((t) => Object.values(t.levels))
+
+const moduleIds = (moduleName, excludeTaskIds = []) =>
+  TASKS.filter((t) => t.module === moduleName && !excludeTaskIds.includes(t.id)).flatMap((t) => Object.values(t.levels))
 
 export const ROLE_DEFAULTS = {
   'Super Admin': ALL_FUNCTION_IDS,
-  'Ops Manager': [
-    'dashboard.view',
-    'client-onboarding.view', 'client-onboarding.manage',
-    'client-approvals.view', 'client-approvals.manage-onboarding', 'client-approvals.manage',
-    'client-directory.view', 'client-directory.manage',
-    'client-pricing-configuration.view', 'client-configuration.view', 'client-configuration.manage',
-    'client-email-logs.view',
-    'partner-onboarding.view', 'partner-onboarding.manage',
-    'partner-approvals.view', 'partner-approvals.manage',
-    'my-partners.view', 'partner-configuration.view', 'partner-email-logs.view',
-    'create-order.view', 'create-order.manage', 'my-orders.view',
-    'routing-simulator.view', 'routing-simulator.manage',
-    'trip-tracking.view', 'past-trips.view', 'trip-analytics.view',
-    'trip-ops.view', 'trip-ops.manage',
-    'fleet-roster.view', 'fleet-roster.manage', 'truck-assignment.view', 'truck-assignment.manage',
-    'warehouse-hub-ops.view', 'hub-cost-ledger.view', 'hub-cost-ledger.manage',
-    'route-cost-simulator.view', 'freight-calculator.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  'Finance Manager': [
-    'dashboard.view',
-    'mis.view',
-    'invoicing.view', 'invoicing.manage',
-    'collections.view', 'collections.manage',
-    'finance-analytics.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  'Client Success': [
-    'dashboard.view',
-    'client-onboarding.view',
-    'client-directory.view',
-    'client-email-logs.view',
-    'create-order.view', 'my-orders.view',
-    'trip-tracking.view', 'past-trips.view',
-    'route-cost-simulator.view', 'freight-calculator.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  // Onboards new clients (the New Client wizard) — no approvals access.
-  'Sales Executive': [
-    'client-onboarding.view', 'client-onboarding.manage',
-    'client-directory.view',
-    'client-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  // Stage 1 of Client Approvals — reviews everything except Billing &
-  // Pricing (identity, GSTIN, KYC completeness), then hands off to Finance
-  // Admin. Deliberately does NOT get 'client-approvals.manage' (pricing
-  // approval) — that's Finance Admin's alone. Also owns Client Configuration
-  // (the per-client operational settings, not pricing) — a client lands
-  // there the moment KYC is submitted, and Sales Admin is who checks/edits
-  // it from then on, active or still pending.
-  'Sales Admin': [
-    'dashboard.view',
-    'client-approvals.view', 'client-approvals.manage-onboarding',
-    'client-directory.view',
-    'client-configuration.view', 'client-configuration.manage',
-    'client-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  // Stage 2 of Client Approvals — reviews the zone matrix + additional
-  // charges once Sales Admin has cleared a client, and is the one who
-  // actually activates it.
-  'Finance Admin': [
-    'dashboard.view',
-    'client-approvals.view', 'client-approvals.manage',
-    'client-directory.view',
-    'client-pricing-configuration.view', 'client-configuration.view',
-    'client-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  // Renamed from "Read Only" (Yugal's explicit ask) — same view-only default
-  // access, just a role name that reads as a real job title.
-  'Tech Executive': ALL_VIEW_IDS,
+  // Sales — Client Module only (every level on each task), plus My Profile
+  // which every login gets. Executive: everything except Client Approvals;
+  // Admin: everything except Client Onboarding.
+  'Sales Executive': moduleIds('Client Module', ['client-approvals-onboarding', 'client-approvals-pricing']),
+  'Sales Admin': moduleIds('Client Module', ['client-onboarding']),
+  // Finance — Client Module access (every level on every task), plus My Profile
+  // which every login gets.
+  'Finance Admin': moduleIds('Client Module'),
+  // Tech Admin — User Module only (Access Management + User Management), no
+  // auto access anywhere else; anything more is added per user.
+  'Tech Admin': USER_MODULE_IDS,
 
-  // Onboards new partners (the New Partner wizard) — no approvals access.
-  // Mirrors Sales Executive's own scope in Client Module.
-  'Supply Executive': [
-    'dashboard.view',
-    'partner-onboarding.view', 'partner-onboarding.manage',
-    'my-partners.view',
-    'partner-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
-  // Single-stage Partner Approvals — reviews and activates a partner (no
-  // separate pricing sign-off yet, unlike Client Approvals' Sales/Finance
-  // split). Also owns Partner Configuration once that's built.
-  'Supply Admin': [
-    'dashboard.view',
-    'partner-approvals.view', 'partner-approvals.manage',
-    'my-partners.view',
-    'partner-configuration.view',
-    'partner-email-logs.view',
-    'geography-master.view', 'logistics-master.view', 'mapping-ladder.view', 'consignor-consignee-master.view', 'box-master.view',
-    'system-info.view',
-  ],
+  // Operations — each role is one module (every level on every task), plus My
+  // Profile which every login gets. Shift = Pickup Module, Supply = Partner Module.
+  'Shift Executive': moduleIds('Pickup Module'),
+  'Shift Admin': moduleIds('Pickup Module'),
+  'Supply Executive': moduleIds('Partner Module'),
+  'Supply Admin': moduleIds('Partner Module'),
 
-  // External Partners presets — non-LT-Team identity kinds (see `parentEmail`
-  // on data/users.js LT_USER) that will eventually log in as their own
-  // account under a parent, not as an internal reportee. No such login flow
-  // exists yet, so these are provisional/best-guess defaults (view-only,
-  // scoped to what an outside party plausibly needs to see) — flagged for
-  // Yugal to refine once the real agent/co-loader/franchise workflows exist.
-  'Agent': ['create-order.view', 'my-orders.view', 'trip-tracking.view', 'system-info.view'],
-  'Coloader': ['my-orders.view', 'trip-tracking.view', 'past-trips.view', 'system-info.view'],
-  'Franchise': ['client-directory.view', 'my-orders.view', 'trip-tracking.view', 'system-info.view'],
+  // Partner and Client logins (functions of their own). No access for now (My
+  // Profile only, which every login gets); module access is added once their
+  // flows are spec'd.
+  'Partner Admin': [],
+  'Driver': [],
+  'Client Admin': [],
 }
 
 export const ROLE_NAMES = Object.keys(ROLE_DEFAULTS)
@@ -394,22 +311,21 @@ export const ROLE_NAMES = Object.keys(ROLE_DEFAULTS)
 // since every role belongs to exactly one department. A person can sit in
 // more than one Function at once (multi-select) — Role Presets then shows
 // the union of roles across every selected department.
-export const DEPARTMENTS = ['Operations', 'Sales', 'Finance', 'Supply', 'Tech', 'External Partners']
+export const DEPARTMENTS = ['Tech', 'Sales', 'Operations', 'Finance', 'Partner', 'Client']
 
 export const ROLE_DEPARTMENT = {
   'Super Admin': 'Tech',
-  'Ops Manager': 'Operations',
-  'Finance Manager': 'Finance',
-  'Client Success': 'Operations',
   'Sales Executive': 'Sales',
   'Sales Admin': 'Sales',
   'Finance Admin': 'Finance',
-  'Supply Executive': 'Supply',
-  'Supply Admin': 'Supply',
-  'Tech Executive': 'Tech',
-  'Agent': 'External Partners',
-  'Coloader': 'External Partners',
-  'Franchise': 'External Partners',
+  'Shift Executive': 'Operations',
+  'Shift Admin': 'Operations',
+  'Supply Executive': 'Operations',
+  'Supply Admin': 'Operations',
+  'Tech Admin': 'Tech',
+  'Partner Admin': 'Partner',
+  'Driver': 'Partner',
+  'Client Admin': 'Client',
 }
 
 export function rolesForDepartments(departments) {
@@ -774,7 +690,7 @@ export function ensureUserTag(name) {
 }
 
 export function functionsForRoles(roleNames) {
-  const set = new Set()
+  const set = new Set(['my-profile.view']) // My Profile is open to every login
   roleNames.forEach((r) => (ROLE_DEFAULTS[r] || []).forEach((id) => set.add(id)))
   return [...set]
 }
@@ -787,7 +703,7 @@ export function functionsForRoles(roleNames) {
 export function effectiveFunctions(user) {
   const base = user.functionOverrides ?? functionsForRoles(user.roles ?? [])
   const delegated = user.delegatedFunctions ?? []
-  return [...new Set([...base, ...delegated])]
+  return [...new Set(['my-profile.view', ...base, ...delegated])]
 }
 
 // Collapses function ids back down to the flat module-key permission list
