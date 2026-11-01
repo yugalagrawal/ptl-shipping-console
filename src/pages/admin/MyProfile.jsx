@@ -524,7 +524,7 @@ function PageTitle() {
   return (
     <div>
       <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">My Profile</h1>
-      <p className="mt-1 text-slate-500">Your identity, reporting line and access — read-only here. Ask an administrator to change any of it.</p>
+      <p className="mt-0.5 text-xs text-slate-500">Read-only. Ask an admin to change your details or access.</p>
     </div>
   )
 }

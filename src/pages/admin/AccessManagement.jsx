@@ -1,4 +1,5 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { LT_USERS } from '../../data/users.js'
 import {
   TASKS, TASKS_BY_MODULE, ROLE_NAMES, ZONES, BRANCH_MINI_HUBS,
@@ -83,7 +84,7 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</h3>
-      <p className="mt-1 min-h-[2rem] text-xs text-slate-400">{hint}</p>
+      <p className="mt-1 text-xs text-slate-400">{hint}</p>
       <div className="relative mt-3">
         <button
           type="button"
@@ -181,7 +182,7 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Branch (Mini-Hub) access</h3>
-      <p className="mt-1 min-h-[2rem] text-xs text-slate-400">Default is every branch.</p>
+      <p className="mt-1 text-xs text-slate-400">Default is every branch.</p>
       <div className="relative mt-3">
         <button
           type="button"
@@ -303,6 +304,15 @@ export default function AccessManagement() {
   }, [users, query])
 
   const selectedUser = users.find((u) => u.email === selectedEmail) ?? null
+
+  // Deep link from User Management's "Edit access" button (?user=email).
+  const [searchParams] = useSearchParams()
+  const linkedEmail = searchParams.get('user')
+  useEffect(() => {
+    const linked = linkedEmail && LT_USERS.find((u) => u.email === linkedEmail)
+    if (linked) selectUser(linked)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedEmail])
 
   function selectUser(user) {
     setSelectedEmail(user.email)
@@ -622,7 +632,7 @@ export default function AccessManagement() {
     <div className="mx-auto max-w-5xl space-y-7">
       <div>
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Access Management</h1>
-        <p className="mt-1 text-slate-500">Function, role presets, task-level access, and region/zone/hub/branch access for the LT Team login.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Set a team member's function, roles, task access and location scope.</p>
       </div>
 
       <div className="relative max-w-md">
@@ -736,7 +746,7 @@ export default function AccessManagement() {
 
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Function</h3>
-            <p className="mt-1 text-xs text-slate-400">Which department(s) this person sits in — narrows the Role Presets below to those departments' roles. Pick more than one if it applies.</p>
+            <p className="mt-1 text-xs text-slate-400">Pick one or more departments. This narrows the role presets below.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {DEPARTMENTS.map((dept) => (
                 <button
@@ -755,8 +765,8 @@ export default function AccessManagement() {
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Role presets</h3>
             <p className="mt-1 text-xs text-slate-400">
               {draft.departments.length
-                ? `Showing roles for ${draft.departments.join(', ')}. Applying a role adds its tasks on top of what's already assigned; removing one recomputes tasks from the roles that remain.`
-                : "Pick a Function above to see its role presets."}
+                ? `Roles for ${draft.departments.join(', ')}. Adding a role adds its tasks; removing one recalculates from the rest.`
+                : "Pick a function above to see its roles."}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {(draft.departments.length ? rolesForDepartments(draft.departments) : ROLE_NAMES).map((roleName) => (
@@ -778,9 +788,7 @@ export default function AccessManagement() {
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tasks</h3>
             <p className="mt-1 text-xs text-slate-400">
-              Click a module to expand it. A task's own checkbox unlocks its Read Only/Edit/Approve/Create cells for editing — leave it unchecked
-              and the row stays locked/greyed out with nothing granted. The header checkbox above each level column grants (or revokes) that one
-              level across every unlocked task at once.
+              Tick a task to unlock its access levels; unticked tasks grant nothing. A column header ticks that level for all unlocked tasks.
             </p>
 
             <div className="relative mt-3 max-w-sm">
@@ -915,7 +923,7 @@ export default function AccessManagement() {
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Location access</h3>
             <p className="mt-1 text-xs text-slate-400">
-              Region → Zone → Hub → Branch → Mini Hub, broadest to narrowest. Picking a broader tier auto-checks everything under it — uncheck individual items below if you need to narrow further.
+              Region → Zone → Hub → Branch → Mini Hub. Picking a broader tier selects everything under it; untick to narrow. Empty means all.
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <ScopeDropdown
@@ -969,7 +977,7 @@ export default function AccessManagement() {
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Geography Access</h3>
             <p className="mt-1 text-xs text-slate-400">
-              State/UT → City → Pincode is one address chain (a City sits in one State, a Pincode sits in one City); Territory → Circle is a separate grouping of pincode/locality/area ranges. Picking a broader tier auto-checks everything under it in its own chain — uncheck individual items below if you need to narrow further.
+              State/UT → City → Pincode, and Territory → Circle. Picking a broader tier selects everything under it; untick to narrow. Empty means all.
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <ScopeDropdown
@@ -1037,10 +1045,7 @@ export default function AccessManagement() {
         </div>
       )}
 
-      <p className="text-sm text-slate-400">
-        This prototype holds department, role, task, region/zone/hub/branch and geography access in memory only — changes
-        here don't persist past the session. In the real system this would write through to a backend user/role service.
-      </p>
+      <p className="pb-4 text-center text-xs text-slate-400">Prototype · changes are kept in memory for this session only</p>
     </div>
   )
 }

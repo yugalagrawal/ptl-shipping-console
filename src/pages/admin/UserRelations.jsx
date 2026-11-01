@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { LT_USERS } from '../../data/users.js'
 import { PARTNERS } from '../../data/partners.js'
 import { isReportOf } from '../../data/relations.js'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
-import { card, btnPrimary, btnSecondary, thCls, tdCls, rowCls } from '../../components/ui.js'
+import { btnPrimary, btnSecondary, thCls, tdCls, rowCls } from '../../components/ui.js'
 
 // Which internal apps a login can use — kept local to this page for now
 // rather than in data/permissions.js since nothing outside User Management
@@ -165,6 +166,7 @@ function PartnerOrgPicker({ value, catalog, onSelect }) {
 }
 
 export default function UserRelations() {
+  const navigate = useNavigate()
   const { can } = useAuth()
   const [users, setUsers] = useState(LT_USERS)
   const [productCatalog, setProductCatalog] = useState(() => [...PRODUCT_TAGS])
@@ -176,53 +178,48 @@ export default function UserRelations() {
   })
   const [createError, setCreateError] = useState('')
 
-  const [editQuery, setEditQuery] = useState('')
-  const [editSearchOpen, setEditSearchOpen] = useState(false)
-  const [editSelectedEmail, setEditSelectedEmail] = useState(null)
+  const [query, setQuery] = useState('')
+  const [editingEmail, setEditingEmail] = useState(null)
+  const [draftManager, setDraftManager] = useState('')
+  const [draftProducts, setDraftProducts] = useState([])
 
   // user-relations.manage is the org-wide "edit who reports to whom" admin
   // capability that gates this whole page now that Delegate Access (the
   // one feature a plain manager without it used to reach) is gone.
   const canManageOrg = can('user-relations')
 
-  function handleReassignManager(targetEmail, newManagerEmail) {
-    const target = LT_USERS.find((u) => u.email === targetEmail)
-    if (target) target.managerEmail = newManagerEmail
-    setUsers((list) => list.map((u) => (u.email === targetEmail ? { ...u, managerEmail: newManagerEmail } : u)))
+  function startEdit(u) {
+    setEditingEmail(u.email)
+    setDraftManager(u.managerEmail ?? '')
+    setDraftProducts([...(u.products ?? [])])
   }
 
-  function toggleUserProduct(targetEmail, product) {
-    const target = LT_USERS.find((u) => u.email === targetEmail)
+  function saveEdit() {
+    const target = LT_USERS.find((u) => u.email === editingEmail)
     if (!target) return
-    const has = (target.products ?? []).includes(product)
-    target.products = has ? target.products.filter((p) => p !== product) : [...(target.products ?? []), product]
-    setUsers((list) => list.map((u) => (u.email === targetEmail ? { ...u, products: target.products } : u)))
+    target.managerEmail = draftManager || null
+    target.products = [...draftProducts]
+    setUsers((list) => list.map((u) => (u.email === editingEmail ? { ...u, managerEmail: target.managerEmail, products: target.products } : u)))
+    setEditingEmail(null)
   }
 
   // Creating a product tag grows the shared catalog (so every other picker
-  // offers it from now on); applying it to a specific user is a separate
-  // step left to the caller, since the new-user form and the edit panel
-  // apply it to different places (a local draft vs. a saved user).
+  // offers it from now on); applying it is left to the caller.
   function addProductToCatalog(text) {
     return ensureCatalogTag(productCatalog, setProductCatalog, text)
   }
 
-  function addProductToUser(targetEmail, product) {
-    const target = LT_USERS.find((u) => u.email === targetEmail)
-    if (!target) return
-    if (!(target.products ?? []).includes(product)) {
-      target.products = [...(target.products ?? []), product]
-      setUsers((list) => list.map((u) => (u.email === targetEmail ? { ...u, products: target.products } : u)))
-    }
-  }
-
-  const filteredEditUsers = useMemo(() => {
-    const q = editQuery.trim().toLowerCase()
-    if (!q) return []
+  const filteredUsers = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return users
     return users.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
-  }, [users, editQuery])
+  }, [users, query])
 
-  const editSelectedUser = users.find((u) => u.email === editSelectedEmail) ?? null
+  const editingUser = users.find((u) => u.email === editingEmail) ?? null
+  const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x))
+  const dirty =
+    !!editingUser &&
+    ((editingUser.managerEmail ?? '') !== draftManager || !sameSet(editingUser.products ?? [], draftProducts))
 
   function resetNewUserForm() {
     setCreating(false)
@@ -279,298 +276,293 @@ export default function UserRelations() {
     LT_USERS.push(record)
     setUsers((list) => [...list, record])
     resetNewUserForm()
-    setEditSelectedEmail(record.email)
+    startEdit(record)
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-7">
-      <div>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">User Management</h1>
-        <p className="mt-1 text-slate-500">
-          Create and search LT Team logins, reassign who they report to, and see the full team in one list.
-        </p>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">User Management</h1>
+          <p className="mt-0.5 text-xs text-slate-500">Create team logins, set who they report to and which apps they use.</p>
+        </div>
+        {canManageOrg && !creating && (
+          <button type="button" onClick={() => setCreating(true)} className={btnPrimary}>
+            + Create New User
+          </button>
+        )}
       </div>
 
       {canManageOrg && (
-        <section className={card}>
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-6 pb-4">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Reporting structure</h3>
-              <p className="mt-1 text-xs text-slate-400">
-                Create a new user with their manager and product tags, or search an existing one below to change theirs.
-              </p>
-            </div>
-            {!creating && (
-              <button type="button" onClick={() => setCreating(true)} className={btnPrimary}>
-                + Create New User
-              </button>
-            )}
+        <section className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+      {creating && (
+        <div className="space-y-4 border-b border-slate-100 bg-slate-50/50 p-6">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-slate-800">New user</h4>
+            <button type="button" onClick={resetNewUserForm} className="text-xs text-slate-400 hover:text-slate-600">
+              Cancel
+            </button>
           </div>
-
-          <div className="space-y-5 p-6 pt-4">
-            {creating && (
-              <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium text-slate-800">New user</h4>
-                  <button type="button" onClick={resetNewUserForm} className="text-xs text-slate-400 hover:text-slate-600">
-                    Cancel
-                  </button>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">First name</label>
-                    <input
-                      type="text"
-                      value={newUser.firstName}
-                      onChange={(e) => setNewUser((u) => ({ ...u, firstName: e.target.value }))}
-                      placeholder="First name"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Last name</label>
-                    <input
-                      type="text"
-                      value={newUser.lastName}
-                      onChange={(e) => setNewUser((u) => ({ ...u, lastName: e.target.value }))}
-                      placeholder="Last name"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Phone</label>
-                    <input
-                      type="text"
-                      value={newUser.phone}
-                      onChange={(e) => setNewUser((u) => ({ ...u, phone: e.target.value }))}
-                      placeholder="+91XXXXXXXXXX"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">User email</label>
-                    <input
-                      type="text"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
-                      placeholder="name@letstransport.team"
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                      Organization
-                      <span className="group relative inline-flex">
-                        <Icon name="info" className="h-3.5 w-3.5 cursor-help text-slate-300" />
-                        <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                          Fill it only for external partners — pick their Partner Organization (added in Partner Module).
-                        </span>
-                      </span>
-                    </label>
-                    <div className="mt-1">
-                      <PartnerOrgPicker
-                        value={newUser.parentEmail}
-                        catalog={partnerOrgCatalog}
-                        onSelect={(email) => setNewUser((u) => ({ ...u, parentEmail: email }))}
-                      />
-                    </div>
-                    {newUser.parentEmail !== null && (
-                      <p className="mt-1 text-[11px] text-slate-400">Parent email = {newUser.parentEmail || newUser.email || '—'}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Manager email</label>
-                    <select
-                      value={newUser.managerEmail}
-                      onChange={(e) => setNewUser((u) => ({ ...u, managerEmail: e.target.value }))}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                    >
-                      <option value="">No manager</option>
-                      {users.map((m) => (
-                        <option key={m.email} value={m.email}>
-                          {m.email}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500">Product tags</label>
-                    <div className="mt-1">
-                      <TagPicker
-                        selected={newUser.products}
-                        catalog={productCatalog}
-                        placeholder="No products"
-                        onToggle={(product) =>
-                          setNewUser((u) => ({
-                            ...u,
-                            products: u.products.includes(product) ? u.products.filter((p) => p !== product) : [...u.products, product],
-                          }))
-                        }
-                        onCreateTag={(text) => {
-                          const canonical = addProductToCatalog(text)
-                          if (canonical) {
-                            setNewUser((u) => (u.products.includes(canonical) ? u : { ...u, products: [...u.products, canonical] }))
-                          }
-                          return canonical
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {createError && <p className="text-xs text-rose-500">{createError}</p>}
-                <div className="flex justify-end gap-2">
-                  <button type="button" onClick={resetNewUserForm} className={btnSecondary}>
-                    Cancel
-                  </button>
-                  <button type="button" onClick={handleCreateUser} className={btnPrimary}>
-                    Create user
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="relative max-w-md">
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-soft focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
-                <Icon name="search" className="h-4 w-4 shrink-0 text-slate-400" />
-                <input
-                  type="text"
-                  value={editQuery}
-                  onChange={(e) => setEditQuery(e.target.value)}
-                  onFocus={() => setEditSearchOpen(true)}
-                  onBlur={() => setTimeout(() => setEditSearchOpen(false), 120)}
-                  placeholder="Search a team member by name or email…"
-                  className="w-full border-0 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-medium text-slate-500">First name</label>
+              <input
+                type="text"
+                value={newUser.firstName}
+                onChange={(e) => setNewUser((u) => ({ ...u, firstName: e.target.value }))}
+                placeholder="First name"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">Last name</label>
+              <input
+                type="text"
+                value={newUser.lastName}
+                onChange={(e) => setNewUser((u) => ({ ...u, lastName: e.target.value }))}
+                placeholder="Last name"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">Phone</label>
+              <input
+                type="text"
+                value={newUser.phone}
+                onChange={(e) => setNewUser((u) => ({ ...u, phone: e.target.value }))}
+                placeholder="+91XXXXXXXXXX"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">User email</label>
+              <input
+                type="text"
+                value={newUser.email}
+                onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
+                placeholder="name@letstransport.team"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                Organization
+                <span className="group relative inline-flex">
+                  <Icon name="info" className="h-3.5 w-3.5 cursor-help text-slate-300" />
+                  <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                    Fill it only for external partners — pick their Partner Organization (added in Partner Module).
+                  </span>
+                </span>
+              </label>
+              <div className="mt-1">
+                <PartnerOrgPicker
+                  value={newUser.parentEmail}
+                  catalog={partnerOrgCatalog}
+                  onSelect={(email) => setNewUser((u) => ({ ...u, parentEmail: email }))}
                 />
               </div>
-              {editSearchOpen && editQuery.trim() && (
-                <div className="absolute z-10 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-soft">
-                  {filteredEditUsers.map((u) => (
-                    <button
-                      key={u.email}
-                      type="button"
-                      onMouseDown={() => { setEditSelectedEmail(u.email); setEditQuery(''); setEditSearchOpen(false) }}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50"
-                    >
-                      <Avatar name={u.name} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-slate-800">{u.name}</div>
-                        <div className="truncate text-xs text-slate-400">{u.email}</div>
-                      </div>
-                    </button>
-                  ))}
-                  {!filteredEditUsers.length && <p className="px-3.5 py-2.5 text-sm text-slate-400">No matching users.</p>}
-                </div>
+              {newUser.parentEmail !== null && (
+                <p className="mt-1 text-[11px] text-slate-400">Parent email = {newUser.parentEmail || newUser.email || '—'}</p>
               )}
             </div>
-
-            {!editSelectedUser && (
-              <p className="text-sm text-slate-400">Search and pick a user to change their manager or product tags.</p>
-            )}
-
-            {editSelectedUser && (
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center gap-2.5">
-                  <Avatar name={editSelectedUser.name} size="sm" />
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">{editSelectedUser.name}</div>
-                    <div className="text-xs text-slate-400">{editSelectedUser.email}</div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <select
-                    value={editSelectedUser.managerEmail ?? ''}
-                    onChange={(e) => handleReassignManager(editSelectedUser.email, e.target.value || null)}
-                    className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-sm text-slate-700 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                  >
-                    <option value="">No manager</option>
-                    {users
-                      .filter((m) => m.email !== editSelectedUser.email && !isReportOf(users, m.email, editSelectedUser.email))
-                      .map((m) => (
-                        <option key={m.email} value={m.email}>
-                          {m.email}
-                        </option>
-                      ))}
-                  </select>
-                  <TagPicker
-                    selected={editSelectedUser.products ?? []}
-                    catalog={productCatalog}
-                    placeholder="No products"
-                    onToggle={(product) => toggleUserProduct(editSelectedUser.email, product)}
-                    onCreateTag={(text) => {
-                      const canonical = addProductToCatalog(text)
-                      if (canonical) addProductToUser(editSelectedUser.email, canonical)
-                      return canonical
-                    }}
-                  />
-                </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">Manager email</label>
+              <select
+                value={newUser.managerEmail}
+                onChange={(e) => setNewUser((u) => ({ ...u, managerEmail: e.target.value }))}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              >
+                <option value="">No manager</option>
+                {users.map((m) => (
+                  <option key={m.email} value={m.email}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500">Product tags</label>
+              <div className="mt-1">
+                <TagPicker
+                  selected={newUser.products}
+                  catalog={productCatalog}
+                  placeholder="No products"
+                  onToggle={(product) =>
+                    setNewUser((u) => ({
+                      ...u,
+                      products: u.products.includes(product) ? u.products.filter((p) => p !== product) : [...u.products, product],
+                    }))
+                  }
+                  onCreateTag={(text) => {
+                    const canonical = addProductToCatalog(text)
+                    if (canonical) {
+                      setNewUser((u) => (u.products.includes(canonical) ? u : { ...u, products: [...u.products, canonical] }))
+                    }
+                    return canonical
+                  }}
+                />
               </div>
-            )}
+            </div>
           </div>
-        </section>
+          {createError && <p className="text-xs text-rose-500">{createError}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={resetNewUserForm} className={btnSecondary}>
+              Cancel
+            </button>
+            <button type="button" onClick={handleCreateUser} className={btnPrimary}>
+              Create user
+            </button>
+          </div>
+        </div>
       )}
 
-      {canManageOrg && (
-        <section className={card}>
-          <div className="border-b border-slate-100 p-6 pb-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">User List</h3>
-            <p className="mt-1 text-xs text-slate-400">Every LT Team login and their basic details, in one sheet.</p>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
+              <Icon name="search" className="h-4 w-4 shrink-0 text-slate-400" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name or email…"
+                className="w-full border-0 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              />
+            </div>
+            <span className="text-xs text-slate-400">
+              {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
+            </span>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className={thCls}>Team member</th>
-                  <th className={thCls}>Phone</th>
-                  <th className={thCls}>Manager</th>
-                  <th className={thCls}>Function</th>
-                  <th className={thCls}>Role</th>
-                  <th className={thCls}>Product tags</th>
+                <tr className="border-y border-slate-100 bg-slate-50/50">
+                  <th className={`${thCls} !px-4`}>Team member</th>
+                  <th className={`${thCls} !px-4`}>Phone</th>
+                  <th className={`${thCls} !px-4`}>Manager</th>
+                  <th className={`${thCls} !px-4 whitespace-nowrap`}>Product tags</th>
+                  <th className={`${thCls} !px-4 text-right`}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => {
+                {filteredUsers.map((u) => {
                   const manager = users.find((m) => m.email === u.managerEmail) ?? null
+                  const editing = editingEmail === u.email
                   return (
-                    <tr key={u.email} className={rowCls}>
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar name={u.name} size="sm" />
-                          <div>
-                            <div className="text-sm font-medium text-slate-800">{u.name}</div>
-                            <div className="text-xs text-slate-400">{u.email}</div>
+                    <Fragment key={u.email}>
+                      <tr className={`${rowCls} ${editing ? 'bg-orange-50/40' : ''}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar name={u.name} size="sm" />
+                            <div>
+                              <div className="text-sm font-medium text-slate-800">{u.name}</div>
+                              <div className="text-xs text-slate-400">{u.email}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className={tdCls}>{u.mobile || '—'}</td>
-                      <td className={tdCls}>{manager ? manager.name : '—'}</td>
-                      <td className={tdCls}>{(u.departments ?? []).join(', ') || '—'}</td>
-                      <td className={tdCls}>{(u.roles ?? []).join(', ') || u.roleLabel || '—'}</td>
-                      <td className="px-6 py-3.5">
-                        {(u.products ?? []).length ? (
-                          <div className="flex flex-wrap gap-1">
-                            {u.products.map((p) => (
-                              <span key={p} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                                {p}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className={`${tdCls} !px-4`}>{u.mobile || '—'}</td>
+                        <td className={`${tdCls} !px-4`}>{manager ? manager.name : <span className="text-slate-300">No manager</span>}</td>
+                        <td className="px-4 py-3">
+                          {(u.products ?? []).length ? (
+                            <div className="flex gap-1">
+                              {u.products.map((p) => (
+                                <span key={p} className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-slate-300">No tags</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => (editing ? setEditingEmail(null) : startEdit(u))}
+                            className="mr-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                          >
+                            {editing ? 'Close' : 'Edit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/user-module/access-management?user=${encodeURIComponent(u.email)}`)}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-orange transition-colors hover:bg-orange-50"
+                          >
+                            Edit access
+                          </button>
+                        </td>
+                      </tr>
+                      {editing && (
+                        <tr className="bg-orange-50/40">
+                          <td colSpan={5} className="px-4 pb-4 pt-1">
+                            <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
+                              <div>
+                                <label className="text-xs font-medium text-slate-500">Manager</label>
+                                <select
+                                  value={draftManager}
+                                  onChange={(e) => setDraftManager(e.target.value)}
+                                  className="mt-1 block min-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                                >
+                                  <option value="">No manager</option>
+                                  {users
+                                    .filter((m) => m.email !== u.email && !isReportOf(users, m.email, u.email))
+                                    .map((m) => (
+                                      <option key={m.email} value={m.email}>
+                                        {m.name} · {m.email}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-slate-500">Product tags</label>
+                                <div className="mt-1">
+                                  <TagPicker
+                                    selected={draftProducts}
+                                    catalog={productCatalog}
+                                    placeholder="No products"
+                                    onToggle={(product) =>
+                                      setDraftProducts((l) => (l.includes(product) ? l.filter((x) => x !== product) : [...l, product]))
+                                    }
+                                    onCreateTag={(text) => {
+                                      const canonical = addProductToCatalog(text)
+                                      if (canonical) setDraftProducts((l) => (l.includes(canonical) ? l : [...l, canonical]))
+                                      return canonical
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="ml-auto flex items-center gap-2">
+                                <button type="button" onClick={() => setEditingEmail(null)} className={btnSecondary}>
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={saveEdit}
+                                  disabled={!dirty}
+                                  className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}
+                                >
+                                  Update
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
+                {!filteredUsers.length && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-400">No matching users.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </section>
       )}
 
-      <p className="text-sm text-slate-400">
-        This prototype holds the reporting structure and user list in memory only — changes here don't persist past the
-        session. In the real system this would write through to a backend user/role service.
-      </p>
+      <p className="pb-4 text-center text-xs text-slate-400">Prototype · changes are kept in memory for this session only</p>
     </div>
   )
 }
