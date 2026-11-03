@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { LT_USERS } from '../../data/users.js'
 import { PARTNERS } from '../../data/partners.js'
+import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
 import { isReportOf } from '../../data/relations.js'
 import Avatar from '../../components/Avatar.jsx'
 import BackButton from '../../components/BackButton.jsx'
@@ -116,48 +117,105 @@ function TagPicker({ selected, catalog, onToggle, onCreateTag, placeholder = 'No
 // keeping "unpicked" and "Internal" distinct (rather than collapsing both to
 // blank/null) is what lets the field start empty without silently defaulting
 // to Internal.
+const ORG_BADGE = {
+  Internal: 'bg-slate-900 text-white',
+  Partner: 'bg-sky-50 text-sky-700',
+  Client: 'bg-violet-50 text-violet-700',
+}
+
+function OrgBadge({ type }) {
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${ORG_BADGE[type]}`}>{type}</span>
+}
+
+function OrgRow({ name, email, type, selected, onPick }) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-slate-50 ${selected ? 'bg-orange-50/60' : ''}`}
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500">
+        {name.slice(0, 2).toUpperCase()}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-slate-800">{name}</span>
+        {email && <span className="block truncate text-xs text-slate-400">{email}</span>}
+      </span>
+      <OrgBadge type={type} />
+    </button>
+  )
+}
+
+// Single-select over LetsTransport itself plus the Partner and Client
+// organisations (catalog entries: { name, email, type }). `value` is 3-way:
+// `null` = nothing picked yet, `''` = LetsTransport Internal, otherwise the
+// org's email (stored as `parentEmail`).
 function PartnerOrgPicker({ value, catalog, onSelect }) {
   const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
 
   const selectedOrg = catalog.find((o) => o.email === value) ?? null
-  const label = selectedOrg ? selectedOrg.name : value === '' ? 'LetsTransport Internal' : null
+  const picked = selectedOrg ?? (value === '' ? { name: 'LetsTransport', email: '', type: 'Internal' } : null)
+
+  const needle = q.trim().toLowerCase()
+  const match = (o) => !needle || o.name.toLowerCase().includes(needle) || o.email.toLowerCase().includes(needle)
+  const internalShown = !needle || 'letstransport internal'.includes(needle)
+  const groups = ['Partner', 'Client']
+    .map((type) => ({ type, orgs: catalog.filter((o) => o.type === type && match(o)) }))
+    .filter((g) => g.orgs.length)
+
+  function pick(email) {
+    onSelect(email)
+    setOpen(false)
+    setQ('')
+  }
 
   return (
     <div className="relative inline-block w-full">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { setOpen((o) => !o); setQ('') }}
         className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20"
       >
-        <span className={`truncate ${label ? 'text-slate-700' : 'text-slate-400'}`}>{label ?? 'Select organization'}</span>
+        {picked ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-slate-800">{picked.name}</span>
+            <OrgBadge type={picked.type} />
+          </span>
+        ) : (
+          <span className="text-slate-400">Select organization</span>
+        )}
         <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 w-full min-w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
-            <div className="max-h-48 overflow-y-auto py-1">
-              <button
-                type="button"
-                onClick={() => { onSelect(''); setOpen(false) }}
-                className="flex w-full items-center px-3.5 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-              >
-                LetsTransport Internal
-              </button>
-              {catalog.map((org) => (
-                <button
-                  key={org.email}
-                  type="button"
-                  onClick={() => { onSelect(org.email); setOpen(false) }}
-                  className="flex w-full flex-col items-start px-3.5 py-2 text-left hover:bg-slate-50"
-                >
-                  <span className="text-sm text-slate-700">{org.name}</span>
-                  <span className="text-xs text-slate-400">{org.email}</span>
-                </button>
-              ))}
-              {!catalog.length && (
-                <p className="px-3.5 py-2 text-xs text-slate-400">No partner organizations yet — add one in Partner Module.</p>
+          <div className="absolute z-20 mt-1.5 w-full min-w-[340px] overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+            <div className="px-1.5 pb-1.5 pt-0.5">
+              <input
+                autoFocus
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search organization…"
+                className="w-full rounded-lg bg-slate-50/70 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/30"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {internalShown && (
+                <OrgRow name="LetsTransport Internal" email="" type="Internal" selected={value === ''} onPick={() => pick('')} />
               )}
+              {groups.map((g) => (
+                <div key={g.type}>
+                  <div className="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    {g.type === 'Partner' ? 'Partners' : 'Clients'}
+                  </div>
+                  {g.orgs.map((org) => (
+                    <OrgRow key={org.email} {...org} selected={value === org.email} onPick={() => pick(org.email)} />
+                  ))}
+                </div>
+              ))}
+              {!internalShown && !groups.length && <p className="px-3 py-4 text-center text-sm text-slate-400">No matching organization.</p>}
             </div>
           </div>
         </>
@@ -244,7 +302,17 @@ export default function UserRelations() {
   const { can } = useAuth()
   const [users, setUsers] = useState(LT_USERS)
   const [productCatalog, setProductCatalog] = useState(() => [...PRODUCT_TAGS])
-  const partnerOrgCatalog = useMemo(() => PARTNERS.map((p) => ({ name: p.organisationName, email: p.orgEmail })), [])
+  const partnerOrgCatalog = useMemo(
+    () => [
+      ...PARTNERS.map((p) => ({ name: p.organisationName, email: p.orgEmail, type: 'Partner' })),
+      ...ACTIVE_CLIENTS_SEED.map((c) => ({
+        name: c.name,
+        email: c.details?.contact?.pocEmail || c.details?.contact?.opsEmail || `ops@${c.id}.com`,
+        type: 'Client',
+      })),
+    ],
+    [],
+  )
 
   const [creating, setCreating] = useState(false)
   const [newUser, setNewUser] = useState({
@@ -403,8 +471,8 @@ export default function UserRelations() {
       </div>
 
       {canManageOrg && creating && (
-        <section className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
-          <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-brand-navy-dark via-brand-navy to-brand-navy-light px-5 py-3">
+        <section className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+          <div className="flex items-start justify-between gap-3 rounded-t-2xl border-b border-slate-100 bg-gradient-to-r from-brand-navy-dark via-brand-navy to-brand-navy-light px-5 py-3">
             <div>
               <h2 className="text-base font-semibold text-white">New team member</h2>
               <p className="text-xs text-slate-300">They can sign in with this email once created.</p>
@@ -513,7 +581,7 @@ export default function UserRelations() {
             {createError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{createError}</p>}
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+          <div className="flex items-center justify-end gap-2 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-5 py-3">
             <button type="button" onClick={resetNewUserForm} className={btnSecondary}>
               Cancel
             </button>
