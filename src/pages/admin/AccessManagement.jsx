@@ -666,39 +666,37 @@ export default function AccessManagement() {
           />
         </div>
         {searchOpen && query.trim() && (
-          <div className="absolute z-10 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-soft">
+          <div className="absolute z-20 mt-2 max-h-96 w-full overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+            <div className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              {filteredUsers.length} {filteredUsers.length === 1 ? 'team member' : 'team members'}
+            </div>
             {filteredUsers.map((u) => {
               const fns = effectiveFunctions(u)
               const custom = fns.sort().join(',') !== functionsForRoles(u.roles ?? []).sort().join(',')
+              const roles = u.roles ?? []
               return (
                 <button
                   key={u.email}
                   type="button"
                   onMouseDown={() => selectUser(u)}
-                  className="flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
                 >
                   <Avatar name={u.name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-slate-800">{u.name}</div>
                     <div className="truncate text-xs text-slate-400">{u.email}</div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      {(u.roles ?? []).map((r) => (
-                        <span key={r} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                          {r}
-                        </span>
-                      ))}
-                      {custom && (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Custom</span>
-                      )}
-                      <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-                        {(u.regions ?? []).length ? `${u.regions.length} ${u.regions.length === 1 ? 'region' : 'regions'}` : 'All regions'}
-                      </span>
-                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {roles[0] && (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">{roles[0]}</span>
+                    )}
+                    {roles.length > 1 && <span className="text-[11px] font-medium text-slate-400">+{roles.length - 1}</span>}
+                    {custom && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Custom</span>}
                   </div>
                 </button>
               )
             })}
-            {!filteredUsers.length && <p className="px-3.5 py-2.5 text-sm text-slate-400">No matching users.</p>}
+            {!filteredUsers.length && <p className="px-3 py-4 text-center text-sm text-slate-400">No matching users.</p>}
           </div>
         )}
       </div>
