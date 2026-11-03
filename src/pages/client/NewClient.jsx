@@ -210,12 +210,6 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const TIER_LADDER = [
-  { name: 'Bronze', range: 'Below 100 tonne' },
-  { name: 'Silver', range: '100–999 tonne' },
-  { name: 'Gold', range: '1,000–9,999 tonne' },
-  { name: 'Platinum', range: '10,000+ tonne' },
-]
 const TIER_BADGE = {
   Platinum: 'bg-violet-50 text-violet-700',
   Gold: 'bg-amber-50 text-amber-700',
@@ -1804,7 +1798,10 @@ export default function NewClient() {
 
       {step === 4 && (
         <div className="space-y-5">
-          <div className={`space-y-4 p-5 ${card}`}>
+          <div className={`relative space-y-4 p-5 ${card}`}>
+            <span title="Set by declared monthly volume" className={`absolute right-4 top-3.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${TIER_BADGE[tier]}`}>
+              {tier} tier
+            </span>
             <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
               <div>
                 <span className={LABEL}>
@@ -1865,20 +1862,6 @@ export default function NewClient() {
               )}
             </div>
 
-            <div>
-              <span className={LABEL}>Tier · set by declared monthly volume</span>
-              <div className="grid gap-2 sm:grid-cols-4">
-                {TIER_LADDER.map((t) => (
-                  <div
-                    key={t.name}
-                    className={`rounded-xl border px-3 py-2 ${t.name === tier ? 'border-brand-orange/50 bg-brand-orange/5' : 'border-slate-200/80 bg-slate-50/40 opacity-70'}`}
-                  >
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[t.name]}`}>{t.name}</span>
-                    <div className="mt-1 text-xs text-slate-500">{t.range}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           {pricingType === 'Custom' && regionMappingType === 'Custom' ? (
