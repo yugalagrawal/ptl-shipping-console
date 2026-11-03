@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import Avatar from '../../components/Avatar.jsx'
+import { useEffect, useState } from 'react'
+import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
 import ClientPricingPanel from '../../components/ClientPricingPanel.jsx'
 import ClientOnboardingSummary from '../../components/ClientOnboardingSummary.jsx'
-import { card } from '../../components/ui.js'
+import { PAGE_SIZE, hoursAgo, sortRows, ClientTile, SearchBox, SortMenu, Pager, Empty } from '../../components/clientList.jsx'
 import {
   PENDING_CLIENTS_SEED,
   APPROVAL_STAGE,
@@ -180,6 +180,9 @@ export default function ClientApprovals() {
   const [expandedId, setExpandedId] = useState(null)
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('mine')
+  const [sortMode, setSortMode] = useState('recent')
+  const [page, setPage] = useState(1)
+  useEffect(() => setPage(1), [tab, query, sortMode])
 
   // "Your Pending Approvals" is whichever stage(s) this viewer can actually
   // act on — Sales Admin sees sales_review, Finance Admin sees finance_review,
@@ -208,7 +211,10 @@ export default function ClientApprovals() {
     tab === 'status' ? myOpenCorrections.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase())) : []
   const statusCount = otherRows.length + myOpenCorrections.length
   const totalRowCount = tab === 'mine' ? rows.length : rows.length + myOpenCorrections.length
-  const visibleRowCount = tab === 'mine' ? filteredPending.length : filteredPending.length + filteredCorrections.length
+  const pendingItems = filteredPending.map((c) => ({ kind: 'pending', key: c.id, name: c.name, age: hoursAgo(c.submittedAt), client: c }))
+  const correctionItems = filteredCorrections.map((a) => ({ kind: 'correction', key: a.id, name: a.name, age: hoursAgo(a.createdAt), a }))
+  const items = sortRows([...correctionItems, ...pendingItems], sortMode, (i) => i.age)
+  const pageItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   function updateClient(updated) {
     setPending((rows) => rows.map((r) => (r.id === updated.id ? updated : r)))
@@ -236,141 +242,143 @@ export default function ClientApprovals() {
     setExpandedId(null)
   }
 
+  const tabBtn = (active) =>
+    `rounded-lg px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-5">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
-        <p className="mt-1 text-slate-500">Sales Admin reviews onboarding details first; Finance Admin reviews pricing before a client goes active.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Sales Admin reviews onboarding details first; Finance Admin reviews pricing before a client goes active.</p>
       </div>
 
-      <div className="flex gap-2 rounded-xl bg-slate-100 p-1 text-sm sm:w-fit">
-        <button
-          type="button"
-          onClick={() => { setTab('mine'); setExpandedId(null) }}
-          className={`rounded-lg px-4 py-2 font-medium transition-colors ${tab === 'mine' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          Your Pending Approvals <span className="text-slate-400">({myRows.length})</span>
+      <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
+        <button type="button" onClick={() => { setTab('mine'); setExpandedId(null) }} className={tabBtn(tab === 'mine')}>
+          Your Pending Approvals <span className="ml-1 text-slate-400">{myRows.length}</span>
         </button>
-        <button
-          type="button"
-          onClick={() => { setTab('status'); setExpandedId(null) }}
-          className={`rounded-lg px-4 py-2 font-medium transition-colors ${tab === 'status' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          Approval Status <span className="text-slate-400">({statusCount})</span>
+        <button type="button" onClick={() => { setTab('status'); setExpandedId(null) }} className={tabBtn(tab === 'status')}>
+          Approval Status <span className="ml-1 text-slate-400">{statusCount}</span>
         </button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by client name…"
-          className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-        />
-      </div>
+      <div className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <SearchBox value={query} onChange={setQuery} placeholder="Search by client name…" />
+          <SortMenu value={sortMode} onChange={setSortMode} />
+        </div>
 
-      <div className="space-y-3">
-        {totalRowCount === 0 ? (
-          <div className={`p-8 text-center text-sm text-slate-400 ${card}`}>
-            {tab === 'mine'
-              ? 'Nothing waiting on your approval.'
-              : financeOnly
-                ? "Nothing to track — you'll see it here if you send a correction back. Recently activated clients are in My Clients."
-                : 'Nothing else to show.'}
-          </div>
-        ) : visibleRowCount === 0 ? (
-          <div className={`p-8 text-center text-sm text-slate-400 ${card}`}>No matches for "{query}".</div>
-        ) : null}
-        {tab === 'status' &&
-          filteredCorrections.map((a) => (
-            <div key={a.id} className={`p-5 ${card}`}>
-              <div className="flex items-center gap-3">
-                <Avatar name={a.name} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-slate-800">{a.name}</div>
-                  <div className="text-xs text-slate-400">Correction sent {a.createdAt} · waiting on {a.owner}</div>
-                </div>
-                <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700">Correction Requested</span>
-              </div>
-              {a.correctionComment && <p className="mt-2.5 text-sm text-slate-600">"{a.correctionComment}"</p>}
-            </div>
-          ))}
-        {filteredPending.map((client) => {
-          const isOpen = expandedId === client.id
-          const atFinanceStage = client.approvalStage === APPROVAL_STAGE.FINANCE_REVIEW
-          return (
-            <div key={client.id} className={`overflow-hidden ${card}`}>
-              <button
-                type="button"
-                onClick={() => setExpandedId(isOpen ? null : client.id)}
-                className="flex w-full items-center gap-3 px-5 py-4 text-left"
-              >
-                <Avatar name={client.name} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-slate-800">{client.name}</div>
-                  <div className="text-xs text-slate-400">
-                    {client.city}, {client.state} · submitted by {client.submittedBy} · {client.submittedAt}
-                  </div>
-                </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${APPROVAL_STAGE_BADGE[client.approvalStage]}`}>
-                  {APPROVAL_STAGE_LABEL[client.approvalStage]}
-                </span>
-                <Icon name="chevron" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {isOpen && !atFinanceStage && (
-                <>
-                  <SalesReviewPanel
-                    client={client}
-                    canApprove={canApproveSales}
-                    onApproveOnboarding={() => approveOnboardingDetails(client)}
-                    onRequestCorrection={(comment) => sendForCorrection(client, comment)}
-                  />
-                  <ClientPricingPanel client={client} readOnly />
-                  <PricingApprovalAction
-                    client={client}
-                    canApprove={canApproveSales}
-                    onApprovePricing={() => approvePricingDetails(client)}
-                  />
-                </>
-              )}
-              {isOpen && atFinanceStage && (
-                canApproveFinance ? (
-                  <>
-                    {client.additionalCharges?.length > 0 && (
-                      <div className="border-t border-slate-100 p-5">
-                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Additional charges</div>
-                        <ul className="space-y-1">
-                          {client.additionalCharges.map((c) => (
-                            <li key={c.name} className="flex items-center justify-between gap-3 text-sm">
-                              <span className="text-slate-700">{c.name}</span>
-                              <span className="text-slate-500">{c.value}</span>
-                            </li>
-                          ))}
-                        </ul>
+        <div className="border-t border-slate-100">
+          {totalRowCount === 0 ? (
+            <Empty
+              title={tab === 'mine' ? 'Nothing waiting on your approval' : financeOnly ? 'Nothing to track' : 'Nothing else to show'}
+              hint={
+                tab === 'status' && financeOnly
+                  ? "You'll see it here if you send a correction back. Recently activated clients are in My Clients."
+                  : undefined
+              }
+            />
+          ) : !items.length ? (
+            <Empty title={`No matches for "${query}"`} />
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {pageItems.map((item) => {
+                if (item.kind === 'correction') {
+                  const a = item.a
+                  return (
+                    <div key={`c-${a.id}`} className="px-5 py-4">
+                      <div className="flex items-center gap-4">
+                        <ClientTile name={a.name} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-slate-900">{a.name}</div>
+                          <div className="mt-0.5 text-xs text-slate-400">Correction sent {a.createdAt} · waiting on {a.owner}</div>
+                          {a.correctionComment && (
+                            <div className="mt-2 inline-flex max-w-full items-center rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                              <span className="truncate">{a.correctionComment}</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="shrink-0 rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">Correction Requested</span>
+                        <Icon name="chevron" className="h-4 w-4 shrink-0 -rotate-90 text-transparent" />
                       </div>
+                    </div>
+                  )
+                }
+                const client = item.client
+                const isOpen = expandedId === client.id
+                const atFinanceStage = client.approvalStage === APPROVAL_STAGE.FINANCE_REVIEW
+                return (
+                  <div key={client.id} className={isOpen ? 'bg-slate-50/40' : ''}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isOpen ? null : client.id)}
+                      className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-slate-50/70"
+                    >
+                      <ClientTile name={client.name} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-slate-900">{client.name}</div>
+                        <div className="mt-0.5 text-xs text-slate-400">
+                          {client.city}, {client.state} · submitted by {client.submittedBy} · {client.submittedAt}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${APPROVAL_STAGE_BADGE[client.approvalStage]}`}>
+                        {APPROVAL_STAGE_LABEL[client.approvalStage]}
+                      </span>
+                      <Icon name="chevron" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : '-rotate-90'}`} />
+                    </button>
+                    {isOpen && !atFinanceStage && (
+                      <>
+                        <SalesReviewPanel
+                          client={client}
+                          canApprove={canApproveSales}
+                          onApproveOnboarding={() => approveOnboardingDetails(client)}
+                          onRequestCorrection={(comment) => sendForCorrection(client, comment)}
+                        />
+                        <ClientPricingPanel client={client} readOnly />
+                        <PricingApprovalAction client={client} canApprove={canApproveSales} onApprovePricing={() => approvePricingDetails(client)} />
+                      </>
                     )}
-                    <ClientPricingPanel
-                      client={client}
-                      onUpdate={updateClient}
-                      onApprove={() => approveClient(client)}
-                      onRequestCorrection={(comment) => sendForCorrection(client, comment)}
-                      readOnly
-                    />
-                  </>
-                ) : (
-                  <div className="border-t border-slate-100 p-5">
-                    <p className="text-sm text-slate-600">
-                      Cleared by Sales Admin — <span className="font-medium text-sky-700">{APPROVAL_STAGE_LABEL[APPROVAL_STAGE.FINANCE_REVIEW]}</span>.
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">Region matrix and additional charges are Finance Admin's stage to review.</p>
+                    {isOpen &&
+                      atFinanceStage &&
+                      (canApproveFinance ? (
+                        <>
+                          {client.additionalCharges?.length > 0 && (
+                            <div className="border-t border-slate-100 p-5">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Additional charges</div>
+                              <ul className="space-y-1">
+                                {client.additionalCharges.map((c) => (
+                                  <li key={c.name} className="flex items-center justify-between gap-3 text-sm">
+                                    <span className="text-slate-700">{c.name}</span>
+                                    <span className="text-slate-500">{c.value}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <ClientPricingPanel
+                            client={client}
+                            onUpdate={updateClient}
+                            onApprove={() => approveClient(client)}
+                            onRequestCorrection={(comment) => sendForCorrection(client, comment)}
+                            readOnly
+                          />
+                        </>
+                      ) : (
+                        <div className="border-t border-slate-100 p-5">
+                          <p className="text-sm text-slate-600">
+                            Cleared by Sales Admin — <span className="font-medium text-sky-700">{APPROVAL_STAGE_LABEL[APPROVAL_STAGE.FINANCE_REVIEW]}</span>.
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">Region matrix and additional charges are Finance Admin's stage to review.</p>
+                        </div>
+                      ))}
                   </div>
                 )
-              )}
+              })}
             </div>
-          )
-        })}
+          )}
+        </div>
+
+        <Pager total={items.length} page={page} onPage={setPage} />
       </div>
     </div>
   )
