@@ -1823,7 +1823,7 @@ export default function NewClient() {
               ) : (
                 <>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TIER_BADGE[tier]}`}>{tier} tier</span>
-                  <span>{(Number(effectiveVolume) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 })} tonne / month</span>
+                  <span>Expected {(Number(effectiveVolume) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 })} tonne / month</span>
                   <button type="button" onClick={() => setEditingTonnage(true)} title="Edit monthly tonnage" className="font-medium text-slate-400 hover:text-brand-orange-dark">
                     Edit
                   </button>
