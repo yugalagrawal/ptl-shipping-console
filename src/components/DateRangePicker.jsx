@@ -121,6 +121,7 @@ export default function DateRangePicker({ label, required, start, end, onChange,
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState({ start: null, end: null })
   const [hover, setHover] = useState(null)
+  const [presetHover, setPresetHover] = useState(null) // months of the shortcut being hovered, for the footer preview
   const [view, setView] = useState(() => {
     const base = parse(start) ?? startOfToday()
     return { year: base.getFullYear(), month: base.getMonth() }
@@ -151,9 +152,10 @@ export default function DateRangePicker({ label, required, start, end, onChange,
     })
   }
 
+  // "End after N months" shortcut — only offered once a start date is picked.
   function applyPreset(months) {
-    const s = draft.start ?? committedStart ?? startOfToday()
-    onChange({ start: toIso(s), end: toIso(endForMonths(s, months)) })
+    if (!draft.start) return
+    onChange({ start: toIso(draft.start), end: toIso(endForMonths(draft.start, months)) })
     setOpen(false)
   }
 
@@ -191,80 +193,85 @@ export default function DateRangePicker({ label, required, start, end, onChange,
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute left-0 z-20 mt-2 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-200">
-            <div className="flex flex-col sm:flex-row">
-              <div className="flex gap-1.5 border-b border-slate-100 p-3 sm:w-36 sm:flex-col sm:border-b-0 sm:border-r">
-                <span className="hidden px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 sm:block">Quick pick</span>
+            <div className="p-4">
+              <div className="mb-1 flex items-center justify-between">
+                <button type="button" onClick={() => shift(-1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+                  <Icon name="chevron" className="h-4 w-4 rotate-90" />
+                </button>
+                <button type="button" onClick={() => shift(1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+                  <Icon name="chevron" className="h-4 w-4 -rotate-90" />
+                </button>
+              </div>
+              <div className="-mt-9 flex gap-6">
+                <Month year={view.year} month={view.month} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
+                <div className="hidden sm:block">
+                  <Month year={second.getFullYear()} month={second.getMonth()} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <span className="text-xs font-medium text-slate-500">{draft.start ? 'End after' : 'Pick a start date first'}</span>
                 {PRESETS.map((p) => (
                   <button
                     key={p.months}
                     type="button"
+                    disabled={!draft.start}
                     onClick={() => applyPreset(p.months)}
-                    className="rounded-lg px-3 py-1.5 text-left text-sm text-slate-600 transition-colors hover:bg-orange-50 hover:text-brand-orange-dark"
+                    onMouseEnter={() => setPresetHover(p.months)}
+                    onMouseLeave={() => setPresetHover(null)}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/50 hover:bg-orange-50 hover:text-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
                   >
                     {p.label}
                   </button>
                 ))}
-                <p className="hidden px-2 pt-2 text-[11px] leading-snug text-slate-400 sm:block">Counts from the start date{draft.start ? '' : ' (today)'}.</p>
               </div>
 
-              <div className="p-4">
-                <div className="mb-1 flex items-center justify-between">
-                  <button type="button" onClick={() => shift(-1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
-                    <Icon name="chevron" className="h-4 w-4 rotate-90" />
+              <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <span className="text-xs text-slate-500">
+                  {draft.start ? (
+                    <>
+                      <span className="font-medium text-slate-800">{fmt(draft.start)}</span>
+                      {presetHover ? (
+                        <>
+                          {' → '}
+                          <span className="font-medium text-brand-orange-dark">{fmt(endForMonths(draft.start, presetHover))}</span>
+                        </>
+                      ) : draft.end ? (
+                        <>
+                          {' → '}
+                          <span className="font-medium text-slate-800">{fmt(draft.end)}</span>
+                          <span className="ml-1.5 text-slate-400">· {describeRange(draft.start, draft.end)}</span>
+                        </>
+                      ) : (
+                        <span className="text-slate-400"> → pick the end date</span>
+                      )}
+                    </>
+                  ) : (
+                    'Pick the start date'
+                  )}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft({ start: null, end: null })
+                      onChange({ start: '', end: '' })
+                    }}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  >
+                    Clear
                   </button>
-                  <button type="button" onClick={() => shift(1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
-                    <Icon name="chevron" className="h-4 w-4 -rotate-90" />
+                  <button
+                    type="button"
+                    disabled={!ready}
+                    onClick={() => {
+                      onChange({ start: toIso(draft.start), end: toIso(draft.end) })
+                      setOpen(false)
+                    }}
+                    className="rounded-lg bg-brand-orange px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  >
+                    Apply
                   </button>
-                </div>
-                <div className="-mt-9 flex gap-6">
-                  <Month year={view.year} month={view.month} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
-                  <div className="hidden sm:block">
-                    <Month year={second.getFullYear()} month={second.getMonth()} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                  <span className="text-xs text-slate-500">
-                    {draft.start ? (
-                      <>
-                        <span className="font-medium text-slate-800">{fmt(draft.start)}</span>
-                        {draft.end ? (
-                          <>
-                            {' → '}
-                            <span className="font-medium text-slate-800">{fmt(draft.end)}</span>
-                            <span className="ml-1.5 text-slate-400">· {describeRange(draft.start, draft.end)}</span>
-                          </>
-                        ) : (
-                          <span className="text-slate-400"> → pick the end date</span>
-                        )}
-                      </>
-                    ) : (
-                      'Pick the start date'
-                    )}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDraft({ start: null, end: null })
-                        onChange({ start: '', end: '' })
-                      }}
-                      className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!ready}
-                      onClick={() => {
-                        onChange({ start: toIso(draft.start), end: toIso(draft.end) })
-                        setOpen(false)
-                      }}
-                      className="rounded-lg bg-brand-orange px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                    >
-                      Apply
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
