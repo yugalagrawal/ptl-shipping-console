@@ -47,16 +47,15 @@ function endForMonths(start, months) {
   return e
 }
 
-// Always in months: "14 months" when it lines up exactly, "14 months +" when
-// extra days remain, "Under 1 month" for anything shorter.
+// Always whole months, rounded up: 100 days reads "4 months", 70 days "3 months".
 export function describeRange(start, end) {
   if (!start || !end) return ''
   const next = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1)
   let months = (next.getFullYear() - start.getFullYear()) * 12 + (next.getMonth() - start.getMonth())
   if (next.getDate() < start.getDate()) months -= 1
-  if (months < 1) return 'Under 1 month'
-  const exact = next.getDate() === start.getDate()
-  return `${months} ${months === 1 ? 'month' : 'months'}${exact ? '' : ' +'}`
+  if (next.getDate() !== start.getDate()) months += 1
+  months = Math.max(months, 1)
+  return `${months} ${months === 1 ? 'month' : 'months'}`
 }
 
 function monthCells(year, month) {
