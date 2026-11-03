@@ -4,7 +4,7 @@ import Icon from './Icon.jsx'
 // Date-range picker. Two independent calendars — the LEFT one picks the start
 // date, the RIGHT one picks the end date — each with its own arrows and
 // month/year selectors, so a far-away end date never means stepping month by
-// month. Shortcuts (6 months … 3 years) sit under "End date". Values are ISO
+// month. Shortcuts (6 … 36 months) sit under "End date". Values are ISO
 // strings ("2026-11-01"), the same shape the form already stores.
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -12,9 +12,9 @@ const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3))
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const PRESETS = [
   { label: '6 months', months: 6 },
-  { label: '1 year', months: 12 },
-  { label: '2 years', months: 24 },
-  { label: '3 years', months: 36 },
+  { label: '12 months', months: 12 },
+  { label: '24 months', months: 24 },
+  { label: '36 months', months: 36 },
 ]
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -47,17 +47,16 @@ function endForMonths(start, months) {
   return e
 }
 
-// "12 months" / "2 years" when it lines up exactly, otherwise "N days".
+// Always in months: "14 months" when it lines up exactly, "14 months +" when
+// extra days remain, "Under 1 month" for anything shorter.
 export function describeRange(start, end) {
   if (!start || !end) return ''
   const next = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1)
-  if (next.getDate() === start.getDate()) {
-    const months = (next.getFullYear() - start.getFullYear()) * 12 + (next.getMonth() - start.getMonth())
-    if (months > 0 && months % 12 === 0) return `${months / 12} ${months === 12 ? 'year' : 'years'}`
-    if (months > 0) return `${months} ${months === 1 ? 'month' : 'months'}`
-  }
-  const days = Math.round((next - start) / 86400000)
-  return `${days} ${days === 1 ? 'day' : 'days'}`
+  let months = (next.getFullYear() - start.getFullYear()) * 12 + (next.getMonth() - start.getMonth())
+  if (next.getDate() < start.getDate()) months -= 1
+  if (months < 1) return 'Under 1 month'
+  const exact = next.getDate() === start.getDate()
+  return `${months} ${months === 1 ? 'month' : 'months'}${exact ? '' : ' +'}`
 }
 
 function monthCells(year, month) {
