@@ -171,6 +171,47 @@ function PricingApprovalAction({ client, canApprove, onApprovePricing }) {
   )
 }
 
+// Tells the viewer what their own approval does, with the three stages
+// highlighted where they act. Role-aware: Sales stage, Finance stage, or both.
+const FLOW_STEPS = ['Sales review', 'Finance review', 'Active']
+
+function RoleNote({ canSales, canFinance }) {
+  if (!canSales && !canFinance) return null
+  const text =
+    canSales && canFinance
+      ? 'Your approvals send clients to Finance, then activate them.'
+      : canSales
+        ? 'Your approval sends the client to Finance.'
+        : 'Your approval activates the client.'
+  const mine = [canSales, canFinance, false]
+  return (
+    <div className="max-w-xs rounded-2xl bg-white px-4 py-3 shadow-soft ring-1 ring-slate-200/70">
+      <p className="text-xs font-medium text-slate-700">{text}</p>
+      <div className="mt-2.5 flex items-center gap-1">
+        {FLOW_STEPS.map((step, i) => {
+          const isActive = i === 2 && canFinance
+          return (
+            <span key={step} className="flex items-center gap-1">
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${
+                  mine[i]
+                    ? 'bg-brand-orange/10 text-brand-orange-dark ring-1 ring-brand-orange/30'
+                    : isActive
+                      ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                      : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                {step}
+              </span>
+              {i < FLOW_STEPS.length - 1 && <Icon name="chevron" className="h-3 w-3 -rotate-90 text-slate-300" />}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function ClientApprovals() {
   const { hasFunction } = useAuth()
   const canApproveSales = hasFunction('client-approvals.manage-onboarding')
@@ -247,10 +288,13 @@ export default function ClientApprovals() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <div>
-        <BackButton />
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
-        <p className="mt-0.5 text-xs text-slate-500">Review client details and pricing, check approval statuses, and approve clients to make them active.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <BackButton />
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
+          <p className="mt-0.5 text-xs text-slate-500">Review client details and pricing, check approval statuses, and approve clients to make them active.</p>
+        </div>
+        <RoleNote canSales={canApproveSales} canFinance={canApproveFinance} />
       </div>
 
       <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
