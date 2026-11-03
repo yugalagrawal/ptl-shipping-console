@@ -1857,10 +1857,9 @@ export default function NewClient() {
           </div>
 
           <div className={`p-5 ${card}`}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800">ODA list{!noOda && <span className="text-brand-orange-dark">*</span>}</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Starts as a copy of the default list — View / Edit to move pincodes between ODA 1 / 2 / 3 for this client only.</p>
+                <h3 className="text-sm font-semibold text-slate-800">Out of Delivery Area (ODA) list{!noOda && <span className="text-brand-orange-dark">*</span>}</h3>
               </div>
               <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
                 <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
@@ -1884,10 +1883,9 @@ export default function NewClient() {
           </div>
 
           <div className={`p-5 ${card}`}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-slate-800">Additional charges{!noAdditionalCharges && <span className="text-brand-orange-dark">*</span>}</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Each charge starts from the master rule and price — change the values for this client if needed.</p>
               </div>
               <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
                 <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
