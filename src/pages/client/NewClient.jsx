@@ -515,9 +515,10 @@ function KycDocCard({ label, note, file, locked, onUpload, onRemove }) {
         </a>
       )}
       {locked ? (
-        <button type="button" disabled title="Already uploaded in an earlier step" className="cursor-not-allowed text-xs font-medium text-rose-500 opacity-30">
-          Remove
-        </button>
+        <label className="cursor-pointer text-xs font-medium text-sky-600 hover:underline" title="Uploaded in an earlier step — replace only">
+          Replace
+          <input type="file" className="hidden" onChange={(e) => e.target.files[0] && onUpload(e.target.files[0])} />
+        </label>
       ) : (
         <div className="flex items-center gap-3 text-xs font-medium">
           <label className="cursor-pointer text-sky-600 hover:underline">
@@ -1314,8 +1315,8 @@ export default function NewClient() {
   // Everything that goes into KYC: the two already-uploaded proofs (PAN, one GST
   // certificate per GSTIN) followed by the extra documents added on this step.
   const lockedDocuments = [
-    { id: 'kyc-pan', type: 'PAN Card', note: pan.trim().toUpperCase(), file: panDocument },
-    ...(noGstin ? [] : identifications.map((r) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document }))),
+    { id: 'kyc-pan', type: 'PAN Card', note: pan.trim().toUpperCase(), file: panDocument, onUpload: setPanDocument },
+    ...(noGstin ? [] : identifications.map((r) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document, onUpload: (f) => setIdentifications((rows) => rows.map((x) => (x.id === r.id ? { ...x, document: f } : x))) }))),
   ]
   const allDocuments = [...lockedDocuments.map(({ id, type, file }) => ({ id, type, file })), ...documents]
 
@@ -2076,7 +2077,7 @@ export default function NewClient() {
         <div className={`space-y-6 p-6 ${card}`}>
           <div className="space-y-2">
             {lockedDocuments.map((doc) => (
-              <KycDocCard key={doc.id} label={doc.type} note={doc.note} file={doc.file ?? { name: 'File on record' }} locked />
+              <KycDocCard key={doc.id} label={doc.type} note={doc.note} file={doc.file ?? { name: 'File on record' }} locked onUpload={doc.onUpload} />
             ))}
           </div>
 
