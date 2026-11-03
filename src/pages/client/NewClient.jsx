@@ -379,7 +379,7 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
           ))}
         </div>
       )}
-      {hint && <p className={`mt-1 text-xs ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
+      {hint && <p className={`mt-1 truncate whitespace-nowrap text-[11px] ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
     </label>
   )
 }
@@ -1206,7 +1206,7 @@ export default function NewClient() {
               setLegalName('')
             }}
             placeholder="Search or type a new group name"
-            hint={groupId ? undefined : groupName.trim() ? 'New group — will be created' : 'Fill this first — it unlocks the rest of the form'}
+            hint={groupId ? undefined : groupName.trim() ? 'New group — will be created' : 'Fill this first to unlock the form'}
           />
           <Typeahead
             label="Legal entity name"
