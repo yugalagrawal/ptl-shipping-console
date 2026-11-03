@@ -150,7 +150,9 @@ const DOCUMENT_TYPES = ['AADHAR Card (Back)', 'AADHAR Card (Front)', 'EIC Certif
 const BILLING_DOCUMENT_TYPES = ['Rate Card', 'Contract', 'Other Communication']
 const VOLUME_UNITS = ['Kg', 'CFT']
 const DEPOSIT_PAYMENT_TYPES = ['Cheque', 'NEFT/RTGS', 'UPI', 'Cash', 'Demand Draft']
-const CFT_CONVERSION_TYPES = ['Air', 'Surface']
+// Matches production: Air, Surface and Rail are required; Water/Other is optional.
+const CFT_CONVERSION_TYPES = ['Air', 'Surface', 'Rail', 'Water/Other']
+const CFT_OPTIONAL_TYPES = ['Water/Other']
 
 // "Copy rates from" needs to show the *legal entity* on file for each active
 // client (not the trade name shown everywhere else), since rates are legally
@@ -1276,7 +1278,7 @@ export default function NewClient() {
       billPrintFormat.trim().length > 0 &&
       creditLimit.trim().length > 0 &&
       billingDocuments.some((doc) => doc.file) &&
-      cftConversions.every((row) => String(row.conversion).trim().length > 0) &&
+      cftConversions.every((row) => CFT_OPTIONAL_TYPES.includes(row.type) || String(row.conversion).trim().length > 0) &&
       (!centralisedPayment ||
         (billingState.trim().length > 0 && billingCity.trim().length > 0 && billingBranch.trim().length > 0)),
     (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
@@ -1662,14 +1664,14 @@ export default function NewClient() {
 
           <div className="sm:col-span-2 lg:col-span-4">
             <span className={LABEL}>
-              CFT to Kg conversion<span className="text-brand-orange-dark">*</span>
+              CFT to Kg conversion
               <InfoTip text="Volumetric weight factor used to convert chargeable volume (CFT) into chargeable weight (Kg) when billing this client. Different shipment types can use different factors." />
             </span>
-            <div className="flex flex-wrap gap-x-8 gap-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-3.5">
+            <div className="grid gap-x-8 gap-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-3.5 sm:grid-cols-2">
               {cftConversions.map((row) => (
                 <div key={row.id} className="flex items-center gap-2.5">
-                  <span className="w-[4.5rem] rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-medium text-slate-600">{row.type}</span>
-                  <span className="text-sm text-slate-500">1 CFT =</span>
+                  <span className="w-[6.5rem] shrink-0 rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-medium text-slate-600">{row.type}</span>
+                  <span className="shrink-0 text-sm text-slate-500">1 CFT =</span>
                   <input
                     type="number"
                     min="0"
@@ -1678,7 +1680,12 @@ export default function NewClient() {
                     placeholder="5"
                     className={`${INPUT} ${INPUT_OK} !w-24`}
                   />
-                  <span className="text-sm text-slate-500">Kg</span>
+                  <span className="shrink-0 text-sm text-slate-500">Kg</span>
+                  {CFT_OPTIONAL_TYPES.includes(row.type) ? (
+                    <span className="shrink-0 text-xs text-slate-400">optional</span>
+                  ) : (
+                    <span className="shrink-0 text-brand-orange-dark">*</span>
+                  )}
                 </div>
               ))}
             </div>

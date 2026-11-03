@@ -42,18 +42,20 @@ export function rateCardFor(clientId) {
   return CLIENT_RATE_CARDS[clientId] ?? DEFAULT_RATE_CARD
 }
 
-// "CFT to KG conversion" captured per client at onboarding (Air / Surface).
-// Sample values standing in for that lookup; any client not listed uses 6.
+// "CFT to KG conversion" captured per client at onboarding (Air / Surface / Rail /
+// Water-Other). Sample values standing in for that lookup; any client not listed
+// uses 6, and Rail / Water-Other fall back to the client's Surface factor when
+// no factor of their own was entered.
 const CLIENT_CFT_TO_KG = {
   nykaa: { Surface: 6, Air: 8 },
   lenskart: { Surface: 7, Air: 10 },
 }
 export const CFT_TO_KG_DEFAULT = 6 // 1 CFT = 6 kg
 
-// Air uses the client's Air factor; any other mode — or no mode picked yet — uses Surface.
 export function cftToKgFor(clientId, mode) {
   const f = CLIENT_CFT_TO_KG[clientId]
-  return (mode === 'air' ? f?.Air : f?.Surface) ?? CFT_TO_KG_DEFAULT
+  const own = mode === 'air' ? f?.Air : mode === 'rail' ? f?.Rail : mode === 'sea' ? f?.['Water/Other'] : undefined
+  return own ?? f?.Surface ?? CFT_TO_KG_DEFAULT
 }
 
 export function volumetricWeightKg(totalVolumeCft, cftToKg = CFT_TO_KG_DEFAULT) {
