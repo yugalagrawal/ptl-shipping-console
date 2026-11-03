@@ -71,7 +71,7 @@ function Month({ year, month, start, end, hover, onPick, onHover }) {
   const previewEnd = start && !end && hover && hover > start ? hover : null
   const rangeEnd = end ?? previewEnd
   return (
-    <div className="w-[15.5rem]">
+    <div className="w-[17rem]">
       <div className="mb-2 text-center text-sm font-semibold text-slate-800">
         {MONTHS[month]} {year}
       </div>
@@ -166,6 +166,7 @@ export default function DateRangePicker({ label, required, start, end, onChange,
 
   const second = new Date(view.year, view.month + 1, 1)
   const ready = draft.start && draft.end
+  const presetEnd = presetHover && draft.start ? endForMonths(draft.start, presetHover) : null
   const length = describeRange(committedStart, committedEnd)
 
   return (
@@ -194,85 +195,81 @@ export default function DateRangePicker({ label, required, start, end, onChange,
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute left-0 z-20 mt-2 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-200">
             <div className="p-4">
-              <div className="mb-1 flex items-center justify-between">
-                <button type="button" onClick={() => shift(-1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
-                  <Icon name="chevron" className="h-4 w-4 rotate-90" />
-                </button>
-                <button type="button" onClick={() => shift(1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
-                  <Icon name="chevron" className="h-4 w-4 -rotate-90" />
-                </button>
-              </div>
-              <div className="-mt-9 flex gap-6">
-                <Month year={view.year} month={view.month} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
-                <div className="hidden sm:block">
-                  <Month year={second.getFullYear()} month={second.getMonth()} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
+              <div className="grid gap-x-6 gap-y-3 sm:grid-cols-[17rem_17rem]">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Start date</div>
+                  <div className={`mt-0.5 text-sm font-semibold ${draft.start ? 'text-slate-900' : 'text-slate-400'}`}>
+                    {draft.start ? fmt(draft.start) : 'Pick a start date'}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">End date</div>
+                    {draft.start && (presetEnd || draft.end) && (
+                      <span className="text-[11px] text-slate-400">{describeRange(draft.start, presetEnd ?? draft.end)}</span>
+                    )}
+                  </div>
+                  <div className={`mt-0.5 text-sm font-semibold ${presetEnd ? 'text-brand-orange-dark' : draft.end ? 'text-slate-900' : 'text-slate-400'}`}>
+                    {presetEnd ? fmt(presetEnd) : draft.end ? fmt(draft.end) : draft.start ? 'Pick an end date' : '—'}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {PRESETS.map((p) => (
+                      <button
+                        key={p.months}
+                        type="button"
+                        disabled={!draft.start}
+                        onClick={() => applyPreset(p.months)}
+                        onMouseEnter={() => setPresetHover(p.months)}
+                        onMouseLeave={() => setPresetHover(null)}
+                        title={`End ${p.label} after the start date`}
+                        className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/50 hover:bg-orange-50 hover:text-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                <span className="text-xs font-medium text-slate-500">{draft.start ? 'End after' : 'Pick a start date first'}</span>
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.months}
-                    type="button"
-                    disabled={!draft.start}
-                    onClick={() => applyPreset(p.months)}
-                    onMouseEnter={() => setPresetHover(p.months)}
-                    onMouseLeave={() => setPresetHover(null)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/50 hover:bg-orange-50 hover:text-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
-                  >
-                    {p.label}
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <div className="mb-1 flex items-center justify-between">
+                  <button type="button" onClick={() => shift(-1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+                    <Icon name="chevron" className="h-4 w-4 rotate-90" />
                   </button>
-                ))}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                <span className="text-xs text-slate-500">
-                  {draft.start ? (
-                    <>
-                      <span className="font-medium text-slate-800">{fmt(draft.start)}</span>
-                      {presetHover ? (
-                        <>
-                          {' → '}
-                          <span className="font-medium text-brand-orange-dark">{fmt(endForMonths(draft.start, presetHover))}</span>
-                        </>
-                      ) : draft.end ? (
-                        <>
-                          {' → '}
-                          <span className="font-medium text-slate-800">{fmt(draft.end)}</span>
-                          <span className="ml-1.5 text-slate-400">· {describeRange(draft.start, draft.end)}</span>
-                        </>
-                      ) : (
-                        <span className="text-slate-400"> → pick the end date</span>
-                      )}
-                    </>
-                  ) : (
-                    'Pick the start date'
-                  )}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraft({ start: null, end: null })
-                      onChange({ start: '', end: '' })
-                    }}
-                    className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!ready}
-                    onClick={() => {
-                      onChange({ start: toIso(draft.start), end: toIso(draft.end) })
-                      setOpen(false)
-                    }}
-                    className="rounded-lg bg-brand-orange px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                  >
-                    Apply
+                  <button type="button" onClick={() => shift(1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+                    <Icon name="chevron" className="h-4 w-4 -rotate-90" />
                   </button>
                 </div>
+                <div className="-mt-9 flex gap-6">
+                  <Month year={view.year} month={view.month} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
+                  <div className="hidden sm:block">
+                    <Month year={second.getFullYear()} month={second.getMonth()} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft({ start: null, end: null })
+                    onChange({ start: '', end: '' })
+                  }}
+                  className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  disabled={!ready}
+                  onClick={() => {
+                    onChange({ start: toIso(draft.start), end: toIso(draft.end) })
+                    setOpen(false)
+                  }}
+                  className="rounded-lg bg-brand-orange px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                >
+                  Apply
+                </button>
               </div>
             </div>
           </div>
