@@ -147,10 +147,8 @@ const DEFAULT_BILL_PRINT_FORMAT = BILL_PRINT_FORMATS[0]
 // Matches the legacy Softpal KYC document-type list (ground truth from
 // screenshots) rather than the earlier ad-hoc set.
 const DOCUMENT_TYPES = ['AADHAR Card (Back)', 'AADHAR Card (Front)', 'EIC Certificate', 'GST Certificate', 'MSME Certificate', 'PAN Card', 'Post Dated Check', 'Signed Contract']
-// Three buckets cover what a logistics client onboarding actually needs on
-// file: commercials (rate card), the legal paper (signed contract) and the
-// credit/payment security (credit approval, PDC / security cheque copy).
-const BILLING_DOCUMENT_TYPES = ['Rate Card', 'Signed Contract', 'Credit & Payment Terms', 'Others']
+// Four buckets, each takes any number of files.
+const BILLING_DOCUMENT_TYPES = ['Agreement / Contract', 'Payment Terms / Rate Card', 'Communications', 'Others']
 const DEFAULT_CREDIT_LIMIT = '500000'
 const DEFAULT_CFT_FACTOR = '5.5'
 const VOLUME_UNITS = ['Kg', 'CFT']
@@ -844,7 +842,7 @@ export default function NewClient() {
   // other billing correspondence); at least one must be uploaded. Shares
   // docRowSeq with KYC's documents so ids never collide across the two lists.
   const [billingDocuments, setBillingDocuments] = useState(
-    BILLING_DOCUMENT_TYPES.map((type) => ({ id: docRowSeq++, type, file: null })),
+    BILLING_DOCUMENT_TYPES.map((type) => ({ id: docRowSeq++, type, files: [] })),
   )
 
   // Pricing (tier + additional charges)
@@ -1118,8 +1116,14 @@ export default function NewClient() {
     setDocuments((rows) => rows.filter((r) => r.id !== id))
   }
 
-  function updateBillingDocument(id, field, value) {
-    setBillingDocuments((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  function addBillingFiles(id, fileList) {
+    const added = Array.from(fileList ?? [])
+    if (!added.length) return
+    setBillingDocuments((rows) => rows.map((r) => (r.id === id ? { ...r, files: [...r.files, ...added] } : r)))
+  }
+
+  function removeBillingFile(id, index) {
+    setBillingDocuments((rows) => rows.map((r) => (r.id === id ? { ...r, files: r.files.filter((_, i) => i !== index) } : r)))
   }
 
   function updateCftConversion(id, field, value) {
@@ -1282,7 +1286,7 @@ export default function NewClient() {
       contractExecutionDate.trim().length > 0 &&
       billingPeriod.trim().length > 0 &&
       billPrintFormat.trim().length > 0 &&
-      billingDocuments.some((doc) => doc.file) &&
+      billingDocuments.some((doc) => doc.files.length > 0) &&
       (!centralisedPayment ||
         (billingState.trim().length > 0 && billingCity.trim().length > 0 && billingBranch.trim().length > 0)),
     (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
@@ -1696,30 +1700,40 @@ export default function NewClient() {
           <div className="sm:col-span-2 lg:col-span-4">
             <span className={LABEL}>
               Upload documents<span className="text-brand-orange-dark">*</span>
-              <span className="font-normal text-slate-400">· at least one</span>
+              <span className="font-normal text-slate-400">· at least one file, multiple allowed per box</span>
             </span>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {billingDocuments.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-2">
-                  <label
-                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-medium transition-colors ${
-                      doc.file
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-brand-orange/50 hover:bg-orange-50/30'
-                    }`}
-                  >
-                    <Icon name={doc.file ? 'approve' : 'plus'} className="h-3.5 w-3.5 shrink-0" />
-                    {doc.type}
-                    <input type="file" className="hidden" onChange={(e) => updateBillingDocument(doc.id, 'file', e.target.files[0] ?? null)} />
-                  </label>
-                  {doc.file && (
-                    <>
-                      <span className="max-w-[9rem] truncate text-xs text-slate-500">{doc.file.name}</span>
-                      <button type="button" onClick={() => updateBillingDocument(doc.id, 'file', null)} className="text-xs font-medium text-rose-500 hover:underline">
-                        Remove
-                      </button>
-                    </>
+                <div key={doc.id} className="flex flex-col gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/40 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-600">{doc.type}</span>
+                    {doc.files.length > 0 && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">{doc.files.length}</span>}
+                  </div>
+                  {doc.files.length > 0 && (
+                    <ul className="space-y-1">
+                      {doc.files.map((f, i) => (
+                        <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-1.5 text-xs text-slate-600 ring-1 ring-slate-200/70">
+                          <span className="truncate">{f.name}</span>
+                          <button type="button" onClick={() => removeBillingFile(doc.id, i)} className="shrink-0 font-medium text-rose-500 hover:underline">
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
+                  <label className="mt-auto inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30">
+                    <Icon name="plus" className="h-3.5 w-3.5 shrink-0" />
+                    {doc.files.length > 0 ? 'Add more' : 'Add files'}
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        addBillingFiles(doc.id, e.target.files)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
                 </div>
               ))}
             </div>

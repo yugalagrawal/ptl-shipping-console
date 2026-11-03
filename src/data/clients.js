@@ -75,7 +75,7 @@ function sampleDetails({ company = {}, contact = {}, identifications, billing = 
       billPrintFormat: '7-Arrow', creditLimit: '500000', centralisedPayment: false, billingState: '', billingCity: '', billingBranch: '',
       securityDeposit: false, securityDepositAmount: '', securityDepositPaid: 'No', depositPaymentDate: '', depositPaymentType: 'Cheque', depositReferenceNo: '',
       taxExemption: false, fuelSurchargeExemption: false, expectedVolumeKg: '2500', volumeUnit: 'Kg',
-      copyRatesEnabled: false, copyRatesFrom: '', billingDocuments: [{ id: 1, type: 'Rate Card', file: dummyFile('rate-card.pdf') }],
+      copyRatesEnabled: false, copyRatesFrom: '', billingDocuments: [{ id: 1, type: 'Payment Terms / Rate Card', files: [dummyFile('rate-card.pdf')] }],
       ...billing,
     },
     documents: documents ?? [

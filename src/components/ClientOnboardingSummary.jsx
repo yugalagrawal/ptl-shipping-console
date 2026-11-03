@@ -133,13 +133,13 @@ export default function ClientOnboardingSummary({ client }) {
         </ReviewSection>
       )}
 
-      {d.billing.billingDocuments?.some((doc) => doc.file) && (
+      {d.billing.billingDocuments?.some((doc) => doc.files?.length) && (
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Billing documents</div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {d.billing.billingDocuments.map((doc) => (
-              <DocumentLink key={doc.id} label={doc.type} file={doc.file} />
-            ))}
+            {d.billing.billingDocuments.flatMap((doc) =>
+              (doc.files ?? []).map((file, i) => <DocumentLink key={`${doc.id}-${i}`} label={doc.type} file={file} />),
+            )}
           </div>
         </div>
       )}
