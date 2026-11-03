@@ -1374,7 +1374,7 @@ export default function NewClient() {
           <Field label="SAC number" disabled={!groupFilled} value={sacNumber} onChange={(e) => setSacNumber(e.target.value)} placeholder="Optional" hint="For services, e.g. 996511" />
           <Field label="HSN number" disabled={!groupFilled} value={hsnNumber} onChange={(e) => setHsnNumber(e.target.value)} placeholder="Optional" hint="For goods, e.g. 8704" />
           <Field label="TAN number" disabled={!groupFilled} value={tanNumber} onChange={(e) => setTanNumber(e.target.value.toUpperCase())} placeholder="Optional" hint="e.g. DELA12345B" />
-          <Field label="UDYAM number" disabled={!groupFilled} value={msmeNumber} onChange={(e) => setMsmeNumber(e.target.value)} placeholder="Optional" hint="If MSME, e.g. UDYAM-MH-01-0000001" />
+          <Field label="UDYAM number" disabled={!groupFilled} value={msmeNumber} onChange={(e) => setMsmeNumber(e.target.value)} placeholder="Optional" hint="e.g. UDYAM-MH-01-0000001" />
         </Section>
       )}
 
