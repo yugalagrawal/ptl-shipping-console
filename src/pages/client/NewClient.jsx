@@ -147,12 +147,16 @@ const DEFAULT_BILL_PRINT_FORMAT = BILL_PRINT_FORMATS[0]
 // Matches the legacy Softpal KYC document-type list (ground truth from
 // screenshots) rather than the earlier ad-hoc set.
 const DOCUMENT_TYPES = ['AADHAR Card (Back)', 'AADHAR Card (Front)', 'EIC Certificate', 'GST Certificate', 'MSME Certificate', 'PAN Card', 'Post Dated Check', 'Signed Contract']
-const BILLING_DOCUMENT_TYPES = ['Rate Card', 'Contract', 'Other Communication']
+// Three buckets cover what a logistics client onboarding actually needs on
+// file: commercials (rate card), the legal paper (signed contract) and the
+// credit/payment security (credit approval, PDC / security cheque copy).
+const BILLING_DOCUMENT_TYPES = ['Rate Card', 'Signed Contract', 'Credit & Payment Terms', 'Others']
+const DEFAULT_CREDIT_LIMIT = '500000'
+const DEFAULT_CFT_FACTOR = '5.5'
 const VOLUME_UNITS = ['Kg', 'CFT']
 const DEPOSIT_PAYMENT_TYPES = ['Cheque', 'NEFT/RTGS', 'UPI', 'Cash', 'Demand Draft']
-// Matches production: Air, Surface and Rail are required; Water/Other is optional.
-const CFT_CONVERSION_TYPES = ['Air', 'Surface', 'Rail', 'Water/Other']
-const CFT_OPTIONAL_TYPES = ['Water/Other']
+// All optional — a blank mode is saved with the safe factor (DEFAULT_CFT_FACTOR).
+const CFT_CONVERSION_TYPES = ['Surface', 'Air', 'Rail', 'Water/Other']
 
 // "Copy rates from" needs to show the *legal entity* on file for each active
 // client (not the trade name shown everywhere else), since rates are legally
@@ -847,6 +851,7 @@ export default function NewClient() {
   // Tier is fixed by declared volume — not a choice, just shown for context.
   // Optional: left blank, it counts as 1.
   const effectiveVolume = expectedVolumeKg.trim() === '' ? '1' : expectedVolumeKg
+  const effectiveCreditLimit = creditLimit.trim() === '' ? DEFAULT_CREDIT_LIMIT : creditLimit
   const tier = useMemo(() => tierFromVolume({ volumeKg: effectiveVolume }), [effectiveVolume])
 
   // Standard = the fixed, un-discounted rate card, same for every client
@@ -1157,11 +1162,12 @@ export default function NewClient() {
         contact: { pocName, pocFirstName, pocLastName, phoneCode, pocMobile, pocEmail, opsEmail, financeEmail, salesPerson },
         identifications,
         billing: {
-          contractStart, contractEnd, contractExecutionDate, billingPeriod, billPrintFormat, creditLimit,
+          contractStart, contractEnd, contractExecutionDate, billingPeriod, billPrintFormat, creditLimit: effectiveCreditLimit,
           centralisedPayment, billingState, billingCity, billingBranch,
           securityDeposit, securityDepositAmount, securityDepositPaid, depositPaymentDate, depositPaymentType, depositReferenceNo,
           taxExemption, fuelSurchargeExemption, expectedVolumeKg: effectiveVolume, volumeUnit,
-          copyRatesEnabled, copyRatesFrom, billingDocuments, cftConversions,
+          copyRatesEnabled, copyRatesFrom, billingDocuments,
+          cftConversions: cftConversions.map((r) => ({ ...r, conversion: String(r.conversion).trim() === '' ? DEFAULT_CFT_FACTOR : r.conversion })),
         },
         documents,
       }
@@ -1276,9 +1282,7 @@ export default function NewClient() {
       contractExecutionDate.trim().length > 0 &&
       billingPeriod.trim().length > 0 &&
       billPrintFormat.trim().length > 0 &&
-      creditLimit.trim().length > 0 &&
       billingDocuments.some((doc) => doc.file) &&
-      cftConversions.every((row) => CFT_OPTIONAL_TYPES.includes(row.type) || String(row.conversion).trim().length > 0) &&
       (!centralisedPayment ||
         (billingState.trim().length > 0 && billingCity.trim().length > 0 && billingBranch.trim().length > 0)),
     (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
@@ -1633,7 +1637,7 @@ export default function NewClient() {
             <SelectField label="Billing period" required value={billingPeriod} onChange={setBillingPeriod} options={BILLING_PERIODS} />
 
             <DefaultFlagSelect label="Bill print format" required value={billPrintFormat} onChange={setBillPrintFormat} options={BILL_PRINT_FORMATS} defaultValue={DEFAULT_BILL_PRINT_FORMAT} />
-            <Field label="Maximum credit limit (₹)" required type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="500000" hint="No orders beyond limit until paid" />
+            <Field label="Maximum credit limit (₹)" type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="5,00,000" hint="Optional — 5,00,000 is used if skipped. No orders beyond limit until paid." />
             <label className="block sm:col-span-2">
               <span className={LABEL}>
                 Monthly Vol. Expectation
@@ -1663,30 +1667,28 @@ export default function NewClient() {
           </div>
 
           <div className="sm:col-span-2 lg:col-span-4">
-            <span className={LABEL}>
-              CFT to Kg conversion
-              <InfoTip text="Volumetric weight factor used to convert chargeable volume (CFT) into chargeable weight (Kg) when billing this client. Different shipment types can use different factors." />
-            </span>
-            <div className="grid gap-x-8 gap-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-3.5 sm:grid-cols-2">
+            <span className={LABEL}>Volumetric conversion factor</span>
+            <p className="-mt-1 mb-2.5 text-xs text-slate-400">
+              Converts volumetric weight in CFT to chargeable weight in Kg. Optional — {DEFAULT_CFT_FACTOR} is filled as the safe factor for any mode left blank.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {cftConversions.map((row) => (
-                <div key={row.id} className="flex items-center gap-2.5">
-                  <span className="w-[6.5rem] shrink-0 rounded-lg bg-slate-100 px-3 py-2 text-center text-xs font-medium text-slate-600">{row.type}</span>
-                  <span className="shrink-0 text-sm text-slate-500">1 CFT =</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.conversion}
-                    onChange={(e) => updateCftConversion(row.id, 'conversion', e.target.value)}
-                    placeholder="5"
-                    className={`${INPUT} ${INPUT_OK} !w-24`}
-                  />
-                  <span className="shrink-0 text-sm text-slate-500">Kg</span>
-                  {CFT_OPTIONAL_TYPES.includes(row.type) ? (
-                    <span className="shrink-0 text-xs text-slate-400">optional</span>
-                  ) : (
-                    <span className="shrink-0 text-brand-orange-dark">*</span>
-                  )}
-                </div>
+                <label key={row.id} className="block rounded-2xl border border-slate-200/80 bg-slate-50/40 p-3 transition-colors focus-within:border-brand-orange/50 focus-within:bg-white">
+                  <span className="text-xs font-semibold text-slate-600">{row.type}</span>
+                  <span className="mt-2 flex items-center gap-2">
+                    <span className="shrink-0 text-xs text-slate-400">1 CFT =</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={row.conversion}
+                      onChange={(e) => updateCftConversion(row.id, 'conversion', e.target.value)}
+                      placeholder={DEFAULT_CFT_FACTOR}
+                      className={`${INPUT} ${INPUT_OK} !w-full min-w-0 !px-2.5 !py-1.5`}
+                    />
+                    <span className="shrink-0 text-xs text-slate-400">Kg</span>
+                  </span>
+                </label>
               ))}
             </div>
           </div>
@@ -1723,33 +1725,7 @@ export default function NewClient() {
             </div>
           </div>
 
-          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/80 bg-white sm:col-span-2 lg:col-span-4">
-            <div className="px-4 py-3">
-              <Toggle label="Is centralised payment" checked={centralisedPayment} onChange={setCentralisedPayment} />
-              {centralisedPayment && (
-                <div className="mt-3 grid gap-4 sm:grid-cols-3">
-                  <SelectField label="Billing state" required value={billingState} onChange={handleBillingStateChange} options={BILLING_STATES} placeholder="Select state" />
-                  <SelectField
-                    label="Billing city"
-                    required
-                    disabled={!billingState}
-                    value={billingCity}
-                    onChange={handleBillingCityChange}
-                    options={citiesForState(billingState)}
-                    placeholder={billingState ? 'Select city' : 'Select state first'}
-                  />
-                  <SelectField
-                    label="Billing branch"
-                    required
-                    disabled={!billingCity}
-                    value={billingBranch}
-                    onChange={setBillingBranch}
-                    options={CITY_BRANCHES[billingCity] ?? []}
-                    placeholder={billingCity ? 'Select branch' : 'Select city first'}
-                  />
-                </div>
-              )}
-            </div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white sm:col-span-2 lg:col-span-4">
             <div className="px-4 py-3">
               <div className="flex items-center gap-4">
                 <Toggle label="Security deposit required" checked={securityDeposit} onChange={setSecurityDeposit} />
@@ -1782,7 +1758,7 @@ export default function NewClient() {
                   </div>
                   {securityDepositPaid === 'Yes' ? (
                     <>
-                      <Field label="Payment date" type="date" value={depositPaymentDate} onChange={(e) => setDepositPaymentDate(e.target.value)} />
+                      <DatePicker label="Payment date" value={depositPaymentDate} onChange={setDepositPaymentDate} />
                       <SelectField label="Payment type" value={depositPaymentType} onChange={setDepositPaymentType} options={DEPOSIT_PAYMENT_TYPES} />
                       <Field label="Reference no." value={depositReferenceNo} onChange={(e) => setDepositReferenceNo(e.target.value)} placeholder="UTR / cheque / txn no." />
                     </>
@@ -1792,12 +1768,23 @@ export default function NewClient() {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="px-4 py-3">
-              <Toggle label="Tax exemption" checked={taxExemption} onChange={setTaxExemption} />
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/60 sm:col-span-2 lg:col-span-4">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </svg>
+                More billing options
+              </span>
+              <span className="rounded-full bg-slate-200/70 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">Coming soon</span>
             </div>
-            <div className="px-4 py-3">
-              <Toggle label="Fuel surcharge exemption" checked={fuelSurchargeExemption} onChange={setFuelSurchargeExemption} />
+            <div className="pointer-events-none flex select-none flex-wrap gap-x-8 gap-y-3 px-4 py-3.5 opacity-50" aria-disabled="true">
+              <Toggle label="Is centralised payment" checked={false} onChange={() => {}} disabled />
+              <Toggle label="Tax exemption" checked={false} onChange={() => {}} disabled />
+              <Toggle label="Fuel surcharge exemption" checked={false} onChange={() => {}} disabled />
             </div>
           </div>
         </Section>
