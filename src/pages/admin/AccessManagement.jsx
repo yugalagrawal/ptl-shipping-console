@@ -84,8 +84,7 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</h3>
-      <p className="mt-1 text-xs text-slate-400">{hint}</p>
-      <div className="relative mt-3">
+      <div className="relative mt-2">
         <button
           type="button"
           onClick={() => { onOpenChange(!open); setQuery('') }}
@@ -182,8 +181,7 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Branch (Mini-Hub) access</h3>
-      <p className="mt-1 text-xs text-slate-400">Default is every branch.</p>
-      <div className="relative mt-3">
+      <div className="relative mt-2">
         <button
           type="button"
           onClick={() => { onOpenChange(!open); setQuery('') }}
@@ -917,11 +915,11 @@ export default function AccessManagement() {
           </section>
 
           <section className={sectionCard}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Location access</h3>
-            <p className="mt-1 text-xs text-slate-400">
-              Region → Zone → Hub → Branch → Mini Hub. Picking a broader tier selects everything under it; untick to narrow. Empty means all.
-            </p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Location access</h3>
+              <span className="text-xs text-slate-400">Region → Zone → Hub → Branch (Mini hub). A broader pick selects all under it.</span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <ScopeDropdown
                 label="Region access"
                 hint="Default is every region."
@@ -971,11 +969,11 @@ export default function AccessManagement() {
           </section>
 
           <section className={sectionCard}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Geography Access</h3>
-            <p className="mt-1 text-xs text-slate-400">
-              State/UT → City → Pincode, and Territory → Circle. Picking a broader tier selects everything under it; untick to narrow. Empty means all.
-            </p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Geography access</h3>
+              <span className="text-xs text-slate-400">State/UT → City → Pincode, and Territory → Circle</span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <ScopeDropdown
                 label="State/UT access"
                 hint="Default is every state/UT."
