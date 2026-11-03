@@ -1889,26 +1889,17 @@ export default function NewClient() {
               )}
             </div>
             </div>
+            <div className="mt-2.5 space-y-0.5 text-[11px] leading-relaxed text-slate-400">
+              <p className={pricingType === 'Standard' ? 'text-slate-600' : ''}>
+                <span className="font-medium">Standard</span> — our non-editable 13 × 13 region rate matrix, used directly with no customisation.
+              </p>
+              <p className={pricingType === 'Custom' ? 'text-slate-600' : ''}>
+                <span className="font-medium">Custom</span> — modify our rate matrix for this client, with a flat discount or cell-level rates.
+              </p>
+            </div>
           </div>
 
-          {pricingType === '' ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                { type: 'Standard', text: 'Our non-editable 13 × 13 region rate matrix, used directly with no customisation.' },
-                { type: 'Custom', text: 'Modify our rate matrix for this client — apply a discount or set cell-level rates.' },
-              ].map((o) => (
-                <button
-                  key={o.type}
-                  type="button"
-                  onClick={() => setPricingType(o.type)}
-                  className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-5 py-4 text-left transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30"
-                >
-                  <span className="text-sm font-semibold text-slate-700">{o.type}</span>
-                  <span className="mt-1 block text-xs text-slate-500">{o.text}</span>
-                </button>
-              ))}
-            </div>
-          ) : pricingType === 'Custom' && regionMappingType === 'Custom' ? (
+          {pricingType === '' ? null : pricingType === 'Custom' && regionMappingType === 'Custom' ? (
             customRegions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-10 text-center">
                 <p className="text-sm font-medium text-slate-500">No client regions defined yet.</p>
