@@ -113,6 +113,7 @@ function ChargeValueFields({ rule, onChange }) {
 import { LT_USERS } from '../../data/users.js'
 import { isReportOf } from '../../data/relations.js'
 import PersonNameFields from '../../components/PersonNameFields.jsx'
+import DateRangePicker from '../../components/DateRangePicker.jsx'
 import { joinName, namePartOk } from '../../utils/personName.js'
 import { GROUP_SUGGESTIONS, LEGAL_ENTITY_SUGGESTIONS, groupById } from '../../data/groups.js'
 import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, submitClientForApproval } from '../../data/clients.js'
@@ -202,11 +203,6 @@ const BILLING_STATES = [...new Set(Object.values(CITY_TO_STATE))].sort()
 
 function citiesForState(state) {
   return CITIES.filter((c) => CITY_TO_STATE[c] === state)
-}
-
-function formatDisplayDate(iso) {
-  if (!iso) return null
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function todayISO() {
@@ -768,7 +764,6 @@ export default function NewClient() {
   // Defaults to today — almost always signed the day it's entered; editable
   // for the rare backdated/postdated case.
   const [contractExecutionDate, setContractExecutionDate] = useState(todayISO())
-  const [showDurationPicker, setShowDurationPicker] = useState(false)
   const [billingPeriod, setBillingPeriod] = useState(BILLING_PERIODS[2])
   const [billPrintFormat, setBillPrintFormat] = useState(BILL_PRINT_FORMATS[0])
   const [creditLimit, setCreditLimit] = useState('')
@@ -1579,53 +1574,17 @@ export default function NewClient() {
       {step === 3 && (
         <Section>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
-            <label className="relative block sm:col-span-2">
-              <span className={LABEL}>
-                Contract duration<span className="text-brand-orange-dark">*</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowDurationPicker((v) => !v)}
-                className={`${INPUT} ${INPUT_OK} flex items-center justify-between text-left`}
-              >
-                <span className={contractStart && contractEnd ? 'text-slate-800' : 'text-slate-400'}>
-                  {contractStart && contractEnd ? `${formatDisplayDate(contractStart)} – ${formatDisplayDate(contractEnd)}` : 'Select date range'}
-                </span>
-                <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${showDurationPicker ? 'rotate-180' : ''}`} />
-              </button>
-              {showDurationPicker && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowDurationPicker(false)} />
-                  <div className="absolute z-20 mt-1.5 rounded-2xl bg-white p-4 shadow-lg ring-1 ring-slate-200">
-                    <div className="flex items-end gap-3">
-                      <label className="block">
-                        <span className="mb-1 block text-xs text-slate-400">From</span>
-                        <input
-                          type="date"
-                          value={contractStart}
-                          onChange={(e) => setContractStart(e.target.value)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                        />
-                      </label>
-                      <span className="pb-2 text-slate-300">→</span>
-                      <label className="block">
-                        <span className="mb-1 block text-xs text-slate-400">To</span>
-                        <input
-                          type="date"
-                          value={contractEnd}
-                          min={contractStart || undefined}
-                          onChange={(e) => setContractEnd(e.target.value)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-800 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                        />
-                      </label>
-                    </div>
-                    <button type="button" onClick={() => setShowDurationPicker(false)} className={`${btnPrimary} mt-3 w-full !py-1.5 text-xs`}>
-                      Done
-                    </button>
-                  </div>
-                </>
-              )}
-            </label>
+            <DateRangePicker
+              label="Contract duration"
+              required
+              className="sm:col-span-2"
+              start={contractStart}
+              end={contractEnd}
+              onChange={({ start, end }) => {
+                setContractStart(start)
+                setContractEnd(end)
+              }}
+            />
             <Field
               label="Contract Submission Date"
               required
