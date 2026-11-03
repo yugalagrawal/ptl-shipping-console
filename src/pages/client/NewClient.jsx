@@ -399,40 +399,30 @@ function Section({ title, subtitle, children }) {
 function Stepper({ step, onJump }) {
   return (
     <div className="flex items-center">
-      {STEPS.map((st, i) => {
-        const done = i < step
-        const current = i === step
-        return (
-          <div key={st.key} className="flex flex-1 items-center last:flex-none">
-            <button
-              type="button"
-              disabled={i > step}
-              onClick={() => onJump(i)}
-              className="group flex items-center gap-2.5 disabled:cursor-not-allowed"
+      {STEPS.map((s, i) => (
+        <div key={s.key} className="flex flex-1 items-center last:flex-none">
+          <button
+            type="button"
+            disabled={i > step}
+            onClick={() => onJump(i)}
+            className="flex flex-col items-center gap-2 disabled:cursor-not-allowed"
+          >
+            <span
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+                i === step
+                  ? 'bg-brand-orange text-white'
+                  : i < step
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-slate-100 text-slate-400'
+              }`}
             >
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
-                  current
-                    ? 'bg-brand-orange text-white ring-4 ring-brand-orange/15'
-                    : done
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 text-slate-400'
-                }`}
-              >
-                {done ? <Icon name="approve" className="h-4 w-4" /> : i + 1}
-              </span>
-              <span
-                className={`hidden whitespace-nowrap text-xs font-medium lg:block ${
-                  current ? 'text-slate-900' : done ? 'text-slate-600 group-hover:text-slate-900' : 'text-slate-400'
-                }`}
-              >
-                {st.label}
-              </span>
-            </button>
-            {i < STEPS.length - 1 && <div className={`mx-3 h-px flex-1 ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
-          </div>
-        )
-      })}
+              <Icon name={i < step ? 'approve' : s.icon} className="h-[18px] w-[18px]" />
+            </span>
+            <span className={`text-xs font-medium ${i === step ? 'text-slate-900' : i < step ? 'text-emerald-600' : 'text-slate-400'}`}>{s.label}</span>
+          </button>
+          {i < STEPS.length - 1 && <div className={`mx-2 h-px flex-1 ${i < step ? 'bg-emerald-200' : 'bg-slate-200'}`} />}
+        </div>
+      ))}
     </div>
   )
 }
@@ -1192,11 +1182,8 @@ export default function NewClient() {
         </div>
       )}
 
-      <div className={`px-6 py-4 ${card}`}>
+      <div className={`p-6 ${card}`}>
         <Stepper step={step} onJump={setStep} />
-        <p className="mt-3 text-xs font-medium text-slate-500 lg:hidden">
-          Step {step + 1} of {STEPS.length} · {STEPS[step].label}
-        </p>
       </div>
 
       {step === 0 && (
