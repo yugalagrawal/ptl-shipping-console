@@ -682,7 +682,7 @@ export default function NewClient() {
   const [step, setStep] = useState(initialStep >= 0 ? initialStep : 0)
   // Prototype shortcut: opening ?step=billing on a fresh client pre-fills the
   // earlier steps with demo details so Billing Info can be tried straight away.
-  const demo = searchParams.get('step') === 'billing' && !searchParams.get('id')
+  const demo = ['billing', 'kyc'].includes(searchParams.get('step')) && !searchParams.get('id')
   const demoFile = (name) => new File(['demo'], name, { type: 'application/pdf' })
   const [showClientCreatedDialog, setShowClientCreatedDialog] = useState(false)
   const [showSubmittedDialog, setShowSubmittedDialog] = useState(false)
@@ -849,10 +849,9 @@ export default function NewClient() {
   )
 
   // KYC (repeatable)
-  const [documents, setDocuments] = useState([
-    { id: docRowSeq++, type: 'PAN Card', file: null },
-    { id: docRowSeq++, type: 'GST Certificate', file: null },
-  ])
+  // Only the extra documents picked on this step — PAN and GST certificates
+  // were already uploaded on Company / GSTIN Info and are shown locked.
+  const [documents, setDocuments] = useState([])
 
   // Billing documents — one fixed slot per type (rate card, signed contract,
   // other billing correspondence); at least one must be uploaded. Shares
@@ -1122,8 +1121,8 @@ export default function NewClient() {
     setIdentifications((rows) => rows.filter((r) => r.id !== id))
   }
 
-  function addDocument() {
-    setDocuments((rows) => [...rows, { id: docRowSeq++, type: DOCUMENT_TYPES[0], file: null }])
+  function toggleDocumentType(type) {
+    setDocuments((rows) => (rows.some((r) => r.type === type) ? rows.filter((r) => r.type !== type) : [...rows, { id: docRowSeq++, type, file: null }]))
   }
   function updateDocument(id, field, value) {
     setDocuments((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
@@ -1189,7 +1188,7 @@ export default function NewClient() {
           copyRatesEnabled, copyRatesFrom, billingDocuments,
           cftConversions: cftConversions.map((r) => ({ ...r, conversion: String(r.conversion).trim() === '' ? DEFAULT_CFT_FACTOR : r.conversion })),
         },
-        documents,
+        documents: allDocuments,
       }
       // KYC submitted — the client is done with the wizard entirely and moves
       // from "Client activation in progress" to Client Approvals for pricing
@@ -1204,8 +1203,8 @@ export default function NewClient() {
         tier,
         submittedBy: user?.name,
         additionalCharges: noAdditionalCharges ? [] : selectedCharges.map((c) => ({ name: c.name, value: formatChargeRule(c.rule) })),
-        kycDocsCount: documents.filter((doc) => doc.file ?? (doc.type === 'PAN Card' ? panDocument : null)).length,
-        kycDocsTotal: documents.length,
+        kycDocsCount: allDocuments.filter((doc) => doc.file).length,
+        kycDocsTotal: allDocuments.length,
         details,
         // What was actually chosen on the Pricing step — additive alongside
         // the tier-derived `matrix`/`charges` seedClientPricing already
@@ -1256,6 +1255,13 @@ export default function NewClient() {
 
   // The GST certificate uploaded on GSTIN Info also satisfies KYC's GST Certificate row.
   const gstDocument = identifications.find((r) => r.document)?.document ?? null
+  // Everything that goes into KYC: the two already-uploaded proofs (PAN, one GST
+  // certificate per GSTIN) followed by the extra documents added on this step.
+  const lockedDocuments = [
+    { id: 'kyc-pan', type: 'PAN Card', note: pan.trim().toUpperCase(), file: panDocument },
+    ...(noGstin ? [] : identifications.map((r) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document }))),
+  ]
+  const allDocuments = [...lockedDocuments.map(({ id, type, file }) => ({ id, type, file })), ...documents]
 
   // POC, Ops and Finance emails must all be different from each other.
   const opsDupe = sameEmail(opsEmail, pocEmail)
@@ -1309,7 +1315,7 @@ export default function NewClient() {
     // KYC must actually be done — every listed document needs a file — before
     // this can leave "Client activation in progress" for Sales Admin's queue.
     // Remove a document row instead of leaving it empty if it doesn't apply.
-    documents.every((doc) => doc.file ?? (doc.type === 'PAN Card' ? panDocument : doc.type === 'GST Certificate' ? gstDocument : null)),
+    documents.every((doc) => doc.file),
   ][step]
 
   return (
@@ -2011,49 +2017,69 @@ export default function NewClient() {
       )}
 
       {step === 5 && (
-        <div className={`space-y-5 p-6 ${card}`}>
-          <div className="flex items-center justify-between -mx-6 -mt-6 border-b border-slate-100 px-6 py-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">KYC upload</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Upload every proof document this client needs. All must be uploaded before submitting; remove rows that don't apply.</p>
-            </div>
-            <button
-              type="button"
-              onClick={addDocument}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            >
-              <Icon name="plus" className="h-3.5 w-3.5" />
-              Add document
-            </button>
-          </div>
-
-          {documents.map((doc) => {
-            // PAN was already captured (number on Company Info, file upload on
-            // GSTIN Info) — reflect that instead of asking again.
-            const fromPan = !doc.file && ((doc.type === 'PAN Card' && panDocument) || (doc.type === 'GST Certificate' && gstDocument))
-            const effectiveFile = doc.file ?? (doc.type === 'PAN Card' ? panDocument : doc.type === 'GST Certificate' ? gstDocument : null)
-            return (
-            <div key={doc.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 sm:flex-row sm:items-end">
-              <SelectField label="Document type" value={doc.type} onChange={(v) => updateDocument(doc.id, 'type', v)} options={DOCUMENT_TYPES} className="sm:w-56" />
-              <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-center text-xs text-slate-500 transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30">
-                {effectiveFile ? (
-                  <>
-                    {effectiveFile.name}
-                    {fromPan && <span className="text-emerald-600">(already uploaded on GSTIN Info)</span>}
-                  </>
-                ) : (
-                  'Click to upload or drag a file'
-                )}
-                <input type="file" className="hidden" onChange={(e) => updateDocument(doc.id, 'file', e.target.files[0] ?? null)} />
-              </label>
-              {documents.length > 1 && (
-                <button type="button" onClick={() => removeDocument(doc.id)} className="text-xs font-medium text-rose-500 hover:underline">
+        <div className={`space-y-6 p-6 ${card}`}>
+          <div className="space-y-2">
+            {lockedDocuments.map((doc) => (
+              <div key={doc.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/50 px-4 py-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <Icon name="approve" className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-slate-800">
+                    {doc.type}
+                    {doc.note && <span className="ml-2 font-normal tracking-wide text-slate-400">{doc.note}</span>}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-slate-500">{doc.file?.name ?? 'File on record'} · uploaded earlier</div>
+                </div>
+                <button type="button" disabled title="Already uploaded in an earlier step" className="cursor-not-allowed text-xs font-medium text-rose-500 opacity-30">
                   Remove
                 </button>
-              )}
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <span className={LABEL}>Add more documents</span>
+            <div className="flex flex-wrap gap-2">
+              {DOCUMENT_TYPES.filter((t) => t !== 'PAN Card' && t !== 'GST Certificate').map((type) => {
+                const added = documents.some((d) => d.type === type)
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => toggleDocumentType(type)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-medium transition-colors ${
+                      added ? 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange-dark' : 'border-slate-200 bg-slate-50/60 text-slate-600 hover:border-brand-orange/40'
+                    }`}
+                  >
+                    <Icon name={added ? 'approve' : 'plus'} className="h-3.5 w-3.5 shrink-0" />
+                    {type}
+                  </button>
+                )
+              })}
             </div>
-            )
-          })}
+          </div>
+
+          {documents.length > 0 && (
+            <div className="space-y-2">
+              {documents.map((doc) => (
+                <div key={doc.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:flex-row sm:items-center">
+                  <span className="text-sm font-medium text-slate-800 sm:w-56">{doc.type}</span>
+                  <label
+                    className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-2.5 text-center text-xs transition-colors ${
+                      doc.file ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-slate-50/50 text-slate-500 hover:border-brand-orange/50 hover:bg-orange-50/30'
+                    }`}
+                  >
+                    {doc.file ? doc.file.name : 'Click to upload or drag a file'}
+                    <input type="file" className="hidden" onChange={(e) => updateDocument(doc.id, 'file', e.target.files[0] ?? null)} />
+                  </label>
+                  <button type="button" onClick={() => removeDocument(doc.id)} className="text-xs font-medium text-rose-500 hover:underline">
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
