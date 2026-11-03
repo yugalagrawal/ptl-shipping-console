@@ -589,7 +589,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-400">Select a state first</p>
           )}
-          {gstinInvalid && <p className="mt-1 text-[11px] font-medium text-rose-500">Invalid GSTIN — please check the last 3 characters</p>}
+          {gstinInvalid && <p className="mt-1 text-[11px] font-medium text-rose-500">Invalid GSTIN</p>}
           {gstinPrefix && !gstinInvalid && gstinSuffix.length < 3 && <p className="mt-1 text-[11px] text-slate-400">Enter the last 3 digits of the GSTIN</p>}
         </label>
         <div className="lg:col-span-2">
@@ -1528,15 +1528,22 @@ export default function NewClient() {
               <input type="checkbox" checked={noGstin} onChange={(e) => handleNoGstin(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
               Client does not have any GSTIN
             </label>
-            <button
-              type="button"
-              onClick={addIdentification}
-              disabled={noGstin}
-              className={`${btnSecondary} !px-3 !py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white`}
-            >
-              <Icon name="plus" className="h-3.5 w-3.5" />
-              Add another GSTIN
-            </button>
+            <div className="flex items-center gap-3">
+              {!noGstin && (
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                  {identifications.length} {identifications.length === 1 ? 'GSTIN' : 'GSTINs'}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={addIdentification}
+                disabled={noGstin}
+                className={`${btnSecondary} !px-3 !py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white`}
+              >
+                <Icon name="plus" className="h-3.5 w-3.5" />
+                Add another GSTIN
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
