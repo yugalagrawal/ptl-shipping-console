@@ -1679,7 +1679,7 @@ export default function NewClient() {
           <div className="sm:col-span-2 lg:col-span-4">
             <span className={LABEL}>Volumetric conversion factor</span>
             <p className="-mt-1 mb-2.5 text-xs text-slate-400">
-              Converts volumetric weight in CFT to chargeable weight in Kg. Optional — {DEFAULT_CFT_FACTOR} is filled as the safe factor for any mode left blank.
+              Converts volumetric weight in CFT to chargeable weight in Kg. Default {DEFAULT_CFT_FACTOR} is used if the client doesn't specify or it's left blank.
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {cftConversions.map((row) => (
