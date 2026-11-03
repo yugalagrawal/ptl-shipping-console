@@ -297,6 +297,7 @@ function dummyRegisteredName(pan) {
 
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const emailOk = (v) => EMAIL_FORMAT.test(v.trim())
+const sameEmail = (a, b) => a.trim() !== '' && a.trim().toLowerCase() === b.trim().toLowerCase()
 // 10 digits shown as "99999 99999"
 const formatMobile = (digits) => (digits.length > 5 ? `${digits.slice(0, 5)} ${digits.slice(5)}` : digits)
 
@@ -1163,6 +1164,10 @@ export default function NewClient() {
     return () => clearTimeout(timer)
   }, [showSubmittedDialog])
 
+  // POC, Ops and Finance emails must all be different from each other.
+  const opsDupe = sameEmail(opsEmail, pocEmail)
+  const financeDupe = sameEmail(financeEmail, pocEmail) || sameEmail(financeEmail, opsEmail)
+
   // Mirrors the `required` fields marked with * on each step — Next stays
   // disabled until all of them are filled (and the legal entity isn't a
   // flagged duplicate), so the wizard can't be pushed forward incomplete.
@@ -1181,8 +1186,8 @@ export default function NewClient() {
     pocName.trim().length > 0 &&
       pocMobile.length === 10 &&
       emailOk(pocEmail) &&
-      (opsEmail.trim() === '' || emailOk(opsEmail)) &&
-      (financeEmail.trim() === '' || emailOk(financeEmail)) &&
+      (opsEmail.trim() === '' || (emailOk(opsEmail) && !opsDupe)) &&
+      (financeEmail.trim() === '' || (emailOk(financeEmail) && !financeDupe)) &&
       salesPerson.trim().length > 0,
     noGstin ||
       (identifications.length > 0 &&
@@ -1442,28 +1447,32 @@ export default function NewClient() {
               placeholder="Type to search…"
               hint={salesPerson && salesPerson === user?.name ? 'Assigned from your login' : undefined}
             />
-            {[
-              ['Ops Email', opsEmail, setOpsEmail],
-              ['Finance Email', financeEmail, setFinanceEmail],
-            ].map(([label, value, set]) => (
-              <Field
-                key={label}
-                label={label}
-                type="email"
-                value={value}
-                onChange={(e) => set(e.target.value)}
-                placeholder="name@company.in"
-                error={value.trim().length > 0 && !emailOk(value)}
-                hint={value.trim().length > 0 && !emailOk(value) ? 'Enter a valid email' : undefined}
-                badge={
-                  emailOk(pocEmail) && value.trim() !== pocEmail.trim() ? (
-                    <button type="button" onClick={() => set(pocEmail.trim())} className="text-[11px] font-medium text-brand-orange-dark hover:underline">
-                      Same as POC email
-                    </button>
-                  ) : undefined
-                }
-              />
-            ))}
+            <Field
+              label="Ops Email"
+              type="email"
+              value={opsEmail}
+              onChange={(e) => setOpsEmail(e.target.value)}
+              placeholder="name@company.in"
+              error={opsEmail.trim().length > 0 && (!emailOk(opsEmail) || opsDupe)}
+              hint={opsEmail.trim().length > 0 ? (!emailOk(opsEmail) ? 'Enter a valid email' : opsDupe ? "Can't be same as POC email" : undefined) : undefined}
+            />
+            <Field
+              label="Finance Email"
+              type="email"
+              value={financeEmail}
+              onChange={(e) => setFinanceEmail(e.target.value)}
+              placeholder="name@company.in"
+              error={financeEmail.trim().length > 0 && (!emailOk(financeEmail) || financeDupe)}
+              hint={
+                financeEmail.trim().length > 0
+                  ? !emailOk(financeEmail)
+                    ? 'Enter a valid email'
+                    : financeDupe
+                      ? `Can't be same as ${sameEmail(financeEmail, pocEmail) ? 'POC' : 'Ops'} email`
+                      : undefined
+                  : undefined
+              }
+            />
           </div>
         </Section>
       )}
