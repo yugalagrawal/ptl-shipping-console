@@ -7,7 +7,7 @@ import { isReportOf } from '../../data/relations.js'
 import Avatar from '../../components/Avatar.jsx'
 import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
-import { btnPrimary, btnSecondary, thCls, tdCls, rowCls } from '../../components/ui.js'
+import { btnPrimary, btnSecondary, pillActive, pillInactive, thCls, tdCls, rowCls } from '../../components/ui.js'
 
 // Which internal apps a login can use — kept local to this page for now
 // rather than in data/permissions.js since nothing outside User Management
@@ -127,7 +127,7 @@ function PartnerOrgPicker({ value, catalog, onSelect }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40"
+        className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20"
       >
         <span className={`truncate ${label ? 'text-slate-700' : 'text-slate-400'}`}>{label ?? 'Select organization'}</span>
         <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -251,6 +251,7 @@ export default function UserRelations() {
     firstName: '', lastName: '', phone: '', email: '', parentEmail: null, managerEmail: '', products: [],
   })
   const [createError, setCreateError] = useState('')
+  const [newTagText, setNewTagText] = useState('')
 
   const [query, setQuery] = useState('')
   const [sortDir, setSortDir] = useState('asc') // 'asc' | 'desc' by name
@@ -318,7 +319,15 @@ export default function UserRelations() {
     !!editingUser &&
     ((editingUser.managerEmail ?? '') !== draftManager || !sameSet(editingUser.products ?? [], draftProducts))
 
+  function addNewTag() {
+    const canonical = addProductToCatalog(newTagText)
+    if (!canonical) return
+    setNewUser((u) => (u.products.includes(canonical) ? u : { ...u, products: [...u.products, canonical] }))
+    setNewTagText('')
+  }
+
   function resetNewUserForm() {
+    setNewTagText('')
     setCreating(false)
     setNewUser({ firstName: '', lastName: '', phone: '', email: '', parentEmail: null, managerEmail: '', products: [] })
     setCreateError('')
@@ -391,119 +400,129 @@ export default function UserRelations() {
         )}
       </div>
 
-      {canManageOrg && (
-        <section className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
-      {creating && (
-        <div className="space-y-4 border-b border-slate-100 bg-slate-50/50 p-6">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-slate-800">New user</h4>
-            <button type="button" onClick={resetNewUserForm} className="text-xs text-slate-400 hover:text-slate-600">
-              Cancel
+      {canManageOrg && creating && (
+        <section className="overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-brand-navy-dark via-brand-navy to-brand-navy-light px-6 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-white">New team member</h2>
+              <p className="mt-0.5 text-xs text-slate-300">They can sign in with this email once created.</p>
+            </div>
+            <button
+              type="button"
+              onClick={resetNewUserForm}
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
             </button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+
+          <div className="space-y-6 p-6">
             <div>
-              <label className="text-xs font-medium text-slate-500">First name</label>
-              <input
-                type="text"
-                value={newUser.firstName}
-                onChange={(e) => setNewUser((u) => ({ ...u, firstName: e.target.value }))}
-                placeholder="First name"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">Last name</label>
-              <input
-                type="text"
-                value={newUser.lastName}
-                onChange={(e) => setNewUser((u) => ({ ...u, lastName: e.target.value }))}
-                placeholder="Last name"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">Phone</label>
-              <input
-                type="text"
-                value={newUser.phone}
-                onChange={(e) => setNewUser((u) => ({ ...u, phone: e.target.value }))}
-                placeholder="+91XXXXXXXXXX"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">User email</label>
-              <input
-                type="text"
-                value={newUser.email}
-                onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))}
-                placeholder="name@letstransport.team"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </div>
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                Organization
-                <span className="group relative inline-flex">
-                  <Icon name="info" className="h-3.5 w-3.5 cursor-help text-slate-300" />
-                  <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal normal-case tracking-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                    Fill it only for external partners — pick their Partner Organization (added in Partner Module).
-                  </span>
-                </span>
-              </label>
-              <div className="mt-1">
-                <PartnerOrgPicker
-                  value={newUser.parentEmail}
-                  catalog={partnerOrgCatalog}
-                  onSelect={(email) => setNewUser((u) => ({ ...u, parentEmail: email }))}
-                />
-              </div>
-              {newUser.parentEmail !== null && (
-                <p className="mt-1 text-[11px] text-slate-400">Parent email = {newUser.parentEmail || newUser.email || '—'}</p>
-              )}
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">Manager email</label>
-              <select
-                value={newUser.managerEmail}
-                onChange={(e) => setNewUser((u) => ({ ...u, managerEmail: e.target.value }))}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              >
-                <option value="">No manager</option>
-                {users.map((m) => (
-                  <option key={m.email} value={m.email}>
-                    {m.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500">Product tags</label>
-              <div className="mt-1">
-                <TagPicker
-                  selected={newUser.products}
-                  catalog={productCatalog}
-                  placeholder="No products"
-                  onToggle={(product) =>
-                    setNewUser((u) => ({
-                      ...u,
-                      products: u.products.includes(product) ? u.products.filter((p) => p !== product) : [...u.products, product],
-                    }))
-                  }
-                  onCreateTag={(text) => {
-                    const canonical = addProductToCatalog(text)
-                    if (canonical) {
-                      setNewUser((u) => (u.products.includes(canonical) ? u : { ...u, products: [...u.products, canonical] }))
-                    }
-                    return canonical
-                  }}
-                />
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Details</h3>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">First name</label>
+                  <input type="text" value={newUser.firstName} onChange={(e) => setNewUser((u) => ({ ...u, firstName: e.target.value }))} placeholder="First name" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20" />
+                </div>
+                <div>
+                  <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">Last name</label>
+                  <input type="text" value={newUser.lastName} onChange={(e) => setNewUser((u) => ({ ...u, lastName: e.target.value }))} placeholder="Last name" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20" />
+                </div>
+                <div>
+                  <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">Phone</label>
+                  <input type="text" value={newUser.phone} onChange={(e) => setNewUser((u) => ({ ...u, phone: e.target.value }))} placeholder="+91XXXXXXXXXX" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20" />
+                </div>
+                <div>
+                  <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">User email</label>
+                  <input type="text" value={newUser.email} onChange={(e) => setNewUser((u) => ({ ...u, email: e.target.value }))} placeholder="name@letstransport.team" className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20" />
+                </div>
               </div>
             </div>
+
+            <div className="border-t border-slate-100 pt-6">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Reporting &amp; access</h3>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">
+                    Organization
+                    <span className="group relative inline-flex">
+                      <Icon name="info" className="h-3.5 w-3.5 cursor-help text-slate-300" />
+                      <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                        Only for external partners — pick their Partner Organization (added in Partner Module).
+                      </span>
+                    </span>
+                  </label>
+                  <div className="mt-1.5">
+                    <PartnerOrgPicker
+                      value={newUser.parentEmail}
+                      catalog={partnerOrgCatalog}
+                      onSelect={(email) => setNewUser((u) => ({ ...u, parentEmail: email }))}
+                    />
+                  </div>
+                  {newUser.parentEmail !== null && (
+                    <p className="mt-1 text-[11px] text-slate-400">Parent email: {newUser.parentEmail || newUser.email || '—'}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">Manager</label>
+                  <div className="relative">
+                    <select
+                      value={newUser.managerEmail}
+                      onChange={(e) => setNewUser((u) => ({ ...u, managerEmail: e.target.value }))}
+                      className="mt-1.5 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-9 text-sm text-slate-800 focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20"
+                    >
+                      <option value="">No manager</option>
+                      {users.map((m) => (
+                        <option key={m.email} value={m.email}>
+                          {m.name} · {m.email}
+                        </option>
+                      ))}
+                    </select>
+                    <Icon name="chevron" className="pointer-events-none absolute right-3.5 top-[calc(50%+3px)] h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">Product access</label>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {productCatalog.map((tag) => {
+                    const on = newUser.products.includes(tag)
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() =>
+                          setNewUser((u) => ({ ...u, products: on ? u.products.filter((p) => p !== tag) : [...u.products, tag] }))
+                        }
+                        className={on ? pillActive : pillInactive}
+                      >
+                        {tag}
+                      </button>
+                    )
+                  })}
+                  <input
+                    type="text"
+                    value={newTagText}
+                    onChange={(e) => setNewTagText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addNewTag()
+                      }
+                    }}
+                    placeholder="+ New tag"
+                    className="w-28 rounded-full border border-dashed border-slate-300 bg-transparent px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-brand-orange focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {createError && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{createError}</p>}
           </div>
-          {createError && <p className="text-xs text-rose-500">{createError}</p>}
-          <div className="flex justify-end gap-2">
+
+          <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-3.5">
             <button type="button" onClick={resetNewUserForm} className={btnSecondary}>
               Cancel
             </button>
@@ -511,10 +530,11 @@ export default function UserRelations() {
               Create user
             </button>
           </div>
-        </div>
+        </section>
       )}
 
-
+      {canManageOrg && (
+        <section className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
               <Icon name="search" className="h-4 w-4 shrink-0 text-slate-400" />
