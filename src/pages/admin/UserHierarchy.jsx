@@ -168,23 +168,31 @@ function Chart({ users, q, highlight, emptyText }) {
 
 // LetsTransport tab: nothing is drawn until someone is picked; then the chart
 // shows the people above them (their manager chain) and everyone below them.
-function PersonFlow({ users, orgs, placeholder, emptyHint }) {
+function PersonFlow({ users, orgs, noun, placeholder }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [picked, setPicked] = useState(null)
+  const [selOrg, setSelOrg] = useState(null)
   const q = query.trim().toLowerCase()
   const orgOf = (u) => (orgs ? orgs.find((o) => o.email === u.parentEmail) : null)
-  const results = q ? users.filter((u) => matches(u, q) || orgOf(u)?.name.toLowerCase().includes(q)) : []
+  const membersOf = (o) => users.filter((u) => u.parentEmail === o.email)
 
-  // The picked person's own group: the whole LT team, or just their org.
-  const pool = useMemo(() => (picked && orgs ? users.filter((u) => u.parentEmail === picked.parentEmail) : users), [picked, users, orgs])
+  // Partners / Clients: search finds organisations and the people in them.
+  const orgResults = orgs && q ? orgs.filter((o) => o.name.toLowerCase().includes(q) || o.email.toLowerCase().includes(q)) : []
+  const userResults = q ? users.filter((u) => matches(u, q)) : []
+  const noResults = !orgResults.length && !userResults.length
+
+  // Picking a person (or an org) shows the whole org; picking a person in the
+  // LT team shows their chain above and below instead.
+  const activeOrg = orgs ? selOrg ?? (picked ? orgOf(picked) : null) : null
 
   const chain = useMemo(() => {
+    if (orgs) return activeOrg ? users.filter((u) => u.parentEmail === activeOrg.email) : []
     if (!picked) return []
-    const byEmail = new Map(pool.map((u) => [u.email, u]))
+    const byEmail = new Map(users.map((u) => [u.email, u]))
     const above = []
     let cur = byEmail.get(picked.managerEmail)
-    while (cur && !above.includes(cur) && above.length < pool.length) {
+    while (cur && !above.includes(cur) && above.length < users.length) {
       above.push(cur)
       cur = byEmail.get(cur.managerEmail)
     }
@@ -192,7 +200,7 @@ function PersonFlow({ users, orgs, placeholder, emptyHint }) {
     const queue = [picked.email]
     while (queue.length) {
       const m = queue.shift()
-      pool.forEach((u) => {
+      users.forEach((u) => {
         if (u.managerEmail === m && !below.includes(u) && u !== picked) {
           below.push(u)
           queue.push(u.email)
@@ -200,15 +208,23 @@ function PersonFlow({ users, orgs, placeholder, emptyHint }) {
       })
     }
     return [...above, picked, ...below]
-  }, [picked, pool])
+  }, [picked, users, orgs, activeOrg])
 
-  function pick(u) {
+  function pickUser(u) {
     setPicked(u)
+    setSelOrg(null)
     setQuery(u.name)
     setOpen(false)
   }
 
-  const pickedOrg = picked ? orgOf(picked) : null
+  function pickOrg(o) {
+    setSelOrg(o)
+    setPicked(null)
+    setQuery(o.name)
+    setOpen(false)
+  }
+
+  const showChart = orgs ? !!activeOrg : !!picked
 
   return (
     <div className="space-y-4">
@@ -218,7 +234,11 @@ function PersonFlow({ users, orgs, placeholder, emptyHint }) {
           <input
             type="text"
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setOpen(true); if (!e.target.value.trim()) setPicked(null) }}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setOpen(true)
+              if (!e.target.value.trim()) { setPicked(null); setSelOrg(null) }
+            }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 120)}
             placeholder={placeholder}
@@ -227,11 +247,29 @@ function PersonFlow({ users, orgs, placeholder, emptyHint }) {
         </div>
         {open && q && (
           <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
-            {results.map((u) => (
+            {orgResults.map((o) => (
+              <button
+                key={o.email}
+                type="button"
+                onMouseDown={() => pickOrg(o)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-800">{o.name}</div>
+                  <div className="truncate text-xs text-slate-400">
+                    {o.email} · {membersOf(o).length} {membersOf(o).length === 1 ? 'person' : 'people'}
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${o.type === 'Partner' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`}>
+                  {o.type}
+                </span>
+              </button>
+            ))}
+            {userResults.map((u) => (
               <button
                 key={u.email}
                 type="button"
-                onMouseDown={() => pick(u)}
+                onMouseDown={() => pickUser(u)}
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
               >
                 <Avatar name={u.name} size="sm" />
@@ -241,32 +279,37 @@ function PersonFlow({ users, orgs, placeholder, emptyHint }) {
                 </div>
               </button>
             ))}
-            {!results.length && <p className="px-3 py-4 text-center text-sm text-slate-400">No matching person.</p>}
+            {noResults && <p className="px-3 py-4 text-center text-sm text-slate-400">No match.</p>}
           </div>
         )}
       </div>
 
       <div className={sectionCard}>
-        {picked ? (
+        {showChart ? (
           <>
-            {pickedOrg && (
+            {activeOrg && (
               <div className="flex items-center gap-2 px-5 pt-4">
-                <h2 className="text-base font-semibold text-slate-900">{pickedOrg.name}</h2>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${pickedOrg.type === 'Partner' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`}>
-                  {pickedOrg.type}
+                <h2 className="text-base font-semibold text-slate-900">{activeOrg.name}</h2>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${activeOrg.type === 'Partner' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`}>
+                  {activeOrg.type}
                 </span>
               </div>
             )}
-            <Chart key={picked.email} users={chain} highlight={picked.email} emptyText="" />
+            <Chart
+              key={`${activeOrg?.email ?? ''}|${picked?.email ?? ''}`}
+              users={chain}
+              highlight={picked?.email}
+              emptyText={activeOrg ? `No users under ${activeOrg.name} yet. Add one in User Management and pick this organization.` : ''}
+            />
           </>
         ) : (
           <div className="flex flex-col items-center px-6 py-20 text-center">
             <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
               <Icon name="search" className="h-5 w-5" />
             </span>
-            <p className="mt-3 text-sm font-medium text-slate-700">{users.length ? 'Search a person' : 'No one here yet'}</p>
+            <p className="mt-3 text-sm font-medium text-slate-700">{orgs ? `Search a ${noun} or a person` : 'Search a team member'}</p>
             <p className="mt-1 text-xs text-slate-400">
-              {users.length ? 'See who they report to and who reports to them.' : emptyHint}
+              {orgs ? `Pick one to see everyone in the ${noun} and who reports to whom.` : 'See who they report to and who reports to them.'}
             </p>
           </div>
         )}
@@ -307,8 +350,8 @@ export default function UserHierarchy() {
           key={tab}
           users={orgUsers}
           orgs={orgs}
-          placeholder={tab === 'Partners' ? 'Search a partner user or organization…' : 'Search a client user or organization…'}
-          emptyHint={`No ${tab === 'Partners' ? 'partner' : 'client'} users yet. Add one in User Management and pick their organization.`}
+          noun={tab === 'Partners' ? 'partner' : 'client'}
+          placeholder={tab === 'Partners' ? 'Search a partner or a person…' : 'Search a client or a person…'}
         />
       )}
     </div>
