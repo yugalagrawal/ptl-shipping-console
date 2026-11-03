@@ -109,15 +109,15 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40"
                 />
               </div>
-              {selected.length > 0 && (
-                <button
-                  type="button"
-                  onClick={onReset}
-                  className="block w-full border-b border-slate-100 px-3.5 py-2 text-left text-xs font-medium text-brand-orange-dark hover:bg-slate-50"
-                >
-                  Reset to default (all {unitPlural})
-                </button>
-              )}
+              <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3.5 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={selected.length === 0}
+                  onChange={() => { if (selected.length > 0) onReset() }}
+                  className="h-3.5 w-3.5 rounded accent-brand-orange"
+                />
+                All {unitPlural}
+              </label>
               {filtered.map(({ group, value }) => {
                 const showGroupHeader = group != null && group !== lastGroup
                 lastGroup = group
@@ -206,15 +206,15 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40"
                 />
               </div>
-              {selectedMiniHubs.length > 0 && (
-                <button
-                  type="button"
-                  onClick={onReset}
-                  className="block w-full border-b border-slate-100 px-3.5 py-2 text-left text-xs font-medium text-brand-orange-dark hover:bg-slate-50"
-                >
-                  Reset to default (all mini hubs)
-                </button>
-              )}
+              <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3.5 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={selectedMiniHubs.length === 0}
+                  onChange={() => { if (selectedMiniHubs.length > 0) onReset() }}
+                  className="h-3.5 w-3.5 rounded accent-brand-orange"
+                />
+                All mini hubs
+              </label>
               {filtered.map(({ hub, branch }) => {
                 const showHubHeader = hub !== lastHub
                 lastHub = hub
