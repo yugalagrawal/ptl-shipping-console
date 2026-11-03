@@ -85,9 +85,9 @@ export default function PartyModal({ kind, companyDefault = '', initial, onClose
         <div className="mt-4 grid grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
           <Field label={`${label} Name`} required value={form.partyName} onChange={(e) => set('partyName', e.target.value)} placeholder="Nova Retail" />
           <Field label="Company Name" required value={form.company} onChange={(e) => set('company', e.target.value)} hint="Editable if shipping for another party" />
-          <PersonNameFields Field={Field} first={form.pocFirstName} last={form.pocLastName} onFirst={(v) => setPocPart('pocFirstName', v)} onLast={(v) => setPocPart('pocLastName', v)} firstLabel="POC first name" lastLabel="POC last name" />
+          <PersonNameFields label="POC Name" className="sm:col-span-2" first={form.pocFirstName} last={form.pocLastName} onFirst={(v) => setPocPart('pocFirstName', v)} onLast={(v) => setPocPart('pocLastName', v)} />
           <Field label="POC Phone" required value={form.pocPhone} onChange={(e) => set('pocPhone', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9845012211" />
-          <Field label="POC Email" required type="email" className="sm:col-span-2" value={form.pocEmail} onChange={(e) => set('pocEmail', e.target.value)} placeholder="arvind.k@novaretail.in" />
+          <Field label="POC Email" required type="email" value={form.pocEmail} onChange={(e) => set('pocEmail', e.target.value)} placeholder="arvind.k@novaretail.in" />
           {clientOptions && (
             <div className="sm:col-span-2">
               <span className="mb-1.5 block text-xs font-medium text-slate-500">Clients Mapped</span>

@@ -1418,7 +1418,7 @@ export default function NewClient() {
       {step === 1 && (
         <Section>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
-            <PersonNameFields Field={Field} first={pocFirstName} last={pocLastName} onFirst={setPocFirstName} onLast={setPocLastName} firstLabel="POC first name" lastLabel="POC last name" />
+            <PersonNameFields label="POC Name" className="sm:col-span-2" labelClassName={LABEL} inputClassName={`${INPUT} ${INPUT_OK}`} first={pocFirstName} last={pocLastName} onFirst={setPocFirstName} onLast={setPocLastName} />
 
             <label className="block">
               <span className={LABEL}>
@@ -1488,6 +1488,14 @@ export default function NewClient() {
                   : undefined
               }
             />
+          </div>
+
+          <div className="flex items-start gap-2.5 rounded-xl bg-sky-50/70 px-4 py-3 ring-1 ring-sky-100 sm:col-span-2 lg:col-span-4">
+            <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+            <p className="text-xs leading-relaxed text-slate-600">
+              <span className="font-semibold text-slate-800">Note:</span> The POC will become the <span className="font-medium text-slate-800">Primary User</span> of this
+              client. We'll create their client portal and app account automatically.
+            </p>
           </div>
         </Section>
       )}

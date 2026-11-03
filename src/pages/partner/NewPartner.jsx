@@ -1234,7 +1234,7 @@ export default function NewPartner() {
 
       {step === 1 && (
         <Section title="Partner POC" subtitle="Primary contact for day-to-day coordination.">
-          <PersonNameFields Field={Field} first={pocFirstName} last={pocLastName} onFirst={setPocFirstName} onLast={setPocLastName} firstLabel="POC first name" lastLabel="POC last name" />
+          <PersonNameFields label="Partner POC name" className="sm:col-span-2" first={pocFirstName} last={pocLastName} onFirst={setPocFirstName} onLast={setPocLastName} />
           <PhoneField
             label="POC mobile"
             required
@@ -1256,7 +1256,7 @@ export default function NewPartner() {
               </label>
               {alt.enabled && (
                 <div className="mt-3 grid gap-x-4 gap-y-4 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <PersonNameFields Field={Field} first={alt.firstName} last={alt.lastName} onFirst={(v) => updateAlt(setAlt, 'firstName', v)} onLast={(v) => updateAlt(setAlt, 'lastName', v)} />
+                  <PersonNameFields label="Name" className="sm:col-span-2" first={alt.firstName} last={alt.lastName} onFirst={(v) => updateAlt(setAlt, 'firstName', v)} onLast={(v) => updateAlt(setAlt, 'lastName', v)} />
                   <PhoneField
                     label="Mobile"
                     required

@@ -1,42 +1,48 @@
 import { typingFilter, tidyName } from '../utils/personName.js'
 
-// The two name inputs for a person — rendered with whichever `Field` component
-// the host form already uses, so they look native everywhere. Returns a
-// fragment: drop it straight into the form's grid.
+const OLD_LABEL = 'mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-500'
+const OLD_INPUT =
+  'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+
+// A person's name: ONE label ("POC Name") with First name and Last name as two
+// inputs beneath it (the placeholders are the sub-labels). The wrapper takes the
+// host grid's column span via `className`; pass the host form's own label/input
+// classes so it looks native everywhere.
 export default function PersonNameFields({
-  Field,
+  label = 'Name',
   first,
   last,
   onFirst,
   onLast,
-  firstLabel = 'First name',
-  lastLabel = 'Last name',
   required = true,
   lastRequired = true,
   disabled,
+  className = '',
+  labelClassName = OLD_LABEL,
+  inputClassName = OLD_INPUT,
 }) {
+  const field = (value, onChange, placeholder) => (
+    <input
+      type="text"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(typingFilter(e.target.value))}
+      onBlur={() => onChange(tidyName(value))}
+      placeholder={placeholder}
+      autoComplete="off"
+      className={inputClassName}
+    />
+  )
   return (
-    <>
-      <Field
-        label={firstLabel}
-        required={required}
-        disabled={disabled}
-        value={first}
-        onChange={(e) => onFirst(typingFilter(e.target.value))}
-        onBlur={() => onFirst(tidyName(first))}
-        placeholder="First name"
-        autoComplete="off"
-      />
-      <Field
-        label={lastLabel}
-        required={required && lastRequired}
-        disabled={disabled}
-        value={last}
-        onChange={(e) => onLast(typingFilter(e.target.value))}
-        onBlur={() => onLast(tidyName(last))}
-        placeholder="Last name"
-        autoComplete="off"
-      />
-    </>
+    <div className={className}>
+      <span className={labelClassName}>
+        {label}
+        {required && <span className="text-brand-orange-dark">*</span>}
+      </span>
+      <div className="grid grid-cols-2 gap-2">
+        {field(first, onFirst, 'First name')}
+        {field(last, onLast, lastRequired ? 'Last name' : 'Last name (optional)')}
+      </div>
+    </div>
   )
 }

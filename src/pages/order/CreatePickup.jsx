@@ -258,8 +258,10 @@ function SiteFieldsBlock({ site, set, topBorder = true }) {
             const { firstName, lastName } = pocParts(site)
             return (
               <PersonNameFields
-                Field={Field}
+                label="Name"
                 required={false}
+                className="sm:col-span-2"
+                inputClassName={inputCls}
                 first={firstName}
                 last={lastName}
                 onFirst={(v) => setPocName(set, v, lastName)}
@@ -354,11 +356,11 @@ function EditConsignorModal({ consignorNames, initial, isNew, onClose, onSave })
             const { firstName, lastName } = pocParts(party)
             return (
               <PersonNameFields
-                Field={Field}
+                label="POC Name"
+                className="sm:col-span-2"
+                inputClassName={inputCls}
                 first={firstName}
                 last={lastName}
-                firstLabel="POC first name"
-                lastLabel="POC last name"
                 onFirst={(v) => setPocName(set, v, lastName)}
                 onLast={(v) => setPocName(set, firstName, v)}
               />
@@ -373,9 +375,6 @@ function EditConsignorModal({ consignorNames, initial, isNew, onClose, onSave })
               <input value={party.phone} onChange={(e) => set('phone', e.target.value)} className="w-full bg-transparent px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none" />
             </div>
           </label>
-        </div>
-
-        <div className="mt-4">
           <Field label="POC Email" required type="email" value={party.email} onChange={(e) => set('email', e.target.value)} />
         </div>
 
