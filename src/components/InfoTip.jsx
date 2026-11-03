@@ -53,7 +53,7 @@ export default function InfoTip({ text, title }) {
       {open && (
         <span
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-60 -translate-x-1/2 rounded-xl bg-slate-800 px-3 py-2.5 text-left text-[11px] font-normal normal-case leading-relaxed tracking-normal text-slate-100 shadow-lg"
+          className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-max max-w-[15rem] -translate-x-1/2 rounded-xl bg-slate-800 px-3 py-2.5 text-left text-[11px] font-normal normal-case leading-relaxed tracking-normal text-slate-100 shadow-lg"
         >
           {title && <span className="mb-0.5 block text-xs font-semibold text-white">{title}</span>}
           {text}
