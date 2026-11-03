@@ -111,6 +111,7 @@ function ChargeValueFields({ rule, onChange }) {
   )
 }
 import { LT_USERS } from '../../data/users.js'
+import { isReportOf } from '../../data/relations.js'
 import { GROUP_SUGGESTIONS, LEGAL_ENTITY_SUGGESTIONS, groupById } from '../../data/groups.js'
 import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, submitClientForApproval } from '../../data/clients.js'
 import { ACTIVATION_STATUS, ACTIVATIONS_SEED, createActivation, updateActivationStatus, removeActivation } from '../../data/activations.js'
@@ -141,7 +142,6 @@ const PAYMENT_TYPES = ['Credit Customer', 'Prepaid Customer', 'Cash Customer', '
 // by hand, not derived.
 const CUSTOMER_TYPES = ['AIC', 'MSME', 'RETAIL', 'CAGENT', 'GOVT']
 const PHONE_CODES = ['🇮🇳 +91']
-const SALES_PERSON_SUGGESTIONS = LT_USERS.map((u) => ({ id: u.email, label: u.name }))
 const STATES_COUNTRY = ['India']
 const BILLING_PERIODS = ['Immediate', 'Weekly', 'Fortnightly', 'Monthly']
 const BILL_PRINT_FORMATS = ['7-Arrow', 'Format-1', 'Format-2']
@@ -335,12 +335,13 @@ function Field({ label, required, labelInfo, badge, hint, error, locked, classNa
   )
 }
 
-function SelectField({ label, value, onChange, options, required, disabled, placeholder, renderOption, className = '' }) {
+function SelectField({ label, labelInfo, hint, value, onChange, options, required, disabled, placeholder, renderOption, className = '' }) {
   return (
     <label className={`block ${className}`}>
       <span className={LABEL}>
         {label}
         {required && <span className="text-brand-orange-dark">*</span>}
+        {labelInfo && <InfoTip text={labelInfo} />}
       </span>
       <div className="relative">
         <select
@@ -362,6 +363,7 @@ function SelectField({ label, value, onChange, options, required, disabled, plac
         </select>
         <Icon name="chevron" className="pointer-events-none absolute right-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
       </div>
+      {hint && <p className="mt-1 truncate whitespace-nowrap text-[11px] text-slate-400">{hint}</p>}
     </label>
   )
 }
@@ -724,6 +726,15 @@ export default function NewClient() {
   const [opsEmail, setOpsEmail] = useState('')
   const [financeEmail, setFinanceEmail] = useState('')
   const [salesPerson, setSalesPerson] = useState(user?.name ?? '')
+  // The signed-in user plus everyone who reports to them (directly or not);
+  // they are the default.
+  const salesPersonOptions = useMemo(() => {
+    if (!user) return []
+    const reports = LT_USERS.filter((u) => u.email !== user.email && isReportOf(LT_USERS, u.email, user.email))
+      .map((u) => u.name)
+      .sort((a, b) => a.localeCompare(b))
+    return [user.name, ...reports]
+  }, [user])
 
   // GSTIN Info (repeatable) — row 1 is mandatory unless noGstin is checked
   const [panDocument, setPanDocument] = useState(null)
@@ -1436,16 +1447,15 @@ export default function NewClient() {
 
             <div className="border-t border-slate-100 sm:col-span-3" />
 
-            <Typeahead
+            <SelectField
               label="Sales Person"
-              labelInfo="LT employee who owns this account"
+              labelInfo="LT employee who owns this account — you or anyone who reports to you"
               required
               value={salesPerson}
               onChange={setSalesPerson}
-              suggestions={SALES_PERSON_SUGGESTIONS}
-              onSelectSuggestion={(s) => setSalesPerson(s.label)}
-              placeholder="Type to search…"
-              hint={salesPerson && salesPerson === user?.name ? 'Assigned from your login' : undefined}
+              options={salesPersonOptions}
+              disabled={salesPersonOptions.length <= 1}
+              hint={salesPersonOptions.length <= 1 ? 'Assigned from your login' : undefined}
             />
             <Field
               label="Ops Email"
