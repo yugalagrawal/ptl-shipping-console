@@ -1154,13 +1154,20 @@ export default function NewClient() {
       <div>
         <Link
           to="/client-module/onboarding"
-          className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
+          className="mb-2 inline-flex items-center gap-1.5 rounded-lg py-1 pr-2 text-xs font-medium text-slate-500 transition-colors hover:text-slate-900"
         >
-          <Icon name="arrow-left" className="h-4 w-4" />
+          <Icon name="arrow-left" className="h-3.5 w-3.5" />
           Back to Client Onboarding
         </Link>
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Create new client</h1>
-        <p className="mt-1 text-slate-500">Company identity, address, commercial terms and KYC — save as a draft any time.</p>
+        {/* The heading becomes the client's own name once it's typed, so it's
+            always clear who is being onboarded. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">{tradeName.trim() || legalName.trim() || 'Create new client'}</h1>
+          {(tradeName.trim() || legalName.trim()) && (
+            <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-medium text-brand-orange-dark">New client · Draft</span>
+          )}
+        </div>
+        <p className="mt-0.5 text-xs text-slate-500">Company identity, address, commercial terms and KYC — save as a draft any time.</p>
       </div>
 
       {correctionRow?.correctionComment && (
