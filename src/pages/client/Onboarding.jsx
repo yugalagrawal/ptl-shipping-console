@@ -64,10 +64,12 @@ function SearchBox({ value, onChange, placeholder }) {
   )
 }
 
-// Flat single-select list in a popover (no native <select>).
-function StatusFilter({ value, options, onChange }) {
+// Multi-select status filter: checkbox list in a popover. Nothing ticked = all.
+function StatusFilter({ values, options, onChange }) {
   const [open, setOpen] = useState(false)
-  const current = options.find((o) => o.value === value)
+  const active = values.length > 0
+  const label = !active ? 'All statuses' : values.length === 1 ? options.find((o) => o.value === values[0])?.label : `${values.length} statuses`
+  const toggle = (v) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v])
   return (
     <div className="relative">
       <button
@@ -75,24 +77,30 @@ function StatusFilter({ value, options, onChange }) {
         onClick={() => setOpen((o) => !o)}
         className="flex min-w-[190px] items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
       >
-        <span className={value === 'all' ? 'text-slate-500' : 'font-medium text-slate-800'}>{current?.label}</span>
+        <span className={active ? 'font-medium text-slate-800' : 'text-slate-500'}>{label}</span>
         <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1.5 w-full min-w-[220px] rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+          <div className="absolute right-0 z-20 mt-1.5 w-full min-w-[240px] rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
             {options.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => { onChange(o.value); setOpen(false) }}
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 ${value === o.value ? 'font-medium text-slate-900' : 'text-slate-600'}`}
-              >
+              <label key={o.value} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={values.includes(o.value)}
+                  onChange={() => toggle(o.value)}
+                  className="h-3.5 w-3.5 rounded accent-brand-orange"
+                />
                 {o.label}
-                {value === o.value && <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />}
-              </button>
+              </label>
             ))}
+            <div className="mt-1 flex items-center justify-between border-t border-slate-100 px-3 pb-1 pt-2 text-xs">
+              <span className="text-slate-400">{active ? `${values.length} selected` : 'All statuses'}</span>
+              <button type="button" onClick={() => onChange([])} disabled={!active} className="font-medium text-brand-orange-dark disabled:opacity-30">
+                Clear
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -142,7 +150,7 @@ export default function Onboarding() {
   const [tab, setTab] = useState(location.state?.tab ?? 'drafts')
   const [draftsQuery, setDraftsQuery] = useState('')
   const [progressQuery, setProgressQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState([])
   const [page, setPage] = useState(1)
   // A client lands here (and leaves Drafts) the moment Billing Info is
   // confirmed in the wizard — read straight off the shared seed so a status
@@ -160,9 +168,9 @@ export default function Onboarding() {
   const pq = progressQuery.trim().toLowerCase()
   const filteredDrafts = DRAFTS.filter((d) => d.name.toLowerCase().includes(dq))
   const filteredInProgress = inProgress.filter(
-    (p) => (statusFilter === 'all' || p.status === statusFilter) && (p.name.toLowerCase().includes(pq) || p.owner.toLowerCase().includes(pq)),
+    (p) => (statusFilter.length === 0 || statusFilter.includes(p.status)) && (p.name.toLowerCase().includes(pq) || p.owner.toLowerCase().includes(pq)),
   )
-  const statusOptions = [{ value: 'all', label: 'All statuses' }, ...Object.entries(IN_PROGRESS_STATUS_LABEL).map(([value, label]) => ({ value, label }))]
+  const statusOptions = Object.entries(IN_PROGRESS_STATUS_LABEL).map(([value, label]) => ({ value, label }))
 
   const rows = tab === 'drafts' ? filteredDrafts : filteredInProgress
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -203,7 +211,7 @@ export default function Onboarding() {
           ) : (
             <>
               <SearchBox value={progressQuery} onChange={setProgressQuery} placeholder="Search by client or owner…" />
-              <StatusFilter value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+              <StatusFilter values={statusFilter} options={statusOptions} onChange={setStatusFilter} />
             </>
           )}
         </div>
