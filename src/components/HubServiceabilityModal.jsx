@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import Icon from './Icon.jsx'
 import MultiSelect from './MultiSelect.jsx'
+import { joinName, namePartOk, splitName, typingFilter, tidyName } from '../utils/personName.js'
 import { PINCODES } from '../data/geography.js'
 import { coverageStats, emptyCoverageRow, emptyServiceability, summarizeRow } from '../data/hubServiceability.js'
 
@@ -108,6 +109,20 @@ export default function HubServiceabilityModal({ label, poc, coverage, onSave, o
   const [pocDraft, setPocDraft] = useState(poc ?? null)
   const [pocEdit, setPocEdit] = useState(null) // the in-progress copy while the pencil is open
   const emailBad = (v) => !!v?.pocEmail && !/^\S+@\S+\.\S+$/.test(v.pocEmail)
+  // POC is optional here, but a name, once started, needs both a first and a last name.
+  const nameBad = (v) => !!(v?.pocFirstName || v?.pocLastName) && !(namePartOk(v.pocFirstName ?? '') && namePartOk(v.pocLastName ?? ''))
+  // Older contacts only carry the full `pocName` — split it for editing.
+  const withParts = (v) => {
+    if (v.pocFirstName != null || v.pocLastName != null) return { ...v, pocFirstName: v.pocFirstName ?? '', pocLastName: v.pocLastName ?? '' }
+    const { firstName, lastName } = splitName(v.pocName ?? '')
+    return { ...v, pocFirstName: firstName, pocLastName: lastName }
+  }
+  const setNamePart = (field, value) =>
+    setPocEdit((cur) => {
+      const next = { ...cur, [field]: value }
+      next.pocName = joinName(next.pocFirstName, next.pocLastName) // derived, never typed
+      return next
+    })
   const [editingId, setEditingId] = useState(null)
 
   const usedStates = new Set(rows.filter((r) => r.id !== editingId).map((r) => r.state).filter(Boolean))
@@ -127,7 +142,7 @@ export default function HubServiceabilityModal({ label, poc, coverage, onSave, o
     if (editingId === id) setEditingId(null)
   }
   function done() {
-    if (pocEdit) { if (emailBad(pocEdit)) return; /* still open: take what's typed */ onSave({ rows: rows.filter((r) => r.state) }, pocEdit); onClose(); return }
+    if (pocEdit) { if (emailBad(pocEdit) || nameBad(pocEdit)) return; /* still open: take what's typed */ onSave({ rows: rows.filter((r) => r.state) }, pocEdit); onClose(); return }
     onSave({ rows: rows.filter((r) => r.state) }, pocDraft ?? undefined)
     onClose()
   }
@@ -152,7 +167,7 @@ export default function HubServiceabilityModal({ label, poc, coverage, onSave, o
                   <span className="text-slate-400">No point of contact</span>
                 )}
                 {!readOnly && (
-                  <button type="button" onClick={() => setPocEdit(pocDraft)} title="Edit point of contact" className="shrink-0 text-slate-400 hover:text-slate-700">
+                  <button type="button" onClick={() => setPocEdit(withParts(pocDraft))} title="Edit point of contact" className="shrink-0 text-slate-400 hover:text-slate-700">
                     <Icon name="edit" className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -160,14 +175,26 @@ export default function HubServiceabilityModal({ label, poc, coverage, onSave, o
             )}
             {pocDraft && pocEdit && (
               <div className="mt-2 space-y-2">
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {[['pocName', 'Name', 'text'], ['pocPhone', 'Phone', 'tel'], ['pocEmail', 'Email', 'email']].map(([k, ph, type]) => (
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {[['pocFirstName', 'First name'], ['pocLastName', 'Last name']].map(([k, ph]) => (
+                    <input
+                      key={k}
+                      type="text"
+                      value={pocEdit[k] ?? ''}
+                      autoFocus={k === 'pocFirstName'}
+                      onChange={(e) => setNamePart(k, typingFilter(e.target.value))}
+                      onBlur={() => setNamePart(k, tidyName(pocEdit[k] ?? ''))}
+                      placeholder={ph}
+                      aria-label={`POC ${ph}`}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                    />
+                  ))}
+                  {[['pocPhone', 'Phone', 'tel'], ['pocEmail', 'Email', 'email']].map(([k, ph, type]) => (
                     <input
                       key={k}
                       type={type}
                       value={pocEdit[k]}
-                      autoFocus={k === 'pocName'}
-                      onChange={(e) => setPocEdit({ ...pocEdit, [k]: k === 'pocPhone' ? e.target.value.replace(/[^\d+\s-]/g, '').slice(0, 16) : k === 'pocEmail' ? e.target.value.trim() : e.target.value })}
+                      onChange={(e) => setPocEdit({ ...pocEdit, [k]: k === 'pocPhone' ? e.target.value.replace(/[^\d+\s-]/g, '').slice(0, 16) : e.target.value.trim() })}
                       placeholder={ph}
                       aria-label={`POC ${ph}`}
                       className={`rounded-lg border px-2.5 py-1.5 text-sm focus:outline focus:outline-2 focus:outline-brand-orange/40 ${k === 'pocEmail' && emailBad(pocEdit) ? 'border-red-300' : 'border-slate-200'}`}
@@ -175,7 +202,7 @@ export default function HubServiceabilityModal({ label, poc, coverage, onSave, o
                   ))}
                 </div>
                 <div className="flex gap-2 text-xs font-medium">
-                  <button type="button" disabled={emailBad(pocEdit)} onClick={() => { setPocDraft(pocEdit); setPocEdit(null) }} className="rounded-lg bg-brand-orange px-3 py-1 text-white hover:bg-brand-orange-dark disabled:opacity-40">Save contact</button>
+                  <button type="button" disabled={emailBad(pocEdit) || nameBad(pocEdit)} onClick={() => { setPocDraft(pocEdit); setPocEdit(null) }} className="rounded-lg bg-brand-orange px-3 py-1 text-white hover:bg-brand-orange-dark disabled:opacity-40">Save contact</button>
                   <button type="button" onClick={() => setPocEdit(null)} className="rounded-lg px-3 py-1 text-slate-500 hover:bg-slate-50">Cancel</button>
                 </div>
               </div>

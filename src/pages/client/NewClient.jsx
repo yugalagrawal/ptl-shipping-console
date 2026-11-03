@@ -112,6 +112,8 @@ function ChargeValueFields({ rule, onChange }) {
 }
 import { LT_USERS } from '../../data/users.js'
 import { isReportOf } from '../../data/relations.js'
+import PersonNameFields from '../../components/PersonNameFields.jsx'
+import { joinName, namePartOk } from '../../utils/personName.js'
 import { GROUP_SUGGESTIONS, LEGAL_ENTITY_SUGGESTIONS, groupById } from '../../data/groups.js'
 import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, submitClientForApproval } from '../../data/clients.js'
 import { ACTIVATION_STATUS, ACTIVATIONS_SEED, createActivation, updateActivationStatus, removeActivation } from '../../data/activations.js'
@@ -719,7 +721,9 @@ export default function NewClient() {
   const [msmeNumber, setMsmeNumber] = useState('')
 
   // Contact Info
-  const [pocName, setPocName] = useState('')
+  const [pocFirstName, setPocFirstName] = useState('')
+  const [pocLastName, setPocLastName] = useState('')
+  const pocName = joinName(pocFirstName, pocLastName) // derived, never typed
   const [phoneCode] = useState(PHONE_CODES[0])
   const [pocMobile, setPocMobile] = useState('')
   const [pocEmail, setPocEmail] = useState('')
@@ -1101,7 +1105,7 @@ export default function NewClient() {
           fullAddress, pincode, city, state, country,
           sacNumber, hsnNumber, tanNumber, msmeNumber, panDocument,
         },
-        contact: { pocName, phoneCode, pocMobile, pocEmail, opsEmail, financeEmail, salesPerson },
+        contact: { pocName, pocFirstName, pocLastName, phoneCode, pocMobile, pocEmail, opsEmail, financeEmail, salesPerson },
         identifications,
         billing: {
           contractStart, contractEnd, contractExecutionDate, billingPeriod, billPrintFormat, creditLimit,
@@ -1194,7 +1198,8 @@ export default function NewClient() {
       city.trim().length > 0 &&
       state.trim().length > 0 &&
       country.trim().length > 0,
-    pocName.trim().length > 0 &&
+    namePartOk(pocFirstName) &&
+      namePartOk(pocLastName) &&
       pocMobile.length === 10 &&
       emailOk(pocEmail) &&
       (opsEmail.trim() === '' || (emailOk(opsEmail) && !opsDupe)) &&
@@ -1412,8 +1417,8 @@ export default function NewClient() {
 
       {step === 1 && (
         <Section>
-          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3 lg:col-span-4">
-            <Field label="Client POC Name" required value={pocName} onChange={(e) => setPocName(e.target.value)} placeholder="Name" />
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
+            <PersonNameFields Field={Field} first={pocFirstName} last={pocLastName} onFirst={setPocFirstName} onLast={setPocLastName} firstLabel="POC first name" lastLabel="POC last name" />
 
             <label className="block">
               <span className={LABEL}>
@@ -1445,7 +1450,7 @@ export default function NewClient() {
               hint={pocEmail.trim().length > 0 && !emailOk(pocEmail) ? 'Enter a valid email' : undefined}
             />
 
-            <div className="border-t border-slate-100 sm:col-span-3" />
+            <div className="border-t border-slate-100 sm:col-span-2 lg:col-span-4" />
 
             <SelectField
               label="Sales Person"

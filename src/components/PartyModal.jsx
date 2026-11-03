@@ -3,6 +3,8 @@ import Icon from './Icon.jsx'
 import MultiSelect from './MultiSelect.jsx'
 import { btnPrimary, btnSecondary } from './ui.js'
 import { lookupPincode } from '../data/geo.js'
+import PersonNameFields from './PersonNameFields.jsx'
+import { joinName, namePartOk, splitName } from '../utils/personName.js'
 
 export function Field({ label, required, hint, className = '', ...props }) {
   return (
@@ -22,7 +24,7 @@ export function Field({ label, required, hint, className = '', ...props }) {
 
 let siteSeq = 1
 export const newSite = (label = '') => ({ id: `site-${Date.now()}-${siteSeq++}`, label, address: '', pincode: '', city: '', state: '' })
-const emptyParty = { partyName: '', company: '', pocName: '', pocPhone: '', pocEmail: '' }
+const emptyParty = { partyName: '', company: '', pocName: '', pocFirstName: '', pocLastName: '', pocPhone: '', pocEmail: '' }
 
 // One-line summary of a site, shared by the master and Client Configuration.
 export const siteLine = (s) => `${s.address}, ${s.city}, ${s.state} ${s.pincode}`
@@ -37,12 +39,24 @@ export default function PartyModal({ kind, companyDefault = '', initial, onClose
   const isConsignor = kind === 'consignor'
   const label = isConsignor ? 'Consignor' : 'Consignee'
   const locationLabel = isConsignor ? 'Pickup site' : 'Delivery site'
-  const [form, setForm] = useState(() =>
-    initial ? { ...initial, sites: initial.sites.map((s) => ({ ...s })) } : { ...emptyParty, company: companyDefault, clientIds: [], sites: [newSite('Main')] },
-  )
+  const [form, setForm] = useState(() => {
+    if (!initial) return { ...emptyParty, company: companyDefault, clientIds: [], sites: [newSite('Main')] }
+    // Records saved before first/last existed only carry the full `pocName`.
+    const parts = initial.pocFirstName != null || initial.pocLastName != null
+      ? { pocFirstName: initial.pocFirstName ?? '', pocLastName: initial.pocLastName ?? '' }
+      : (({ firstName, lastName }) => ({ pocFirstName: firstName, pocLastName: lastName }))(splitName(initial.pocName ?? ''))
+    return { ...initial, ...parts, sites: initial.sites.map((s) => ({ ...s })) }
+  })
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+  function setPocPart(field, value) {
+    setForm((f) => {
+      const next = { ...f, [field]: value }
+      next.pocName = joinName(next.pocFirstName, next.pocLastName) // derived, never typed
+      return next
+    })
   }
   function setSite(id, patch) {
     setForm((f) => ({ ...f, sites: f.sites.map((s) => (s.id === id ? { ...s, ...patch } : s)) }))
@@ -57,7 +71,7 @@ export default function PartyModal({ kind, companyDefault = '', initial, onClose
 
   const siteValid = (s) => s.address.trim() && s.pincode.length === 6 && s.city.trim() && s.state.trim()
   const isValid =
-    form.partyName.trim() && form.pocName.trim() && form.pocPhone.trim() && form.pocEmail.trim() && form.sites.length > 0 && form.sites.every(siteValid)
+    form.partyName.trim() && namePartOk(form.pocFirstName) && namePartOk(form.pocLastName) && form.pocPhone.trim() && form.pocEmail.trim() && form.sites.length > 0 && form.sites.every(siteValid)
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
@@ -71,7 +85,7 @@ export default function PartyModal({ kind, companyDefault = '', initial, onClose
         <div className="mt-4 grid grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
           <Field label={`${label} Name`} required value={form.partyName} onChange={(e) => set('partyName', e.target.value)} placeholder="Nova Retail" />
           <Field label="Company Name" required value={form.company} onChange={(e) => set('company', e.target.value)} hint="Editable if shipping for another party" />
-          <Field label="POC Name" required value={form.pocName} onChange={(e) => set('pocName', e.target.value)} placeholder="Arvind Krishnan" />
+          <PersonNameFields Field={Field} first={form.pocFirstName} last={form.pocLastName} onFirst={(v) => setPocPart('pocFirstName', v)} onLast={(v) => setPocPart('pocLastName', v)} firstLabel="POC first name" lastLabel="POC last name" />
           <Field label="POC Phone" required value={form.pocPhone} onChange={(e) => set('pocPhone', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9845012211" />
           <Field label="POC Email" required type="email" className="sm:col-span-2" value={form.pocEmail} onChange={(e) => set('pocEmail', e.target.value)} placeholder="arvind.k@novaretail.in" />
           {clientOptions && (

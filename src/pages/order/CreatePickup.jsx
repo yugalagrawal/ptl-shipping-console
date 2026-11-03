@@ -8,6 +8,8 @@ import { CONTENT_TYPES, HAZARD_CLASSES } from '../../data/goodsOptions.js'
 import { PAYMENT_TERM, PAYMENT_TERM_LABEL, RISK_COVER, RISK_COVER_LABEL, POD_TYPE, POD_TYPE_LABEL } from '../../data/dockets.js'
 import { cftToKgFor } from '../../data/docketPricing.js'
 import { SegmentedControl, GoodsPicker, BoxSizeRows, emptyPackageRow } from '../docket/CreateDocket.jsx'
+import PersonNameFields from '../../components/PersonNameFields.jsx'
+import { joinName, splitName } from '../../utils/personName.js'
 import {
   PICKUPS_SEED, PICKUP_STATUS_LABEL, PICKUP_STATUS_BADGE, MINI_HUBS, createPickup,
   PICKUP_TYPE, REPEAT_END_TYPE, createRecurringSeries, refreshPickupLocks, refreshRecurringWindows,
@@ -89,15 +91,29 @@ const SITE_TYPES = ['Warehouse', 'Factory', 'Store', 'Other']
 // devs' own dropdown-then-sites pattern, not the earlier "site card carries
 // everything" design. Consignor holds only who they are; Site holds where
 // and its own operating details.
-const emptyConsignor = { name: '', company: '', pocName: '', phone: '', email: '' }
+const emptyConsignor = { name: '', company: '', pocName: '', pocFirstName: '', pocLastName: '', phone: '', email: '' }
 const emptySite = {
   address: '', landmark: '', pincode: '', city: '', state: '', latitude: '', longitude: '',
   // Blank/defaulted for a brand-new site; a site surfaced from order history
   // is treated as already verified (see selectSite below).
   siteType: SITE_TYPES[0], verified: false, windowStart: '09:00', windowEnd: '17:00',
-  workingDays: WEEKDAYS.filter((d) => d !== 'Sun'), pocName: '', pocPhone: '', pocEmail: '',
+  workingDays: WEEKDAYS.filter((d) => d !== 'Sun'), pocName: '', pocFirstName: '', pocLastName: '', pocPhone: '', pocEmail: '',
 }
 const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+
+// A person's name is stored as first + last (full name derived). Records saved
+// before that only carry `pocName`, so split it on the fly for editing.
+function pocParts(rec) {
+  return rec.pocFirstName != null || rec.pocLastName != null
+    ? { firstName: rec.pocFirstName ?? '', lastName: rec.pocLastName ?? '' }
+    : splitName(rec.pocName ?? '')
+}
+// Write first + last + derived full name in one go.
+function setPocName(set, first, last) {
+  set('pocFirstName', first)
+  set('pocLastName', last)
+  set('pocName', joinName(first, last))
+}
 
 function Field({ label, required, className = '', hint, ...props }) {
   return (
@@ -238,7 +254,19 @@ function SiteFieldsBlock({ site, set, topBorder = true }) {
       <div className="mt-5 border-t border-slate-100 pt-4">
         <span className="mb-3 block text-xs font-semibold uppercase tracking-wide text-slate-400">POC of Site</span>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" value={site.pocName} onChange={(e) => set('pocName', e.target.value)} />
+          {(() => {
+            const { firstName, lastName } = pocParts(site)
+            return (
+              <PersonNameFields
+                Field={Field}
+                required={false}
+                first={firstName}
+                last={lastName}
+                onFirst={(v) => setPocName(set, v, lastName)}
+                onLast={(v) => setPocName(set, firstName, v)}
+              />
+            )
+          })()}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-slate-500">Phone</span>
             <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60 focus-within:bg-white focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
@@ -322,7 +350,20 @@ function EditConsignorModal({ consignorNames, initial, isNew, onClose, onSave })
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="POC Name" required value={party.pocName} onChange={(e) => set('pocName', e.target.value)} />
+          {(() => {
+            const { firstName, lastName } = pocParts(party)
+            return (
+              <PersonNameFields
+                Field={Field}
+                first={firstName}
+                last={lastName}
+                firstLabel="POC first name"
+                lastLabel="POC last name"
+                onFirst={(v) => setPocName(set, v, lastName)}
+                onLast={(v) => setPocName(set, firstName, v)}
+              />
+            )
+          })()}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-slate-500">
               POC Phone<span className="text-brand-orange-dark"> *</span>
@@ -781,7 +822,7 @@ export default function CreatePickup() {
   const consignorGroups = useMemo(() => {
     const map = new Map()
     savedConsignors.forEach((p) => {
-      if (!map.has(p.name)) map.set(p.name, { name: p.name, company: p.company, pocName: p.pocName ?? '', phone: p.phone, email: p.email, sites: [] })
+      if (!map.has(p.name)) map.set(p.name, { name: p.name, company: p.company, pocName: p.pocName ?? '', pocFirstName: p.pocFirstName, pocLastName: p.pocLastName, phone: p.phone, email: p.email, sites: [] })
       map.get(p.name).sites.push(p)
     })
     return [...map.values()]
@@ -907,7 +948,7 @@ export default function CreatePickup() {
       return
     }
     const group = consignorGroups.find((g) => g.name === name)
-    setConsignor(group ? { name: group.name, company: group.company, pocName: group.pocName, phone: group.phone, email: group.email } : emptyConsignor)
+    setConsignor(group ? { name: group.name, company: group.company, pocName: group.pocName, pocFirstName: group.pocFirstName, pocLastName: group.pocLastName, phone: group.phone, email: group.email } : emptyConsignor)
     const sites = sitesFor(name)
     if (sites.length === 1) selectSite(sites[0])
   }

@@ -61,7 +61,7 @@ function sampleDetails({ company = {}, contact = {}, identifications, billing = 
       ...company,
     },
     contact: {
-      pocName: '', phoneCode: '🇮🇳 +91', pocMobile: '', pocEmail: '', opsEmail: '', financeEmail: '', salesPerson: '',
+      pocName: '', pocFirstName: '', pocLastName: '', phoneCode: '🇮🇳 +91', pocMobile: '', pocEmail: '', opsEmail: '', financeEmail: '', salesPerson: '',
       ...contact,
     },
     identifications: identifications ?? [

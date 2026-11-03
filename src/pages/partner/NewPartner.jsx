@@ -16,6 +16,8 @@ import {
 } from '../../data/partnerActivations.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { vehicleTypeFromRegNo } from '../../data/fleet.js'
+import PersonNameFields from '../../components/PersonNameFields.jsx'
+import { joinName, typingFilter, tidyName } from '../../utils/personName.js'
 
 // Create Partner wizard — being built step by step per Yugal's prompts.
 // Fields below are placeholders based on the Softpal vendor-onboarding
@@ -362,6 +364,34 @@ function PhoneField({ label, required, phoneCode, onPhoneCodeChange, mobile, onM
         />
       </div>
     </label>
+  )
+}
+
+// First + last name side by side inside a table cell (drivers / team members).
+function NameCell({ first, last, onFirst, onLast, lastRequired = true }) {
+  const cls =
+    'w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+  return (
+    <div className="flex gap-1.5">
+      <input
+        type="text"
+        required
+        value={first}
+        onChange={(e) => onFirst(typingFilter(e.target.value))}
+        onBlur={() => onFirst(tidyName(first))}
+        placeholder="First name"
+        className={cls}
+      />
+      <input
+        type="text"
+        required={lastRequired}
+        value={last}
+        onChange={(e) => onLast(typingFilter(e.target.value))}
+        onBlur={() => onLast(tidyName(last))}
+        placeholder={lastRequired ? 'Last name' : 'Last (optional)'}
+        className={cls}
+      />
+    </div>
   )
 }
 
@@ -753,7 +783,7 @@ export default function NewPartner() {
             partnerType, partnerName, pan, partnerPaymentType, legalName, address, pincode, city, state,
             bankAccountName, bankAccountNumber, ifscCode,
           },
-          contact: { pocName, pocPhoneCode, pocMobile, pocEmail },
+          contact: { pocName, pocFirstName, pocLastName, pocPhoneCode, pocMobile, pocEmail },
           identifications: noGstin ? [] : identifications,
           billing: { contractStart, contractEnd, billingPeriod, billingDocuments },
           fleet: { vehicles, drivers, teamMembers },
@@ -803,18 +833,24 @@ export default function NewPartner() {
   const [ifscCode, setIfscCode] = useState('')
   const bankName = ifscCode.length >= 4 ? bankNameForIfsc(ifscCode) : null
 
-  const [pocName, setPocName] = useState('')
+  const [pocFirstName, setPocFirstName] = useState('')
+  const [pocLastName, setPocLastName] = useState('')
+  const pocName = joinName(pocFirstName, pocLastName) // derived, never typed
   const [pocPhoneCode, setPocPhoneCode] = useState(PHONE_CODES[0])
   const [pocMobile, setPocMobile] = useState('')
   const [pocEmail, setPocEmail] = useState('')
   // Exactly 2 optional alternate contact slots, each toggled on via its own
   // checkbox right inside the Partner POC card rather than a separate card
   // per contact.
-  const emptyAlternate = { enabled: false, name: '', phoneCode: PHONE_CODES[0], mobile: '', email: '' }
+  const emptyAlternate = { enabled: false, name: '', firstName: '', lastName: '', phoneCode: PHONE_CODES[0], mobile: '', email: '' }
   const [alt1, setAlt1] = useState(emptyAlternate)
   const [alt2, setAlt2] = useState(emptyAlternate)
   function updateAlt(setAlt, field, value) {
-    setAlt((prev) => ({ ...prev, [field]: value }))
+    setAlt((prev) => {
+      const next = { ...prev, [field]: value }
+      next.name = joinName(next.firstName, next.lastName) // derived full name
+      return next
+    })
   }
 
   // GSTIN Info (repeatable) — row 1 is mandatory unless noGstin is checked.
@@ -1057,10 +1093,17 @@ export default function NewPartner() {
 
   const [drivers, setDrivers] = useState([])
   function addDriver() {
-    setDrivers((rows) => [...rows, { id: docRowSeq++, name: '', phoneCode: PHONE_CODES[0], mobile: '', email: '', licenseNumber: '', assignedVehicleId: '' }])
+    setDrivers((rows) => [...rows, { id: docRowSeq++, name: '', firstName: '', lastName: '', phoneCode: PHONE_CODES[0], mobile: '', email: '', licenseNumber: '', assignedVehicleId: '' }])
   }
   function updateDriver(id, field, value) {
-    setDrivers((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+    setDrivers((rows) =>
+      rows.map((r) => {
+        if (r.id !== id) return r
+        const next = { ...r, [field]: value }
+        next.name = joinName(next.firstName, next.lastName) // derived full name
+        return next
+      }),
+    )
   }
   function removeDriver(id) {
     setDrivers((rows) => rows.filter((r) => r.id !== id))
@@ -1068,10 +1111,17 @@ export default function NewPartner() {
 
   const [teamMembers, setTeamMembers] = useState([])
   function addTeamMember() {
-    setTeamMembers((rows) => [...rows, { id: docRowSeq++, name: '', phoneCode: PHONE_CODES[0], mobile: '', email: '', label: '' }])
+    setTeamMembers((rows) => [...rows, { id: docRowSeq++, name: '', firstName: '', lastName: '', phoneCode: PHONE_CODES[0], mobile: '', email: '', label: '' }])
   }
   function updateTeamMember(id, field, value) {
-    setTeamMembers((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+    setTeamMembers((rows) =>
+      rows.map((r) => {
+        if (r.id !== id) return r
+        const next = { ...r, [field]: value }
+        next.name = joinName(next.firstName, next.lastName) // derived full name
+        return next
+      }),
+    )
   }
   function removeTeamMember(id) {
     setTeamMembers((rows) => rows.filter((r) => r.id !== id))
@@ -1184,7 +1234,7 @@ export default function NewPartner() {
 
       {step === 1 && (
         <Section title="Partner POC" subtitle="Primary contact for day-to-day coordination.">
-          <Field label="Partner POC name" required value={pocName} onChange={(e) => setPocName(e.target.value)} placeholder="Name" />
+          <PersonNameFields Field={Field} first={pocFirstName} last={pocLastName} onFirst={setPocFirstName} onLast={setPocLastName} firstLabel="POC first name" lastLabel="POC last name" />
           <PhoneField
             label="POC mobile"
             required
@@ -1206,7 +1256,7 @@ export default function NewPartner() {
               </label>
               {alt.enabled && (
                 <div className="mt-3 grid gap-x-4 gap-y-4 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Name" required value={alt.name} onChange={(e) => updateAlt(setAlt, 'name', e.target.value)} placeholder="Name" />
+                  <PersonNameFields Field={Field} first={alt.firstName} last={alt.lastName} onFirst={(v) => updateAlt(setAlt, 'firstName', v)} onLast={(v) => updateAlt(setAlt, 'lastName', v)} />
                   <PhoneField
                     label="Mobile"
                     required
@@ -1645,7 +1695,7 @@ export default function NewPartner() {
           {fleetTab === 'vehicles' && (
             <div className="space-y-3">
               <div className={`overflow-x-auto ${card}`}>
-                <table className="w-full min-w-[44rem]">
+                <table className="w-full min-w-[52rem]">
                   <thead>
                     <tr>
                       <th className={`${thCls} w-10`}>#</th>
@@ -1753,11 +1803,11 @@ export default function NewPartner() {
                 <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No drivers added yet.</p>
               ) : (
                 <div className={`overflow-x-auto ${card}`}>
-                  <table className="w-full min-w-[44rem]">
+                  <table className="w-full min-w-[52rem]">
                     <thead>
                       <tr>
                         <th className={`${thCls} w-10`}>#</th>
-                        <th className={`${thCls} w-40`}>
+                        <th className={`${thCls} w-72`}>
                           Driver name<span className="text-brand-orange-dark"> *</span>
                         </th>
                         <th className={`${thCls} w-40`}>
@@ -1776,14 +1826,7 @@ export default function NewPartner() {
                         <tr key={d.id} className={rowCls}>
                           <td className="px-3 py-3 align-top text-sm font-medium text-slate-400">{i + 1}</td>
                           <td className="px-3 py-3 align-top">
-                            <input
-                              type="text"
-                              required
-                              value={d.name}
-                              onChange={(e) => updateDriver(d.id, 'name', e.target.value)}
-                              placeholder="Name"
-                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                            />
+                            <NameCell first={d.firstName} last={d.lastName} onFirst={(v) => updateDriver(d.id, 'firstName', v)} onLast={(v) => updateDriver(d.id, 'lastName', v)} lastRequired={false} />
                           </td>
                           <td className="px-3 py-3 align-top">
                             <input
@@ -1871,11 +1914,11 @@ export default function NewPartner() {
                 <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No team members added yet.</p>
               ) : (
                 <div className={`overflow-x-auto ${card}`}>
-                  <table className="w-full min-w-[44rem]">
+                  <table className="w-full min-w-[52rem]">
                     <thead>
                       <tr>
                         <th className={`${thCls} w-10`}>#</th>
-                        <th className={`${thCls} w-40`}>
+                        <th className={`${thCls} w-72`}>
                           Name<span className="text-brand-orange-dark"> *</span>
                         </th>
                         <th className={`${thCls} w-40`}>
@@ -1893,14 +1936,7 @@ export default function NewPartner() {
                         <tr key={m.id} className={rowCls}>
                           <td className="px-3 py-3 align-top text-sm font-medium text-slate-400">{i + 1}</td>
                           <td className="px-3 py-3 align-top">
-                            <input
-                              type="text"
-                              required
-                              value={m.name}
-                              onChange={(e) => updateTeamMember(m.id, 'name', e.target.value)}
-                              placeholder="Name"
-                              className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                            />
+                            <NameCell first={m.firstName} last={m.lastName} onFirst={(v) => updateTeamMember(m.id, 'firstName', v)} onLast={(v) => updateTeamMember(m.id, 'lastName', v)} />
                           </td>
                           <td className="px-3 py-3 align-top">
                             <div className="flex gap-1">
