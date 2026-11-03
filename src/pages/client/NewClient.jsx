@@ -477,6 +477,62 @@ function Typeahead({ hintTitle, code, label, required, labelInfo, boldLabel, val
   )
 }
 
+// One KYC document card: status tick, name, file name and a small preview of
+// the uploaded file. Locked cards (uploaded on an earlier step) fade Remove.
+function KycDocCard({ label, note, file, locked, onUpload, onRemove }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    if (!(file instanceof Blob)) return undefined
+    const u = URL.createObjectURL(file)
+    setUrl(u)
+    return () => URL.revokeObjectURL(u)
+  }, [file])
+  const isImage = file?.type?.startsWith('image/')
+  const done = !!file
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/50 px-4 py-3">
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${done ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+        <Icon name={done ? 'approve' : 'plus'} className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-slate-800">
+          {label}
+          {note && <span className="ml-2 font-normal tracking-wide text-slate-400">{note}</span>}
+        </div>
+        <div className="mt-0.5 truncate text-xs text-slate-500">
+          {done ? `${file.name ?? 'File on record'}${locked ? ' · uploaded earlier' : ''}` : 'No file uploaded yet'}
+        </div>
+      </div>
+      {done && (
+        <a
+          href={url ?? undefined}
+          target="_blank"
+          rel="noreferrer"
+          title="Open preview"
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-400"
+        >
+          {isImage && url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <Icon name="file" className="h-5 w-5" />}
+        </a>
+      )}
+      {locked ? (
+        <button type="button" disabled title="Already uploaded in an earlier step" className="cursor-not-allowed text-xs font-medium text-rose-500 opacity-30">
+          Remove
+        </button>
+      ) : (
+        <div className="flex items-center gap-3 text-xs font-medium">
+          <label className="cursor-pointer text-sky-600 hover:underline">
+            {done ? 'Replace' : 'Upload'}
+            <input type="file" className="hidden" onChange={(e) => onUpload(e.target.files[0] ?? null)} />
+          </label>
+          <button type="button" onClick={onRemove} className="text-rose-500 hover:underline">
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Section({ title, subtitle, children }) {
   return (
     <div className={card}>
@@ -2020,21 +2076,7 @@ export default function NewClient() {
         <div className={`space-y-6 p-6 ${card}`}>
           <div className="space-y-2">
             {lockedDocuments.map((doc) => (
-              <div key={doc.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/50 px-4 py-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                  <Icon name="approve" className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-slate-800">
-                    {doc.type}
-                    {doc.note && <span className="ml-2 font-normal tracking-wide text-slate-400">{doc.note}</span>}
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-slate-500">{doc.file?.name ?? 'File on record'} · uploaded earlier</div>
-                </div>
-                <button type="button" disabled title="Already uploaded in an earlier step" className="cursor-not-allowed text-xs font-medium text-rose-500 opacity-30">
-                  Remove
-                </button>
-              </div>
+              <KycDocCard key={doc.id} label={doc.type} note={doc.note} file={doc.file ?? { name: 'File on record' }} locked />
             ))}
           </div>
 
@@ -2063,20 +2105,13 @@ export default function NewClient() {
           {documents.length > 0 && (
             <div className="space-y-2">
               {documents.map((doc) => (
-                <div key={doc.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:flex-row sm:items-center">
-                  <span className="text-sm font-medium text-slate-800 sm:w-56">{doc.type}</span>
-                  <label
-                    className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-2.5 text-center text-xs transition-colors ${
-                      doc.file ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-slate-50/50 text-slate-500 hover:border-brand-orange/50 hover:bg-orange-50/30'
-                    }`}
-                  >
-                    {doc.file ? doc.file.name : 'Click to upload or drag a file'}
-                    <input type="file" className="hidden" onChange={(e) => updateDocument(doc.id, 'file', e.target.files[0] ?? null)} />
-                  </label>
-                  <button type="button" onClick={() => removeDocument(doc.id)} className="text-xs font-medium text-rose-500 hover:underline">
-                    Remove
-                  </button>
-                </div>
+                <KycDocCard
+                  key={doc.id}
+                  label={doc.type}
+                  file={doc.file}
+                  onUpload={(f) => updateDocument(doc.id, 'file', f)}
+                  onRemove={() => removeDocument(doc.id)}
+                />
               ))}
             </div>
           )}
