@@ -343,7 +343,7 @@ function Toggle({ label, checked, onChange, disabled }) {
   )
 }
 
-function Typeahead({ code, label, required, labelInfo, boldLabel, value, onChange, suggestions, renderSuggestion, onSelectSuggestion, placeholder, hint, error, disabled, className = '' }) {
+function Typeahead({ hintTitle, code, label, required, labelInfo, boldLabel, value, onChange, suggestions, renderSuggestion, onSelectSuggestion, placeholder, hint, error, disabled, className = '' }) {
   const [open, setOpen] = useState(false)
   const tokens = value.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = tokens.length ? suggestions.filter((s) => { const label = s.label.toLowerCase(); return tokens.some((t) => label.includes(t)) }) : suggestions
@@ -386,7 +386,7 @@ function Typeahead({ code, label, required, labelInfo, boldLabel, value, onChang
           ))}
         </div>
       )}
-      {hint && <p className={`mt-1 truncate whitespace-nowrap text-[11px] ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
+      {hint && <p title={hintTitle ?? (typeof hint === 'string' ? hint : undefined)} className={`mt-1 truncate whitespace-nowrap text-[11px] ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
     </label>
   )
 }
@@ -1250,9 +1250,10 @@ export default function NewClient() {
             }}
             placeholder={groupFilled ? 'ABC Manufacturing Pvt Ltd' : 'Fill Customer group first'}
             error={!!duplicateLegalEntity}
+            hintTitle={duplicateLegalEntity ? `Already onboarded under ${duplicateLegalEntity.groupName} — check My Clients or Drafts instead of creating a duplicate.` : undefined}
             hint={
               duplicateLegalEntity
-                ? `Already onboarded under ${duplicateLegalEntity.groupName} — check My Clients or Drafts instead of creating a duplicate.`
+                ? 'Already onboarded · see My Clients'
                 : undefined
             }
           />
