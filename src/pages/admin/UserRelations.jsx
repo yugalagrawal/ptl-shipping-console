@@ -5,6 +5,7 @@ import { LT_USERS } from '../../data/users.js'
 import { PARTNERS } from '../../data/partners.js'
 import { isReportOf } from '../../data/relations.js'
 import Avatar from '../../components/Avatar.jsx'
+import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
 import { btnPrimary, btnSecondary, thCls, tdCls, rowCls } from '../../components/ui.js'
 
@@ -379,6 +380,7 @@ export default function UserRelations() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">User Management</h1>
           <p className="mt-0.5 text-xs text-slate-500">Create team logins, set who they report to and which apps they use.</p>
         </div>

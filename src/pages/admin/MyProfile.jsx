@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import { LT_USERS } from '../../data/users.js'
 import { TASKS_BY_MODULE, ROLE_DEPARTMENT, effectiveFunctions } from '../../data/permissions.js'
 import Avatar from '../../components/Avatar.jsx'
+import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
 
 // Column order matches production: Read Only · Create · Edit · Approve.
@@ -523,6 +524,7 @@ export default function MyProfile() {
 function PageTitle() {
   return (
     <div>
+      <BackButton />
       <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">My Profile</h1>
       <p className="mt-0.5 text-xs text-slate-500">Read-only. Ask an admin to change your details or access.</p>
     </div>

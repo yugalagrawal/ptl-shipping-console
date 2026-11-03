@@ -11,6 +11,7 @@ import {
   TERRITORIES, circlesForTerritories, circlesUnderTerritories,
 } from '../../data/permissions.js'
 import Avatar from '../../components/Avatar.jsx'
+import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
 import { card, thCls, tdCls, rowCls, btnPrimary, btnSecondary, pillActive, pillInactive } from '../../components/ui.js'
 
@@ -648,6 +649,7 @@ export default function AccessManagement() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Access Management</h1>
         <p className="mt-0.5 text-xs text-slate-500">Set a team member's function, roles, task access and location scope.</p>
       </div>
