@@ -81,6 +81,15 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
   const q = query.trim().toLowerCase()
   const filtered = q ? items.filter(({ group, value }) => value.toLowerCase().includes(q) || group?.toLowerCase().includes(q)) : items
   let lastGroup = undefined
+  // Nothing picked = unrestricted = "All". In that state every row shows
+  // ticked; the first untick expands All into an explicit "everything but X".
+  const allValues = items.map((i) => i.value)
+  const allMode = selected.length === 0
+  const allChecked = allMode || (allValues.length > 0 && allValues.every((v) => selected.includes(v)))
+  function handleToggle(value) {
+    if (allMode) allValues.forEach((v) => onToggle(v))
+    onToggle(value)
+  }
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</h3>
@@ -90,8 +99,8 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
           onClick={() => { onOpenChange(!open); setQuery('') }}
           className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
         >
-          <span className={selected.length ? 'text-slate-800' : 'text-slate-400'}>
-            {selected.length ? `${selected.length} ${selected.length === 1 ? unit : unitPlural} selected` : `Default: All ${unitPlural}`}
+          <span className={allMode ? 'text-slate-400' : 'text-slate-800'}>
+            {allMode ? `Default: All ${unitPlural}` : `${selected.length} ${selected.length === 1 ? unit : unitPlural} selected`}
           </span>
           <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
@@ -112,8 +121,8 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
               <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3.5 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
                 <input
                   type="checkbox"
-                  checked={selected.length === 0}
-                  onChange={() => { if (selected.length > 0) onReset() }}
+                  checked={allChecked}
+                  onChange={() => { if (!allMode) onReset() }}
                   className="h-3.5 w-3.5 rounded accent-brand-orange"
                 />
                 All {unitPlural}
@@ -129,8 +138,8 @@ function ScopeDropdown({ label, hint, unit, unitPlural, items, selected, onToggl
                     <label className="flex items-center gap-2 px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50">
                       <input
                         type="checkbox"
-                        checked={selected.includes(value)}
-                        onChange={() => onToggle(value)}
+                        checked={allMode || selected.includes(value)}
+                        onChange={() => handleToggle(value)}
                         className="h-3.5 w-3.5 rounded accent-brand-orange"
                       />
                       {value}
@@ -178,6 +187,14 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
       })
 
   let lastHub = undefined
+  const allMiniHubs = items.flatMap(({ branch }) => BRANCH_MINI_HUBS[branch] ?? [])
+  const allMode = selectedMiniHubs.length === 0
+  const effective = allMode ? allMiniHubs : selectedMiniHubs
+  const allTicked = allMode || (allMiniHubs.length > 0 && allMiniHubs.every((m) => selectedMiniHubs.includes(m)))
+  // First untick while in "All" expands it into an explicit everything-but-X.
+  function expandAll() {
+    if (allMode) items.forEach(({ branch }) => onToggleBranchGroup(branch, true))
+  }
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Branch (Mini-Hub) access</h3>
@@ -187,7 +204,7 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
           onClick={() => { onOpenChange(!open); setQuery('') }}
           className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
         >
-          <span className={selectedMiniHubs.length ? 'text-slate-800' : 'text-slate-400'}>
+          <span className={allMode ? 'text-slate-400' : 'text-slate-800'}>
             {selectedMiniHubs.length ? `${selectedMiniHubs.length} mini hub${selectedMiniHubs.length === 1 ? '' : 's'} selected` : 'Default: All mini hubs'}
           </span>
           <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -209,8 +226,8 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
               <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3.5 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
                 <input
                   type="checkbox"
-                  checked={selectedMiniHubs.length === 0}
-                  onChange={() => { if (selectedMiniHubs.length > 0) onReset() }}
+                  checked={allTicked}
+                  onChange={() => { if (!allMode) onReset() }}
                   className="h-3.5 w-3.5 rounded accent-brand-orange"
                 />
                 All mini hubs
@@ -219,7 +236,7 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
                 const showHubHeader = hub !== lastHub
                 lastHub = hub
                 const miniHubs = BRANCH_MINI_HUBS[branch] ?? []
-                const checkedCount = miniHubs.filter((m) => selectedMiniHubs.includes(m)).length
+                const checkedCount = miniHubs.filter((m) => effective.includes(m)).length
                 const allChecked = miniHubs.length > 0 && checkedCount === miniHubs.length
                 const someChecked = checkedCount > 0 && !allChecked
                 const expanded = q ? true : expandedBranches.includes(branch)
@@ -242,7 +259,7 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
                           type="checkbox"
                           checked={allChecked}
                           ref={(el) => el && (el.indeterminate = someChecked)}
-                          onChange={(e) => onToggleBranchGroup(branch, e.target.checked)}
+                          onChange={(e) => { expandAll(); onToggleBranchGroup(branch, e.target.checked) }}
                           className="h-3.5 w-3.5 rounded accent-brand-orange"
                         />
                         {branch}
@@ -254,8 +271,8 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
                         <label key={miniHub} className="flex items-center gap-2 px-3.5 py-2 pl-12 text-sm text-slate-700 hover:bg-slate-50">
                           <input
                             type="checkbox"
-                            checked={selectedMiniHubs.includes(miniHub)}
-                            onChange={() => onToggleMiniHub(miniHub)}
+                            checked={effective.includes(miniHub)}
+                            onChange={() => { expandAll(); onToggleMiniHub(miniHub) }}
                             className="h-3.5 w-3.5 rounded accent-brand-orange"
                           />
                           {miniHub}
