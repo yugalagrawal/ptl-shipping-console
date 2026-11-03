@@ -282,6 +282,8 @@ function deriveCustomerCode({ groupName, legalName, paymentType }) {
 // is its holder type (P person, C company, F firm...), so the dummy name
 // follows it. Deterministic per PAN so the same input always shows the same name.
 const PAN_FORMAT = /^[A-Z]{5}[0-9]{4}[A-Z]$/
+// GSTIN: 2-digit state code + 10-char PAN + entity code (1-9 / A-Z) + literal 'Z' + 1 check character.
+const GSTIN_FORMAT = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
 const DUMMY_NAMES = {
   P: ['MOHD AZAD', 'RAJESH KUMAR SHARMA', 'PRIYA SINGH', 'ANITA DESAI', 'VIKRAM NAIR'],
   C: ['ACME FOODS PRIVATE LIMITED', 'BRIGHT LOGISTICS PRIVATE LIMITED', 'NORTHSTAR RETAIL PRIVATE LIMITED'],
@@ -539,6 +541,8 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
   }, [row.pincode])
 
   const stateMismatch = Boolean(pincodeLookupResult && row.state && pincodeLookupResult.state !== row.state)
+  // Only judged once all 3 trailing characters are typed.
+  const gstinInvalid = Boolean(gstinPrefix) && gstinSuffix.length === 3 && !GSTIN_FORMAT.test(row.idNumber)
 
   return (
     <div
@@ -566,20 +570,27 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
             GSTIN<span className="text-brand-orange-dark">*</span>
           </span>
           {gstinPrefix ? (
-            <div className="flex items-center rounded-xl border border-slate-200 bg-white pl-3.5 transition-colors focus-within:border-brand-orange focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/20">
+            <div
+              className={`flex items-center rounded-xl border bg-white pl-3.5 transition-colors focus-within:outline focus-within:outline-2 ${
+                gstinInvalid
+                  ? 'border-rose-300 focus-within:border-rose-300 focus-within:outline-rose-200'
+                  : 'border-slate-200 focus-within:border-brand-orange focus-within:outline-brand-orange/20'
+              }`}
+            >
               <span className="shrink-0 text-sm font-medium tracking-wide text-slate-500">{gstinPrefix}</span>
               <input
                 type="text"
                 value={gstinSuffix}
-                onChange={(e) => onUpdate(row.id, 'idNumber', gstinPrefix + e.target.value.toUpperCase().slice(0, 3))}
+                onChange={(e) => onUpdate(row.id, 'idNumber', gstinPrefix + e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3))}
                 maxLength={3}
-                className="w-16 min-w-0 rounded-xl bg-transparent py-2 pl-0.5 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                className="w-16 min-w-0 rounded-xl bg-transparent py-2 pl-0.5 pr-3.5 text-sm text-slate-800 focus:outline-none"
               />
             </div>
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-400">Select a state first</p>
           )}
-          {gstinPrefix && gstinSuffix.length < 3 && <p className="mt-1 text-[11px] text-slate-400">Enter the last 3 digits of the GSTIN</p>}
+          {gstinInvalid && <p className="mt-1 text-[11px] font-medium text-rose-500">Invalid GSTIN — please check the last 3 characters</p>}
+          {gstinPrefix && !gstinInvalid && gstinSuffix.length < 3 && <p className="mt-1 text-[11px] text-slate-400">Enter the last 3 digits of the GSTIN</p>}
         </label>
         <div className="lg:col-span-2">
           <span className={LABEL}>
@@ -1215,7 +1226,7 @@ export default function NewClient() {
       (identifications.length > 0 &&
         identifications.every(
           (row) =>
-            row.idNumber.trim().length > 0 &&
+            GSTIN_FORMAT.test(row.idNumber.trim()) &&
             row.address.trim().length > 0 &&
             row.pincode.trim().length > 0 &&
             row.city.trim().length > 0 &&
