@@ -2477,7 +2477,7 @@ export default function NewClient() {
               <Icon name="approve" className="h-5 w-5" />
             </span>
             <h3 className="mt-3 text-base font-semibold text-slate-900">
-              <span className="break-words">{tradeName.trim() || legalName.trim() || 'Client'}</span> created successfully
+              <span className="break-words">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'Client'}</span> created successfully
             </h3>
             <p className="mt-1.5 text-sm text-slate-500">Add pricing and complete KYC to activate it.</p>
             <button
