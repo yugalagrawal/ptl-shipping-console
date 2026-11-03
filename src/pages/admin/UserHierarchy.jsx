@@ -50,10 +50,10 @@ function roleOf(u) {
   return (u.roles ?? [])[0] || u.roleLabel || ''
 }
 
-function Node({ node, q, collapsed, onToggle, allEmails, byEmail }) {
+function Node({ node, q, highlight, collapsed, onToggle, allEmails, byEmail }) {
   const { user, children } = node
   const isCollapsed = !q && collapsed.has(user.email)
-  const hit = !!q && matches(user, q)
+  const hit = highlight ? highlight === user.email : !!q && matches(user, q)
   const outsideManager = user.managerEmail && !allEmails.has(user.managerEmail) ? byEmail.get(user.managerEmail) : null
   return (
     <li>
@@ -87,7 +87,7 @@ function Node({ node, q, collapsed, onToggle, allEmails, byEmail }) {
       {children.length > 0 && !isCollapsed && (
         <ul>
           {children.map((c) => (
-            <Node key={c.user.email} node={c} q={q} collapsed={collapsed} onToggle={onToggle} allEmails={allEmails} byEmail={byEmail} />
+            <Node key={c.user.email} node={c} q={q} highlight={highlight} collapsed={collapsed} onToggle={onToggle} allEmails={allEmails} byEmail={byEmail} />
           ))}
         </ul>
       )}
@@ -95,7 +95,7 @@ function Node({ node, q, collapsed, onToggle, allEmails, byEmail }) {
   )
 }
 
-function Chart({ users, q, emptyText }) {
+function Chart({ users, q, highlight, emptyText }) {
   const [collapsed, setCollapsed] = useState(() => new Set())
   const forest = useMemo(() => buildForest(users), [users])
   const shown = useMemo(() => pruneForest(forest, q), [forest, q])
@@ -137,7 +137,7 @@ function Chart({ users, q, emptyText }) {
             {trees.map((n) => (
               <div key={n.user.email} className="org-tree w-max">
                 <ul>
-                  <Node node={n} q={q} collapsed={collapsed} onToggle={toggle} allEmails={allEmails} byEmail={byEmail} />
+                  <Node node={n} q={q} highlight={highlight} collapsed={collapsed} onToggle={toggle} allEmails={allEmails} byEmail={byEmail} />
                 </ul>
               </div>
             ))}
@@ -151,7 +151,7 @@ function Chart({ users, q, emptyText }) {
                 {singles.map((n) => (
                   <div key={n.user.email} className="org-tree w-max">
                     <ul>
-                      <Node node={n} q={q} collapsed={collapsed} onToggle={toggle} allEmails={allEmails} byEmail={byEmail} />
+                      <Node node={n} q={q} highlight={highlight} collapsed={collapsed} onToggle={toggle} allEmails={allEmails} byEmail={byEmail} />
                     </ul>
                   </div>
                 ))}
@@ -257,10 +257,99 @@ function OrgPanel({ type }) {
   )
 }
 
+// LetsTransport tab: nothing is drawn until someone is picked; then the chart
+// shows the people above them (their manager chain) and everyone below them.
+function PersonFlow({ users }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [picked, setPicked] = useState(null)
+  const q = query.trim().toLowerCase()
+  const results = q ? users.filter((u) => matches(u, q)) : []
+
+  const chain = useMemo(() => {
+    if (!picked) return []
+    const byEmail = new Map(users.map((u) => [u.email, u]))
+    const above = []
+    let cur = byEmail.get(picked.managerEmail)
+    while (cur && !above.includes(cur) && above.length < users.length) {
+      above.push(cur)
+      cur = byEmail.get(cur.managerEmail)
+    }
+    const below = []
+    const queue = [picked.email]
+    while (queue.length) {
+      const m = queue.shift()
+      users.forEach((u) => {
+        if (u.managerEmail === m && !below.includes(u) && u !== picked) {
+          below.push(u)
+          queue.push(u.email)
+        }
+      })
+    }
+    return [...above, picked, ...below]
+  }, [picked, users])
+
+  function pick(u) {
+    setPicked(u)
+    setQuery(u.name)
+    setOpen(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="relative max-w-md">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-soft focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
+          <Icon name="search" className="h-4 w-4 shrink-0 text-slate-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true); if (!e.target.value.trim()) setPicked(null) }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 120)}
+            placeholder="Search a team member…"
+            className="w-full border-0 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+          />
+        </div>
+        {open && q && (
+          <div className="absolute z-20 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+            {results.map((u) => (
+              <button
+                key={u.email}
+                type="button"
+                onMouseDown={() => pick(u)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
+              >
+                <Avatar name={u.name} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-800">{u.name}</div>
+                  <div className="truncate text-xs text-slate-400">{roleOf(u) || u.email}</div>
+                </div>
+              </button>
+            ))}
+            {!results.length && <p className="px-3 py-4 text-center text-sm text-slate-400">No matching team member.</p>}
+          </div>
+        )}
+      </div>
+
+      <div className={sectionCard}>
+        {picked ? (
+          <Chart key={picked.email} users={chain} highlight={picked.email} emptyText="" />
+        ) : (
+          <div className="flex flex-col items-center px-6 py-20 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Icon name="search" className="h-5 w-5" />
+            </span>
+            <p className="mt-3 text-sm font-medium text-slate-700">Search a team member</p>
+            <p className="mt-1 text-xs text-slate-400">See who they report to and who reports to them.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function UserHierarchy() {
   const [tab, setTab] = useState('LetsTransport')
-  const [query, setQuery] = useState('')
-  const q = query.trim().toLowerCase()
   const internal = useMemo(() => LT_USERS.filter(isInternal), [])
 
   return (
@@ -279,13 +368,10 @@ export default function UserHierarchy() {
             </button>
           ))}
         </div>
-        {tab === 'LetsTransport' && <SearchBox value={query} onChange={setQuery} placeholder="Search a team member…" />}
       </div>
 
       {tab === 'LetsTransport' ? (
-        <div className={sectionCard}>
-          <Chart users={internal} q={q} emptyText="No team members yet." />
-        </div>
+        <PersonFlow users={internal} />
       ) : (
         <OrgPanel key={tab} type={tab === 'Partners' ? 'Partner' : 'Client'} />
       )}
