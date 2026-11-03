@@ -52,8 +52,7 @@ function endForMonths(start, months) {
 export function describeRange(start, end) {
   if (!start || !end) return ''
   const touched = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
-  const months = touched - 1
-  if (months < 1) return 'Under 1 month'
+  const months = Math.max(touched - 1, 1) // inside one calendar month still reads "1 month"
   return `${months} ${months === 1 ? 'month' : 'months'}`
 }
 
