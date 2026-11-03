@@ -2424,10 +2424,10 @@ export default function NewClient() {
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-amber-600">
               <Icon name="info" className="h-5 w-5" />
             </span>
-            <h3 className="mt-3 text-base font-semibold text-slate-900">Submit for approval?</h3>
-            <p className="mt-1.5 text-sm text-slate-500">
-              <span className="font-medium text-slate-700">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'This client'}</span> will be submitted for approval and cannot be edited further. Are you sure?
-            </p>
+            <h3 className="mt-3 text-base font-semibold text-slate-900">
+              Submit <span className="break-words">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'this client'}</span> for approval?
+            </h3>
+            <p className="mt-1.5 text-sm text-slate-500">Once submitted, it can't be edited further. Are you sure you want to continue?</p>
             <div className="mt-5 flex gap-3">
               <button type="button" onClick={() => setShowSubmitConfirm(false)} className={`${btnSecondary} flex-1 justify-center`}>
                 Go back
