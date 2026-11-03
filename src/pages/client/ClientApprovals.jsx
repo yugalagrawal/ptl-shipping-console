@@ -250,7 +250,7 @@ export default function ClientApprovals() {
       <div>
         <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
-        <p className="mt-0.5 text-xs text-slate-500">Sales Admin reviews onboarding details first; Finance Admin reviews pricing before a client goes active.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Review client details and pricing, check approval statuses, and approve clients to make them active.</p>
       </div>
 
       <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
