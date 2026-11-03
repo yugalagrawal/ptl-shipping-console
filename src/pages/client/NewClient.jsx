@@ -863,7 +863,7 @@ export default function NewClient() {
   // (editing it lives in Client Pricing Configuration, never per-client
   // here). Custom applies a discount % instead — defaults to the tier's
   // suggested 5/10/15, but ops can type any number.
-  const [pricingType, setPricingType] = useState('Standard')
+  const [pricingType, setPricingType] = useState('')
   const [regionMappingType, setRegionMappingType] = useState('Standard')
   const [discountPercent, setDiscountPercent] = useState(String(TIER_DISCOUNTS[tier] ?? 0))
   const [discountTouched, setDiscountTouched] = useState(false)
@@ -1296,7 +1296,7 @@ export default function NewClient() {
       billingDocuments.some((doc) => doc.files.length > 0) &&
       (!centralisedPayment ||
         (billingState.trim().length > 0 && billingCity.trim().length > 0 && billingBranch.trim().length > 0)),
-    (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
+    pricingType !== '' && (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
     // KYC must actually be done — every listed document needs a file — before
     // this can leave "Client activation in progress" for Sales Admin's queue.
     // Remove a document row instead of leaving it empty if it doesn't apply.
@@ -1892,7 +1892,12 @@ export default function NewClient() {
 
           </div>
 
-          {pricingType === 'Custom' && regionMappingType === 'Custom' ? (
+          {pricingType === '' ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-8 text-center">
+              <p className="text-sm font-medium text-slate-500">Select a pricing type to continue.</p>
+              <p className="mt-1 text-xs text-slate-400">Standard uses the list rate; Custom applies a discount or the client's own regions.</p>
+            </div>
+          ) : pricingType === 'Custom' && regionMappingType === 'Custom' ? (
             customRegions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-10 text-center">
                 <p className="text-sm font-medium text-slate-500">No client regions defined yet.</p>
