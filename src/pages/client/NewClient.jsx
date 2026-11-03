@@ -487,13 +487,13 @@ function Stepper({ step, onJump }) {
 // pincode only drives City here, and its looked-up state is cross-checked
 // against the GSTIN's state to catch a mismatched/wrong-state address.
 // Dashed "click to upload" tile shared by the PAN and GSTIN document pickers.
-function UploadTile({ file, onFile, className = '' }) {
+function UploadTile({ file, onFile, text = 'Click to upload or drag a file', className = '' }) {
   return (
     <label
       className={`flex h-[38px] cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3.5 text-xs text-slate-500 transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30 ${className}`}
     >
       <Icon name="plus" className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{file ? file.name : 'Click to upload or drag a file'}</span>
+      <span className="truncate">{file ? file.name : text}</span>
       <input type="file" className="hidden" onChange={(e) => onFile(e.target.files[0] ?? null)} />
     </label>
   )
@@ -559,16 +559,8 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SelectField
-          label="State"
-          required
-          value={row.state}
-          onChange={(v) => onUpdate(row.id, 'state', v)}
-          options={INDIAN_STATES}
-          placeholder="Select state"
-          hint="Sets the GSTIN prefix"
-        />
+      <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-5">
+        <SelectField label="State" required value={row.state} onChange={(v) => onUpdate(row.id, 'state', v)} options={INDIAN_STATES} placeholder="Select state" />
         <label className="block sm:col-span-1 lg:col-span-2">
           <span className={LABEL}>
             GSTIN<span className="text-brand-orange-dark">*</span>
@@ -586,18 +578,17 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
               />
             </div>
           ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-400">Select a state to fill the GSTIN prefix</p>
+            <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-400">Select a state first</p>
           )}
         </label>
-        <div>
-          <span className={LABEL}>Upload document</span>
-          <UploadTile file={row.document} onFile={(f) => onUpdate(row.id, 'document', f)} />
+        <div className="lg:col-span-2">
+          <span className={LABEL}>
+            GST Certificate<span className="text-brand-orange-dark">*</span>
+          </span>
+          <UploadTile file={row.document} onFile={(f) => onUpdate(row.id, 'document', f)} text="Upload certificate" />
         </div>
-      </div>
 
-      <Field label="Registered address" required value={row.address} onChange={(e) => onUpdate(row.id, 'address', e.target.value)} placeholder="Building, street, area" />
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field className="sm:col-span-2" label="Registered address" required value={row.address} onChange={(e) => onUpdate(row.id, 'address', e.target.value)} placeholder="Building, street, area" />
         <Field
           label="Pincode"
           required
@@ -617,7 +608,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
                   : undefined
           }
         />
-        <Field label="City" required locked value={row.city} placeholder="City from pincode" />
+        <Field label="City" required locked value={row.city} placeholder="From pincode" />
         <Field label="Country" required locked value={row.country} />
       </div>
     </div>
@@ -1190,6 +1181,9 @@ export default function NewClient() {
     return () => clearTimeout(timer)
   }, [showSubmittedDialog])
 
+  // The GST certificate uploaded on GSTIN Info also satisfies KYC's GST Certificate row.
+  const gstDocument = identifications.find((r) => r.document)?.document ?? null
+
   // POC, Ops and Finance emails must all be different from each other.
   const opsDupe = sameEmail(opsEmail, pocEmail)
   const financeDupe = sameEmail(financeEmail, pocEmail) || sameEmail(financeEmail, opsEmail)
@@ -1226,7 +1220,8 @@ export default function NewClient() {
             row.pincode.trim().length > 0 &&
             row.city.trim().length > 0 &&
             row.state.trim().length > 0 &&
-            row.country.trim().length > 0,
+            row.country.trim().length > 0 &&
+            !!row.document,
         ))),
     contractStart.trim().length > 0 &&
       contractEnd.trim().length > 0 &&
@@ -1243,7 +1238,7 @@ export default function NewClient() {
     // KYC must actually be done — every listed document needs a file — before
     // this can leave "Client activation in progress" for Sales Admin's queue.
     // Remove a document row instead of leaving it empty if it doesn't apply.
-    documents.every((doc) => doc.file ?? (doc.type === 'PAN Card' ? panDocument : null)),
+    documents.every((doc) => doc.file ?? (doc.type === 'PAN Card' ? panDocument : doc.type === 'GST Certificate' ? gstDocument : null)),
   ][step]
 
   return (
@@ -2168,8 +2163,8 @@ export default function NewClient() {
           {documents.map((doc) => {
             // PAN was already captured (number on Company Info, file upload on
             // GSTIN Info) — reflect that instead of asking again.
-            const fromPan = doc.type === 'PAN Card' && !doc.file && panDocument
-            const effectiveFile = doc.file ?? (doc.type === 'PAN Card' ? panDocument : null)
+            const fromPan = !doc.file && ((doc.type === 'PAN Card' && panDocument) || (doc.type === 'GST Certificate' && gstDocument))
+            const effectiveFile = doc.file ?? (doc.type === 'PAN Card' ? panDocument : doc.type === 'GST Certificate' ? gstDocument : null)
             return (
             <div key={doc.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 sm:flex-row sm:items-end">
               <SelectField label="Document type" value={doc.type} onChange={(v) => updateDocument(doc.id, 'type', v)} options={DOCUMENT_TYPES} className="sm:w-56" />
