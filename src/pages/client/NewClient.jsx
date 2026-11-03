@@ -559,9 +559,9 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
         )}
       </div>
 
-      <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-5">
-        <SelectField label="State" required value={row.state} onChange={(v) => onUpdate(row.id, 'state', v)} options={INDIAN_STATES} placeholder="Select state" />
-        <label className="block sm:col-span-1 lg:col-span-2">
+      <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-6">
+        <SelectField className="lg:col-span-2" label="State" required value={row.state} onChange={(v) => onUpdate(row.id, 'state', v)} options={INDIAN_STATES} placeholder="Select state" />
+        <label className="block lg:col-span-2">
           <span className={LABEL}>
             GSTIN<span className="text-brand-orange-dark">*</span>
           </span>
@@ -572,7 +572,6 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
                 type="text"
                 value={gstinSuffix}
                 onChange={(e) => onUpdate(row.id, 'idNumber', gstinPrefix + e.target.value.toUpperCase().slice(0, 3))}
-                placeholder="1Z5"
                 maxLength={3}
                 className="w-16 min-w-0 rounded-xl bg-transparent py-2 pl-0.5 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
               />
@@ -580,15 +579,16 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
           ) : (
             <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-400">Select a state first</p>
           )}
+          {gstinPrefix && gstinSuffix.length < 3 && <p className="mt-1 text-[11px] text-slate-400">Enter the last 3 digits of the GSTIN</p>}
         </label>
         <div className="lg:col-span-2">
           <span className={LABEL}>
-            GST Certificate<span className="text-brand-orange-dark">*</span>
+            Upload GSTIN Document<span className="text-brand-orange-dark">*</span>
           </span>
-          <UploadTile file={row.document} onFile={(f) => onUpdate(row.id, 'document', f)} text="Upload certificate" />
+          <UploadTile file={row.document} onFile={(f) => onUpdate(row.id, 'document', f)} />
         </div>
 
-        <Field className="sm:col-span-2" label="Registered address" required value={row.address} onChange={(e) => onUpdate(row.id, 'address', e.target.value)} placeholder="Building, street, area" />
+        <Field className="sm:col-span-2 lg:col-span-3" label="Registered address" required value={row.address} onChange={(e) => onUpdate(row.id, 'address', e.target.value)} placeholder="Building, street, area" />
         <Field
           label="Pincode"
           required
