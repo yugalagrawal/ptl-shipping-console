@@ -2472,9 +2472,14 @@ export default function NewClient() {
 
       {showClientCreatedDialog && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-soft">
-            <h3 className="text-base font-semibold text-slate-900">Client Created Successfully</h3>
-            <p className="mt-2 text-sm text-slate-500">Add Pricing &amp; Do KYC to activate it.</p>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-soft">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Icon name="approve" className="h-5 w-5" />
+            </span>
+            <h3 className="mt-3 text-base font-semibold text-slate-900">
+              <span className="break-words">{tradeName.trim() || legalName.trim() || 'Client'}</span> created successfully
+            </h3>
+            <p className="mt-1.5 text-sm text-slate-500">Add pricing and complete KYC to activate it.</p>
             <button
               type="button"
               onClick={handleClientCreatedContinue}
