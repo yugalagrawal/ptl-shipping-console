@@ -47,14 +47,13 @@ function endForMonths(start, months) {
   return e
 }
 
-// Always whole months, rounded up: 100 days reads "4 months", 70 days "3 months".
+// Calendar months the range touches, minus one: 15 Nov – 15 Jan touches
+// Nov, Dec and Jan (3), so it reads "2 months".
 export function describeRange(start, end) {
   if (!start || !end) return ''
-  const next = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1)
-  let months = (next.getFullYear() - start.getFullYear()) * 12 + (next.getMonth() - start.getMonth())
-  if (next.getDate() < start.getDate()) months -= 1
-  if (next.getDate() !== start.getDate()) months += 1
-  months = Math.max(months, 1)
+  const touched = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+  const months = touched - 1
+  if (months < 1) return 'Under 1 month'
   return `${months} ${months === 1 ? 'month' : 'months'}`
 }
 
