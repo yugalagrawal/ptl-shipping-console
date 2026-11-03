@@ -486,8 +486,20 @@ function Stepper({ step, onJump }) {
 // (an authoritative fact of that registration), not from the pincode lookup —
 // pincode only drives City here, and its looked-up state is cross-checked
 // against the GSTIN's state to catch a mismatched/wrong-state address.
+// Dashed "click to upload" tile shared by the PAN and GSTIN document pickers.
+function UploadTile({ file, onFile, className = '' }) {
+  return (
+    <label
+      className={`flex h-[38px] cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3.5 text-xs text-slate-500 transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30 ${className}`}
+    >
+      <Icon name="plus" className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{file ? file.name : 'Click to upload or drag a file'}</span>
+      <input type="file" className="hidden" onChange={(e) => onFile(e.target.files[0] ?? null)} />
+    </label>
+  )
+}
+
 function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyPan }) {
-  const [cityTouched, setCityTouched] = useState(false)
   const [pincodeLookupStatus, setPincodeLookupStatus] = useState('idle')
   const [pincodeLookupResult, setPincodeLookupResult] = useState(null)
 
@@ -498,24 +510,21 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
   const gstinPrefix = gstinCode && companyPan ? `${gstinCode}${companyPan.trim().toUpperCase()}` : null
   const gstinSuffix = gstinPrefix && row.idNumber.startsWith(gstinPrefix) ? row.idNumber.slice(gstinPrefix.length) : ''
 
+  // City is never typed — the pincode alone fills it.
   useEffect(() => {
     if (!/^\d{6}$/.test(row.pincode)) {
       setPincodeLookupStatus('idle')
       setPincodeLookupResult(null)
+      if (row.city) onUpdate(row.id, 'city', '')
       return
     }
     let cancelled = false
     setPincodeLookupStatus('loading')
     lookupPincode(row.pincode).then((result) => {
       if (cancelled) return
-      if (result) {
-        if (!cityTouched) onUpdate(row.id, 'city', result.city)
-        setPincodeLookupStatus('found')
-        setPincodeLookupResult(result)
-      } else {
-        setPincodeLookupStatus('not-found')
-        setPincodeLookupResult(null)
-      }
+      onUpdate(row.id, 'city', result?.city ?? '')
+      setPincodeLookupStatus(result ? 'found' : 'not-found')
+      setPincodeLookupResult(result ?? null)
     })
     return () => {
       cancelled = true
@@ -528,7 +537,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
   return (
     <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">GSTIN {index + 1}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">GSTIN {index + 1}</span>
         {removable && (
           <button type="button" onClick={onRemove} className="text-xs font-medium text-rose-500 hover:underline">
             Remove
@@ -536,7 +545,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SelectField
           label="State"
           required
@@ -544,14 +553,14 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
           onChange={(v) => onUpdate(row.id, 'state', v)}
           options={INDIAN_STATES}
           placeholder="Select state"
-          hint="Determines the GSTIN prefix"
+          hint="Sets the GSTIN prefix"
         />
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-slate-500">
-            GSTIN<span className="text-brand-orange-dark"> *</span>
+        <label className="block sm:col-span-1 lg:col-span-2">
+          <span className={LABEL}>
+            GSTIN<span className="text-brand-orange-dark">*</span>
           </span>
           {gstinPrefix ? (
-            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50/60 pl-3 focus-within:bg-white focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white pl-3.5 transition-colors focus-within:border-brand-orange focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/20">
               <span className="shrink-0 text-sm font-medium tracking-wide text-slate-500">{gstinPrefix}</span>
               <input
                 type="text"
@@ -559,61 +568,43 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
                 onChange={(e) => onUpdate(row.id, 'idNumber', gstinPrefix + e.target.value.toUpperCase().slice(0, 3))}
                 placeholder="1Z5"
                 maxLength={3}
-                className="w-16 min-w-0 rounded-xl bg-transparent py-2.5 pl-0.5 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                className="w-16 min-w-0 rounded-xl bg-transparent py-2 pl-0.5 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
               />
             </div>
           ) : (
-            <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-xs text-slate-400">
-              Select a state above to auto-fill the GSTIN prefix
-            </p>
+            <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-400">Select a state to fill the GSTIN prefix</p>
           )}
         </label>
+        <div>
+          <span className={LABEL}>Upload document</span>
+          <UploadTile file={row.document} onFile={(f) => onUpdate(row.id, 'document', f)} />
+        </div>
       </div>
 
+      <Field label="Registered address" required value={row.address} onChange={(e) => onUpdate(row.id, 'address', e.target.value)} placeholder="Building, street, area" />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Registered address" required value={row.address} onChange={(e) => onUpdate(row.id, 'address', e.target.value)} />
         <Field
           label="Pincode"
           required
+          inputMode="numeric"
+          maxLength={6}
           value={row.pincode}
-          onChange={(e) => onUpdate(row.id, 'pincode', e.target.value)}
+          onChange={(e) => onUpdate(row.id, 'pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
           placeholder="410208"
+          error={stateMismatch || pincodeLookupStatus === 'not-found'}
           hint={
             pincodeLookupStatus === 'loading'
-              ? 'Looking up city…'
+              ? 'Looking up…'
               : pincodeLookupStatus === 'not-found'
-                ? 'Not recognized in this demo — enter city manually'
-                : undefined
+                ? 'Pincode not found'
+                : stateMismatch
+                  ? `This pincode is in ${pincodeLookupResult.state}, not ${row.state}`
+                  : undefined
           }
         />
-        <Field
-          label="City"
-          required
-          value={row.city}
-          onChange={(e) => {
-            onUpdate(row.id, 'city', e.target.value)
-            setCityTouched(true)
-          }}
-          placeholder="Mumbai"
-          error={stateMismatch}
-          hint={
-            stateMismatch
-              ? `This pincode is in ${pincodeLookupResult.state}, not ${row.state} — check the address.`
-              : pincodeLookupStatus === 'found'
-                ? 'Auto-filled — edit if needed'
-                : undefined
-          }
-        />
-        <SelectField label="Country" required value={row.country} onChange={(v) => onUpdate(row.id, 'country', v)} options={STATES_COUNTRY} />
-      </div>
-
-      <div>
-        <span className="mb-1.5 block text-xs font-medium text-slate-500">Upload document</span>
-        <label className="flex max-w-xs cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3.5 py-2.5 text-xs text-slate-500 transition-colors hover:border-brand-orange/40">
-          <Icon name="plus" className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{row.document ? row.document.name : 'Click to upload or drag a file'}</span>
-          <input type="file" className="hidden" onChange={(e) => onUpdate(row.id, 'document', e.target.files[0] ?? null)} />
-        </label>
+        <Field label="City" required locked value={row.city} placeholder="City from pincode" />
+        <Field label="Country" required locked value={row.country} />
       </div>
     </div>
   )
@@ -1505,37 +1496,28 @@ export default function NewClient() {
 
       {step === 2 && (
         <div className={`space-y-5 p-6 ${card}`}>
-          <div className="flex items-center justify-between -mx-6 -mt-6 border-b border-slate-100 px-6 py-4">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">GSTIN Info</h2>
-              <p className="mt-0.5 text-xs text-slate-400">A pan-India shipper often holds one GSTIN per state — add one row per registration.</p>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={noGstin} onChange={(e) => handleNoGstin(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+              Client does not have any GSTIN
+            </label>
             <button
               type="button"
               onClick={addIdentification}
               disabled={noGstin}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
+              className={`${btnSecondary} !px-3 !py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white`}
             >
               <Icon name="plus" className="h-3.5 w-3.5" />
               Add GSTIN
             </button>
           </div>
 
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
-            <input type="checkbox" checked={noGstin} onChange={(e) => handleNoGstin(e.target.checked)} />
-            Client does not have any GSTIN
-          </label>
-
-          <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/40 p-4 sm:grid-cols-3">
-            <Field label="PAN card number" value={pan} disabled readOnly />
-            <Field label="Legal entity name" value={legalName} disabled readOnly />
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="PAN card number" locked value={pan} />
+            <Field label="Legal entity name" locked value={legalName} />
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-slate-500">Upload document</span>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3.5 py-2.5 text-xs text-slate-500 transition-colors hover:border-brand-orange/40">
-                <Icon name="plus" className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{panDocument ? panDocument.name : 'Click to upload or drag a file'}</span>
-                <input type="file" className="hidden" onChange={(e) => setPanDocument(e.target.files[0] ?? null)} />
-              </label>
+              <span className={LABEL}>Upload document</span>
+              <UploadTile file={panDocument} onFile={setPanDocument} />
             </div>
           </div>
 
