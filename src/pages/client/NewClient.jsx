@@ -210,6 +210,12 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const TIER_LADDER = [
+  { name: 'Bronze', range: 'Below 100 tonne' },
+  { name: 'Silver', range: '100–999 tonne' },
+  { name: 'Gold', range: '1,000–9,999 tonne' },
+  { name: 'Platinum', range: '10,000+ tonne' },
+]
 const TIER_BADGE = {
   Platinum: 'bg-violet-50 text-violet-700',
   Gold: 'bg-amber-50 text-amber-700',
@@ -1797,96 +1803,82 @@ export default function NewClient() {
       )}
 
       {step === 4 && (
-        <div className={`space-y-5 p-6 ${card}`}>
-          <div className="-mx-6 -mt-6 border-b border-slate-100 px-6 py-4">
-            <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
-            <p className="mt-0.5 text-xs text-slate-400">Tier is fixed by declared volume — Standard uses the list rate, Custom applies a discount %.</p>
-          </div>
-
-          <div className="flex flex-wrap items-start gap-3">
-            <SelectField label="Pricing type" required value={pricingType} onChange={setPricingType} options={PRICING_TYPES} className="sm:max-w-xs" />
-            <div className="sm:w-40">
-              <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-500">
-                Tier
-                <span className="group relative inline-flex">
-                  <span tabIndex={0} className="cursor-help text-slate-300 outline-none hover:text-slate-500">
-                    <Icon name="info" className="h-3.5 w-3.5" />
-                  </span>
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-60 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-left normal-case opacity-0 shadow-soft transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                    <p className="text-[11px] font-semibold text-slate-700">Fixed by declared volume</p>
-                    <table className="mt-1.5 w-full text-[11px] text-slate-600">
-                      <thead>
-                        <tr className="text-slate-400">
-                          <th className="border-b border-slate-100 pb-1 text-left font-medium">Volume / month</th>
-                          <th className="border-b border-slate-100 pb-1 text-right font-medium">Tier</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td className="py-1">Below 100 tonne</td>
-                          <td className="py-1 text-right font-medium text-slate-700">Bronze</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">100–999 tonne</td>
-                          <td className="py-1 text-right font-medium text-slate-700">Silver</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">1,000–9,999 tonne</td>
-                          <td className="py-1 text-right font-medium text-slate-700">Gold</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1">10,000+ tonne</td>
-                          <td className="py-1 text-right font-medium text-slate-700">Platinum</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+        <div className="space-y-5">
+          <div className={`space-y-4 p-5 ${card}`}>
+            <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+              <div>
+                <span className={LABEL}>
+                  Pricing type<span className="text-brand-orange-dark">*</span>
                 </span>
-              </span>
-              <div className="rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5">
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[tier]}`}>{tier}</span>
+                <div className="flex w-fit rounded-xl bg-slate-100 p-1 text-sm">
+                  {PRICING_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setPricingType(t)}
+                      className={`rounded-lg px-5 py-1.5 font-medium transition-colors ${pricingType === t ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500'}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {pricingType === 'Custom' && (
+                <SelectField
+                  label="Region Definition"
+                  required
+                  value={regionMappingType}
+                  onChange={setRegionMappingType}
+                  options={REGION_MAPPING_TYPES}
+                  className="sm:w-44"
+                />
+              )}
+              {pricingType === 'Custom' && regionMappingType === 'Standard' && (
+                <Field
+                  label="Flat Discount on standard"
+                  required
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={discountPercent}
+                  onChange={(e) => {
+                    setDiscountPercent(e.target.value)
+                    setDiscountTouched(true)
+                  }}
+                  hint={`Suggested ${TIER_DISCOUNTS[tier] ?? 0}% for ${tier}`}
+                  className="sm:w-44"
+                />
+              )}
+              {pricingType === 'Custom' && regionMappingType === 'Custom' && (
+                <div>
+                  <span className="mb-1.5 block text-xs font-medium text-transparent select-none" aria-hidden="true">
+                    &nbsp;
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openRegionBuilder}
+                    className="whitespace-nowrap rounded-xl bg-brand-orange px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
+                  >
+                    {customRegions.length > 0 ? 'Edit Client Region & Pricing' : 'Define Client Region & Pricing'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <span className={LABEL}>Tier · set by declared monthly volume</span>
+              <div className="grid gap-2 sm:grid-cols-4">
+                {TIER_LADDER.map((t) => (
+                  <div
+                    key={t.name}
+                    className={`rounded-xl border px-3 py-2 ${t.name === tier ? 'border-brand-orange/50 bg-brand-orange/5' : 'border-slate-200/80 bg-slate-50/40 opacity-70'}`}
+                  >
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[t.name]}`}>{t.name}</span>
+                    <div className="mt-1 text-xs text-slate-500">{t.range}</div>
+                  </div>
+                ))}
               </div>
             </div>
-            {pricingType === 'Custom' && (
-              <SelectField
-                label="Region Definition"
-                required
-                value={regionMappingType}
-                onChange={setRegionMappingType}
-                options={REGION_MAPPING_TYPES}
-                className="sm:w-40"
-              />
-            )}
-            {pricingType === 'Custom' && regionMappingType === 'Standard' && (
-              <Field
-                label="Flat Discount on standard"
-                required
-                type="number"
-                min="0"
-                max="100"
-                value={discountPercent}
-                onChange={(e) => {
-                  setDiscountPercent(e.target.value)
-                  setDiscountTouched(true)
-                }}
-                hint={`Suggested ${TIER_DISCOUNTS[tier] ?? 0}% for ${tier}`}
-                className="sm:w-40"
-              />
-            )}
-            {pricingType === 'Custom' && regionMappingType === 'Custom' && (
-              <div>
-                <span className="mb-1.5 block text-xs font-medium text-transparent select-none" aria-hidden="true">
-                  &nbsp;
-                </span>
-                <button
-                  type="button"
-                  onClick={openRegionBuilder}
-                  className="whitespace-nowrap rounded-xl bg-brand-orange px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
-                >
-                  {customRegions.length > 0 ? 'Edit Client Region & Pricing' : 'Define Client Region & Pricing'}
-                </button>
-              </div>
-            )}
           </div>
 
           {pricingType === 'Custom' && regionMappingType === 'Custom' ? (
@@ -2042,10 +2034,13 @@ export default function NewClient() {
           </div>
           )}
 
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
-            <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} />
-            No ODA for this client
-          </label>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <span className="text-sm font-semibold text-slate-800">ODA list</span>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
+              <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+              No ODA for this client
+            </label>
+          </div>
 
           {!noOda && (
             <OdaListManager
@@ -2059,20 +2054,18 @@ export default function NewClient() {
             />
           )}
 
-          <label className="flex items-center gap-1.5 text-xs text-slate-500">
-            <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} />
-            No additional charges for this client
-          </label>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <span className="text-sm font-semibold text-slate-800">
+              Additional charges{!noAdditionalCharges && <span className="text-brand-orange-dark">*</span>}
+            </span>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
+              <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+              No additional charges for this client
+            </label>
+          </div>
 
           {!noAdditionalCharges && (
           <div className="rounded-xl border border-slate-200">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
-              <span className="text-xs font-medium text-slate-500">
-                Additional Charges
-                <span className="text-brand-orange-dark"> *</span>
-              </span>
-            </div>
-
               <div className="space-y-4 p-4">
                 {selectedCharges.length === 0 && <p className="text-xs text-slate-400">No charges selected yet.</p>}
 
@@ -2129,8 +2122,7 @@ export default function NewClient() {
                 )}
               </div>
             <p className="border-t border-slate-100 px-4 py-1.5 text-[11px] text-slate-400">
-              Selecting a charge pulls its default rule and value from the Additional Charges master (Client Pricing Configuration) — switch the rule or edit
-              the value here for this client only.
+              Defaults come from the charges master — changes here apply to this client only.
             </p>
           </div>
           )}
