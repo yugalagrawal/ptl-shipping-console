@@ -50,7 +50,7 @@ const CLIENT_CFT_TO_KG = {
   nykaa: { Surface: 6, Air: 8 },
   lenskart: { Surface: 7, Air: 10 },
 }
-export const CFT_TO_KG_DEFAULT = 6 // 1 CFT = 6 kg
+export const CFT_TO_KG_DEFAULT = 5.5 // 1 CFT = 5.5 kg (safe factor)
 
 export function cftToKgFor(clientId, mode) {
   const f = CLIENT_CFT_TO_KG[clientId]
