@@ -179,7 +179,7 @@ function RoleNote({ canSales, canFinance }) {
   if (!canSales && !canFinance) return null
   const text =
     canSales && canFinance
-      ? 'Your approvals send to Finance, then activate.'
+      ? 'You review both — approval activates the client.'
       : canSales
         ? 'Your approval sends it to Finance.'
         : 'Your approval activates the client.'
