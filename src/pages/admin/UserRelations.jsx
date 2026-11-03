@@ -165,6 +165,20 @@ function PartnerOrgPicker({ value, catalog, onSelect }) {
   )
 }
 
+const FunnelIcon = ({ className = '' }) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden="true">
+    <path d="M1.5 2.5h13a.5.5 0 0 1 .38.82L10 9v4.2a.5.5 0 0 1-.72.45l-2.5-1.25A.5.5 0 0 1 6.5 12V9L1.12 3.32A.5.5 0 0 1 1.5 2.5Z" />
+  </svg>
+)
+
+// Two arrows (up + down); the active direction is solid, the other faded.
+const SortIcon = ({ dir, className = '' }) => (
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <g opacity={dir === 'desc' ? 0.3 : 1}><path d="M5 13V3M2.5 5.5 5 3l2.5 2.5" /></g>
+    <g opacity={dir === 'asc' ? 0.3 : 1}><path d="M11 3v10M8.5 10.5 11 13l2.5-2.5" /></g>
+  </svg>
+)
+
 // Header filter: search + multi-select checkboxes in a popover. Empty
 // selection = no filter. `options` is a list of strings.
 function ColumnFilter({ label, options, selected, onChange }) {
@@ -181,7 +195,7 @@ function ColumnFilter({ label, options, selected, onChange }) {
       >
         {label}
         {active && <span className="rounded-full bg-orange-100 px-1.5 text-[10px] normal-case tracking-normal">{selected.length}</span>}
-        <Icon name="chevron" className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <FunnelIcon className={`h-3 w-3 ${active ? 'text-brand-orange' : ''}`} />
       </button>
       {open && (
         <>
@@ -532,7 +546,7 @@ export default function UserRelations() {
                       title="Sort by name"
                     >
                       Team member
-                      <span className="text-[11px] leading-none">{sortDir === 'asc' ? '↑' : sortDir === 'desc' ? '↓' : '↕'}</span>
+                      <SortIcon dir={sortDir} className="h-3.5 w-3.5" />
                     </button>
                   </th>
                   <th className={`${thCls} !px-3`}>Phone</th>
