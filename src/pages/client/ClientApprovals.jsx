@@ -179,21 +179,21 @@ function RoleNote({ canSales, canFinance }) {
   if (!canSales && !canFinance) return null
   const text =
     canSales && canFinance
-      ? 'Your approvals send clients to Finance, then activate them.'
+      ? 'Your approvals send to Finance, then activate.'
       : canSales
-        ? 'Your approval sends the client to Finance.'
+        ? 'Your approval sends it to Finance.'
         : 'Your approval activates the client.'
   const mine = [canSales, canFinance, false]
   return (
-    <div className="absolute right-0 top-0 hidden w-[300px] rounded-2xl bg-white px-4 py-2.5 shadow-soft ring-1 ring-slate-200/70 xl:block">
-      <p className="text-xs font-medium text-slate-700">{text}</p>
-      <div className="mt-2.5 flex items-center gap-1">
+    <div className="absolute right-0 top-0 hidden w-[290px] rounded-xl bg-white px-3.5 py-2 shadow-soft ring-1 ring-slate-200/70 md:block">
+      <p className="whitespace-nowrap text-[11px] font-medium text-slate-700">{text}</p>
+      <div className="mt-1.5 flex items-center gap-0.5">
         {FLOW_STEPS.map((step, i) => {
           const isActive = i === 2 && canFinance
           return (
             <span key={step} className="flex items-center gap-1">
               <span
-                className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${
+                className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-medium ${
                   mine[i]
                     ? 'bg-brand-orange/10 text-brand-orange-dark ring-1 ring-brand-orange/30'
                     : isActive
