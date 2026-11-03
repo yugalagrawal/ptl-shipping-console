@@ -343,7 +343,7 @@ function Toggle({ label, checked, onChange, disabled }) {
   )
 }
 
-function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, suggestions, renderSuggestion, onSelectSuggestion, placeholder, hint, error, disabled, className = '' }) {
+function Typeahead({ code, label, required, labelInfo, boldLabel, value, onChange, suggestions, renderSuggestion, onSelectSuggestion, placeholder, hint, error, disabled, className = '' }) {
   const [open, setOpen] = useState(false)
   const tokens = value.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const filtered = tokens.length ? suggestions.filter((s) => { const label = s.label.toLowerCase(); return tokens.some((t) => label.includes(t)) }) : suggestions
@@ -355,6 +355,7 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
         {required && <span className="text-brand-orange-dark">*</span>}
         {labelInfo && <InfoTip text={labelInfo} />}
       </span>
+      <div className="relative">
       <input
         type="text"
         value={value}
@@ -363,8 +364,14 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         placeholder={placeholder}
-        className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK}`}
+        className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK} ${code ? 'pr-28' : ''}`}
       />
+        {code && (
+          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-slate-500">
+            {code}
+          </span>
+        )}
+      </div>
       {open && filtered.length > 0 && (
         <div className="absolute z-20 mt-1.5 max-h-52 w-full overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
           {filtered.map((s) => (
@@ -616,6 +623,19 @@ export default function NewClient() {
     () => LEGAL_ENTITY_SUGGESTIONS.find((s) => s.label.trim().toLowerCase() === legalName.trim().toLowerCase()) ?? null,
     [legalName],
   )
+  // Production shows a code chip inside the Customer group / Legal entity
+  // fields (CG000008 / CL000014). Existing records use their own serial; a new
+  // one shows the next serial it will get on creation.
+  const groupCode = useMemo(() => {
+    if (!groupName.trim()) return ''
+    const n = effectiveGroupId ? parseInt(effectiveGroupId.replace(/\D/g, ''), 10) : GROUP_SUGGESTIONS.length + 1
+    return `CG${String(n).padStart(6, '0')}`
+  }, [groupName, effectiveGroupId])
+  const legalCode = useMemo(() => {
+    if (!legalName.trim()) return ''
+    const idx = LEGAL_ENTITY_SUGGESTIONS.findIndex((x) => x.label.trim().toLowerCase() === legalName.trim().toLowerCase())
+    return `CL${String((idx >= 0 ? idx : LEGAL_ENTITY_SUGGESTIONS.length) + 1).padStart(6, '0')}`
+  }, [legalName])
   const organisationType = useMemo(() => organisationTypeFromPan(pan), [pan])
   const customerCode = useMemo(
     () => deriveCustomerCode({ groupName, legalName, paymentType }),
@@ -1192,6 +1212,7 @@ export default function NewClient() {
         <Section>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3 lg:col-span-4">
           <Typeahead
+            code={groupCode}
             label="Customer group"
             required
             value={groupName}
@@ -1207,9 +1228,10 @@ export default function NewClient() {
               setLegalName('')
             }}
             placeholder="Search or type a new group name"
-            hint={groupId ? undefined : groupName.trim() ? 'New group — will be created' : 'Fill this first to unlock the form'}
+            hint={effectiveGroupId ? undefined : groupName.trim() ? 'New group — will be created' : 'Fill this first to unlock the form'}
           />
           <Typeahead
+            code={legalCode}
             label="Legal entity name"
             required
             disabled={!groupFilled}
