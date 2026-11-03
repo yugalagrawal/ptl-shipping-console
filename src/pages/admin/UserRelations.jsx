@@ -214,6 +214,76 @@ function PartnerOrgPicker({ value, catalog, onSelect }) {
   )
 }
 
+// Searchable single-select over team members. `value` is the manager's email
+// ('' = no manager). `options` is a list of LT users to choose from.
+function ManagerPicker({ value, options, onChange, className = '', width = 'w-full' }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const picked = options.find((m) => m.email === value) ?? null
+  const needle = q.trim().toLowerCase()
+  const shown = options.filter((m) => !needle || m.name.toLowerCase().includes(needle) || m.email.toLowerCase().includes(needle))
+  const noneShown = !needle || 'no manager'.includes(needle)
+
+  function pick(email) {
+    onChange(email)
+    setOpen(false)
+    setQ('')
+  }
+
+  return (
+    <div className={`relative ${width} ${className}`}>
+      <button
+        type="button"
+        onClick={() => { setOpen((o) => !o); setQ('') }}
+        className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20"
+      >
+        <span className={`truncate ${picked ? 'text-slate-800' : 'text-slate-500'}`}>{picked ? picked.name : 'No manager'}</span>
+        <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1.5 w-full min-w-[280px] overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+            <div className="px-1.5 pb-1.5 pt-0.5">
+              <input
+                autoFocus
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search name or email…"
+                className="w-full rounded-lg bg-slate-50/70 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/30"
+              />
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {noneShown && (
+                <button
+                  type="button"
+                  onClick={() => pick('')}
+                  className={`flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm text-slate-600 transition-colors hover:bg-slate-50 ${value === '' ? 'bg-orange-50/60' : ''}`}
+                >
+                  No manager
+                </button>
+              )}
+              {shown.map((m) => (
+                <button
+                  key={m.email}
+                  type="button"
+                  onClick={() => pick(m.email)}
+                  className={`flex w-full flex-col items-start rounded-xl px-3 py-2 text-left transition-colors hover:bg-slate-50 ${value === m.email ? 'bg-orange-50/60' : ''}`}
+                >
+                  <span className="text-sm font-medium text-slate-800">{m.name}</span>
+                  <span className="text-xs text-slate-400">{m.email}</span>
+                </button>
+              ))}
+              {!noneShown && !shown.length && <p className="px-3 py-4 text-center text-sm text-slate-400">No matching team member.</p>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 const FunnelIcon = ({ className = '' }) => (
   <svg viewBox="0 0 16 16" fill="currentColor" className={className} aria-hidden="true">
     <path d="M1.5 2.5h13a.5.5 0 0 1 .38.82L10 9v4.2a.5.5 0 0 1-.72.45l-2.5-1.25A.5.5 0 0 1 6.5 12V9L1.12 3.32A.5.5 0 0 1 1.5 2.5Z" />
@@ -518,20 +588,12 @@ export default function UserRelations() {
                 </div>
 <div>
                   <label className="flex h-5 items-center gap-1.5 text-xs font-medium text-slate-600">Manager</label>
-                  <div className="relative">
-                    <select
+                  <div className="mt-1">
+                    <ManagerPicker
                       value={newUser.managerEmail}
-                      onChange={(e) => setNewUser((u) => ({ ...u, managerEmail: e.target.value }))}
-                      className="mt-1 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3.5 py-2 pr-9 text-sm text-slate-800 focus:border-brand-orange focus:outline focus:outline-2 focus:outline-brand-orange/20"
-                    >
-                      <option value="">No manager</option>
-                      {users.map((m) => (
-                        <option key={m.email} value={m.email}>
-                          {m.name} · {m.email}
-                        </option>
-                      ))}
-                    </select>
-                    <Icon name="chevron" className="pointer-events-none absolute right-3.5 top-[calc(50%+2px)] h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                      options={users}
+                      onChange={(email) => setNewUser((u) => ({ ...u, managerEmail: email }))}
+                    />
                   </div>
                 </div>
             </div>
@@ -684,20 +746,13 @@ export default function UserRelations() {
                             <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
                               <div>
                                 <label className="text-xs font-medium text-slate-500">Manager</label>
-                                <select
-                                  value={draftManager}
-                                  onChange={(e) => setDraftManager(e.target.value)}
-                                  className="mt-1 block min-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                                >
-                                  <option value="">No manager</option>
-                                  {users
-                                    .filter((m) => m.email !== u.email && !isReportOf(users, m.email, u.email))
-                                    .map((m) => (
-                                      <option key={m.email} value={m.email}>
-                                        {m.name} · {m.email}
-                                      </option>
-                                    ))}
-                                </select>
+                                <div className="mt-1 min-w-[260px]">
+                                  <ManagerPicker
+                                    value={draftManager}
+                                    options={users.filter((m) => m.email !== u.email && !isReportOf(users, m.email, u.email))}
+                                    onChange={setDraftManager}
+                                  />
+                                </div>
                               </div>
                               <div>
                                 <label className="text-xs font-medium text-slate-500">Product tags</label>
