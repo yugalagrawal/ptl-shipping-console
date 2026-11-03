@@ -132,11 +132,8 @@ function OrgRow({ name, email, type, selected, onPick }) {
     <button
       type="button"
       onClick={onPick}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-slate-50 ${selected ? 'bg-orange-50/60' : ''}`}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-50 ${selected ? 'bg-orange-50/60' : ''}`}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500">
-        {name.slice(0, 2).toUpperCase()}
-      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-slate-800">{name}</span>
         {email && <span className="block truncate text-xs text-slate-400">{email}</span>}
@@ -205,15 +202,8 @@ function PartnerOrgPicker({ value, catalog, onSelect }) {
               {internalShown && (
                 <OrgRow name="LetsTransport Internal" email="" type="Internal" selected={value === ''} onPick={() => pick('')} />
               )}
-              {groups.map((g) => (
-                <div key={g.type}>
-                  <div className="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    {g.type === 'Partner' ? 'Partners' : 'Clients'}
-                  </div>
-                  {g.orgs.map((org) => (
-                    <OrgRow key={org.email} {...org} selected={value === org.email} onPick={() => pick(org.email)} />
-                  ))}
-                </div>
+              {groups.flatMap((g) => g.orgs).map((org) => (
+                <OrgRow key={org.email} {...org} selected={value === org.email} onPick={() => pick(org.email)} />
               ))}
               {!internalShown && !groups.length && <p className="px-3 py-4 text-center text-sm text-slate-400">No matching organization.</p>}
             </div>
