@@ -1631,7 +1631,7 @@ export default function NewClient() {
             <SelectField label="Billing period" required value={billingPeriod} onChange={setBillingPeriod} options={BILLING_PERIODS} />
 
             <DefaultFlagSelect label="Bill print format" required value={billPrintFormat} onChange={setBillPrintFormat} options={BILL_PRINT_FORMATS} defaultValue={DEFAULT_BILL_PRINT_FORMAT} />
-            <Field label="Maximum credit limit (₹)" required type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="500000" hint="No orders beyond limit" />
+            <Field label="Maximum credit limit (₹)" required type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="500000" hint="No orders beyond limit until paid" />
             <label className="block sm:col-span-2">
               <span className={LABEL}>
                 Monthly Vol. Expectation
