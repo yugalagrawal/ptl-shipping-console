@@ -2426,7 +2426,7 @@ export default function NewClient() {
             </span>
             <h3 className="mt-3 text-base font-semibold text-slate-900">Submit for approval?</h3>
             <p className="mt-1.5 text-sm text-slate-500">
-              <span className="font-medium text-slate-700">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'This client'}</span> will go to Client Approvals and cannot be edited after submitting.
+              <span className="font-medium text-slate-700">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'This client'}</span> will be submitted for approval and cannot be edited further. Are you sure?
             </p>
             <div className="mt-5 flex gap-3">
               <button type="button" onClick={() => setShowSubmitConfirm(false)} className={`${btnSecondary} flex-1 justify-center`}>
