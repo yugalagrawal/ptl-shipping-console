@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
 import { btnPrimary, btnSecondary } from '../../components/ui.js'
@@ -499,7 +499,13 @@ function UploadTile({ file, onFile, className = '' }) {
   )
 }
 
-function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyPan }) {
+function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyPan, highlight }) {
+  const rowRef = useRef(null)
+  useEffect(() => {
+    if (!highlight) return
+    rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    rowRef.current?.querySelector('select')?.focus({ preventScroll: true })
+  }, [highlight])
   const [pincodeLookupStatus, setPincodeLookupStatus] = useState('idle')
   const [pincodeLookupResult, setPincodeLookupResult] = useState(null)
 
@@ -535,9 +541,17 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
   const stateMismatch = Boolean(pincodeLookupResult && row.state && pincodeLookupResult.state !== row.state)
 
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4">
+    <div
+      ref={rowRef}
+      className={`space-y-4 rounded-2xl border p-4 transition-all duration-500 ${
+        highlight ? 'border-brand-orange/60 bg-orange-50/50 ring-4 ring-brand-orange/15' : 'border-slate-200/80 bg-slate-50/30'
+      }`}
+    >
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">GSTIN {index + 1}</span>
+        <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          GSTIN {index + 1}
+          {highlight && <span className="rounded-full bg-brand-orange px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal text-white">Added</span>}
+        </span>
         {removable && (
           <button type="button" onClick={onRemove} className="text-xs font-medium text-rose-500 hover:underline">
             Remove
@@ -1032,11 +1046,17 @@ export default function NewClient() {
     if (checked) setSelectedCharges([])
   }
 
+  // The row just added is scrolled into view and briefly highlighted, so it is
+  // obvious that "Add another GSTIN" did something.
+  const [justAddedId, setJustAddedId] = useState(null)
   function addIdentification() {
+    const id = idRowSeq++
     setIdentifications((rows) => [
       ...rows,
-      { id: idRowSeq++, idNumber: '', country: 'India', address: '', pincode: '', city: '', state: '', document: null },
+      { id, idNumber: '', country: 'India', address: '', pincode: '', city: '', state: '', document: null },
     ])
+    setJustAddedId(id)
+    setTimeout(() => setJustAddedId((cur) => (cur === id ? null : cur)), 2200)
   }
   function updateIdentification(id, field, value) {
     setIdentifications((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
@@ -1509,7 +1529,7 @@ export default function NewClient() {
               className={`${btnSecondary} !px-3 !py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white`}
             >
               <Icon name="plus" className="h-3.5 w-3.5" />
-              Add GSTIN
+              Add another GSTIN
             </button>
           </div>
 
@@ -1534,6 +1554,7 @@ export default function NewClient() {
                 onRemove={() => removeIdentification(row.id)}
                 removable={i > 0}
                 companyPan={pan}
+                highlight={row.id === justAddedId}
               />
             ))}
         </div>
