@@ -1624,7 +1624,8 @@ export default function NewClient() {
             <DatePicker
               label="Contract Submission Date"
               required
-              labelInfo="The Date when contract was finalized/logged."
+              labelInfoTitle="Contract Submission Date"
+              labelInfo="The day this contract was finalised and logged in FLOW. It is not the contract start date — that is set in Contract duration."
               value={contractExecutionDate}
               onChange={setContractExecutionDate}
             />

@@ -4,7 +4,7 @@ import { Calendar, viewOf, parse, toIso, fmt, startOfToday } from './DateRangePi
 
 // Single-date picker built on the same calendar as DateRangePicker: month and
 // year selectors, today ringed, one click on a day applies it and closes.
-export default function DatePicker({ label, required, labelInfo, value, onChange, placeholder = 'Select date', className = '' }) {
+export default function DatePicker({ label, required, labelInfo, labelInfoTitle, value, onChange, placeholder = 'Select date', className = '' }) {
   const [open, setOpen] = useState(false)
   const selected = parse(value)
   const [view, setView] = useState(() => viewOf(selected ?? startOfToday()))
@@ -31,7 +31,7 @@ export default function DatePicker({ label, required, labelInfo, value, onChange
       <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-600">
         {label}
         {required && <span className="text-brand-orange-dark">*</span>}
-        {labelInfo && <InfoTip text={labelInfo} />}
+        {labelInfo && <InfoTip title={labelInfoTitle} text={labelInfo} />}
       </span>
       <button
         type="button"
