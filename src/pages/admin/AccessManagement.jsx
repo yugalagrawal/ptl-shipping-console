@@ -1039,24 +1039,24 @@ export default function AccessManagement() {
             </div>
           </section>
 
-          <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-5 py-3 text-white shadow-lg">
-            <span className="text-sm text-slate-300">
-              {isDirty ? <>Unsaved changes for <span className="font-medium text-white">{selectedUser.name}</span></> : 'No changes yet'}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleRevert}
-                disabled={!isDirty}
-                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Revert
-              </button>
-              <button type="button" onClick={handleSave} disabled={!isDirty} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
-                Save permissions
-              </button>
+          {isDirty && (
+            <div className="pointer-events-none sticky bottom-5 z-10 flex justify-center">
+              <div className="pointer-events-auto flex items-center gap-4 rounded-full bg-white py-2 pl-5 pr-2 shadow-lg ring-1 ring-slate-200">
+                <span className="flex items-center gap-2 text-sm text-slate-600">
+                  <span className="h-2 w-2 rounded-full bg-brand-orange" />
+                  Unsaved changes
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={handleRevert} className="rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800">
+                    Revert
+                  </button>
+                  <button type="button" onClick={handleSave} className="rounded-full bg-brand-orange px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-orange-dark">
+                    Save permissions
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
