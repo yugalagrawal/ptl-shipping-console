@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
 
-// Date-range picker: one-click presets + a two-month calendar. Click a start day,
-// then an end day (the range previews while you hover). Values are ISO strings
-// ("2026-11-01"), the same shape the form already stores.
+// Date-range picker. Two independent calendars — the LEFT one picks the start
+// date, the RIGHT one picks the end date — each with its own arrows and
+// month/year selectors, so a far-away end date never means stepping month by
+// month. Shortcuts (6 months … 3 years) sit under "End date". Values are ISO
+// strings ("2026-11-01"), the same shape the form already stores.
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3))
@@ -24,6 +26,7 @@ const parse = (iso) => {
 }
 const sameDay = (a, b) => !!a && !!b && a.getTime() === b.getTime()
 const fmt = (d) => `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
+const monthIndex = (d) => d.getFullYear() * 12 + d.getMonth()
 const startOfToday = () => {
   const t = new Date()
   return new Date(t.getFullYear(), t.getMonth(), t.getDate())
@@ -66,14 +69,43 @@ function monthCells(year, month) {
   return cells
 }
 
-function Month({ year, month, start, end, hover, onPick, onHover }) {
+const selectCls =
+  'cursor-pointer appearance-none rounded-md bg-transparent px-1 py-0.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none'
+
+function Calendar({ view, onView, start, end, rangeEnd, minDate, locked, onPick, onHover }) {
   const today = startOfToday()
-  const previewEnd = start && !end && hover && hover > start ? hover : null
-  const rangeEnd = end ?? previewEnd
+  const thisYear = today.getFullYear()
+  const years = []
+  for (let y = Math.min(thisYear - 2, view.year); y <= Math.max(thisYear + 10, view.year); y++) years.push(y)
+  const step = (delta) => {
+    const d = new Date(view.year, view.month + delta, 1)
+    onView({ year: d.getFullYear(), month: d.getMonth() })
+  }
   return (
-    <div className="w-[17rem]">
-      <div className="mb-2 text-center text-sm font-semibold text-slate-800">
-        {MONTHS[month]} {year}
+    <div className={`w-[17rem] ${locked ? 'opacity-60' : ''}`}>
+      <div className="mb-2 flex items-center justify-between">
+        <button type="button" onClick={() => step(-1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+          <Icon name="chevron" className="h-4 w-4 rotate-90" />
+        </button>
+        <div className="flex items-center">
+          <select aria-label="Month" value={view.month} onChange={(e) => onView({ ...view, month: Number(e.target.value) })} className={selectCls}>
+            {MONTHS.map((m, i) => (
+              <option key={m} value={i}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Year" value={view.year} onChange={(e) => onView({ ...view, year: Number(e.target.value) })} className={selectCls}>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="button" onClick={() => step(1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
+          <Icon name="chevron" className="h-4 w-4 -rotate-90" />
+        </button>
       </div>
       <div className="grid grid-cols-7 text-center text-[11px] font-medium text-slate-400">
         {WEEKDAYS.map((w) => (
@@ -82,11 +114,12 @@ function Month({ year, month, start, end, hover, onPick, onHover }) {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7" onMouseLeave={() => onHover(null)}>
-        {monthCells(year, month).map((d, i) => {
+      <div className="grid grid-cols-7" onMouseLeave={() => onHover?.(null)}>
+        {monthCells(view.year, view.month).map((d, i) => {
           if (!d) return <div key={`b${i}`} />
+          const blocked = locked || (minDate && d < minDate)
           const isStart = sameDay(d, start)
-          const isEnd = sameDay(d, end) || (!end && sameDay(d, previewEnd))
+          const isEnd = sameDay(d, rangeEnd) || sameDay(d, end)
           const inRange = start && rangeEnd && d > start && d < rangeEnd
           const edge = isStart || isEnd
           const band = inRange || (isStart && rangeEnd) || (isEnd && start)
@@ -97,14 +130,17 @@ function Month({ year, month, start, end, hover, onPick, onHover }) {
             >
               <button
                 type="button"
+                disabled={blocked}
                 onClick={() => onPick(d)}
-                onMouseEnter={() => onHover(d)}
+                onMouseEnter={() => onHover?.(d)}
                 className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs transition-colors ${
                   edge
                     ? 'bg-brand-orange font-semibold text-white'
-                    : sameDay(d, today)
-                      ? 'font-semibold text-brand-orange-dark ring-1 ring-brand-orange/40 hover:bg-orange-100'
-                      : 'text-slate-700 hover:bg-slate-100'
+                    : blocked
+                      ? 'cursor-not-allowed text-slate-300'
+                      : sameDay(d, today)
+                        ? 'font-semibold text-brand-orange-dark ring-1 ring-brand-orange/40 hover:bg-orange-100'
+                        : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 {d.getDate()}
@@ -117,23 +153,24 @@ function Month({ year, month, start, end, hover, onPick, onHover }) {
   )
 }
 
+const viewOf = (d) => ({ year: d.getFullYear(), month: d.getMonth() })
+
 export default function DateRangePicker({ label, required, start, end, onChange, placeholder = 'Select date range', className = '' }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState({ start: null, end: null })
   const [hover, setHover] = useState(null)
-  const [presetHover, setPresetHover] = useState(null) // months of the shortcut being hovered, for the footer preview
-  const [view, setView] = useState(() => {
-    const base = parse(start) ?? startOfToday()
-    return { year: base.getFullYear(), month: base.getMonth() }
-  })
+  const [presetHover, setPresetHover] = useState(null) // months of the shortcut being hovered
+  const [startView, setStartView] = useState(() => viewOf(parse(start) ?? startOfToday()))
+  const [endView, setEndView] = useState(() => viewOf(parse(end) ?? addMonths(parse(start) ?? startOfToday(), 1)))
 
   const committedStart = parse(start)
   const committedEnd = parse(end)
 
   function openPicker() {
     setDraft({ start: committedStart, end: committedEnd })
-    const base = committedStart ?? startOfToday()
-    setView({ year: base.getFullYear(), month: base.getMonth() })
+    const s = committedStart ?? startOfToday()
+    setStartView(viewOf(s))
+    setEndView(viewOf(committedEnd ?? addMonths(s, 1)))
     setHover(null)
     setOpen(true)
   }
@@ -145,29 +182,29 @@ export default function DateRangePicker({ label, required, start, end, onChange,
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  function pick(d) {
-    setDraft((cur) => {
-      if (!cur.start || cur.end) return { start: d, end: null }
-      return d < cur.start ? { start: d, end: cur.start } : { start: cur.start, end: d }
-    })
+  // Left calendar: sets the start. An end date that would now fall before it is
+  // dropped, and the end calendar jumps forward so it is never stuck in the past.
+  function pickStart(d) {
+    setDraft((cur) => ({ start: d, end: cur.end && cur.end >= d ? cur.end : null }))
+    setEndView((v) => (v.year * 12 + v.month < monthIndex(d) ? viewOf(d) : v))
   }
 
-  // "End after N months" shortcut — only offered once a start date is picked.
+  // Right calendar: sets the end (days before the start are not selectable).
+  function pickEnd(d) {
+    setDraft((cur) => (cur.start ? { start: cur.start, end: d } : cur))
+  }
+
   function applyPreset(months) {
     if (!draft.start) return
     onChange({ start: toIso(draft.start), end: toIso(endForMonths(draft.start, months)) })
     setOpen(false)
   }
 
-  function shift(delta) {
-    const d = new Date(view.year, view.month + delta, 1)
-    setView({ year: d.getFullYear(), month: d.getMonth() })
-  }
-
-  const second = new Date(view.year, view.month + 1, 1)
   const ready = draft.start && draft.end
   const presetEnd = presetHover && draft.start ? endForMonths(draft.start, presetHover) : null
   const length = describeRange(committedStart, committedEnd)
+  // The calendars preview the range while you hover a day (or a shortcut).
+  const previewEnd = draft.end ?? presetEnd ?? (draft.start && hover && hover > draft.start ? hover : null)
 
   return (
     <div className={`relative ${className}`}>
@@ -195,60 +232,60 @@ export default function DateRangePicker({ label, required, start, end, onChange,
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute left-0 z-20 mt-2 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-200">
             <div className="p-4">
-              <div className="grid gap-x-6 gap-y-3 sm:grid-cols-[17rem_17rem]">
+              <div className="flex flex-col gap-5 sm:flex-row sm:gap-6">
+                {/* START — left calendar */}
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Start date</div>
-                  <div className={`mt-0.5 text-sm font-semibold ${draft.start ? 'text-slate-900' : 'text-slate-400'}`}>
-                    {draft.start ? fmt(draft.start) : 'Pick a start date'}
+                  <div className="mb-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Start date</div>
+                    <div className={`mt-0.5 text-sm font-semibold ${draft.start ? 'text-slate-900' : 'text-slate-400'}`}>
+                      {draft.start ? fmt(draft.start) : 'Pick a start date'}
+                    </div>
                   </div>
+                  <Calendar view={startView} onView={setStartView} start={draft.start} end={null} rangeEnd={draft.start ? previewEnd : null} onPick={pickStart} />
                 </div>
+
+                {/* END — right calendar + shortcuts */}
                 <div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">End date</div>
-                    {draft.start && (presetEnd || draft.end) && (
-                      <span className="text-[11px] text-slate-400">{describeRange(draft.start, presetEnd ?? draft.end)}</span>
-                    )}
+                  <div className="mb-3">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">End date</div>
+                      {draft.start && (presetEnd || draft.end) && <span className="text-[11px] text-slate-400">{describeRange(draft.start, presetEnd ?? draft.end)}</span>}
+                    </div>
+                    <div className={`mt-0.5 text-sm font-semibold ${presetEnd ? 'text-brand-orange-dark' : draft.end ? 'text-slate-900' : 'text-slate-400'}`}>
+                      {presetEnd ? fmt(presetEnd) : draft.end ? fmt(draft.end) : draft.start ? 'Pick an end date' : 'Pick the start date first'}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {PRESETS.map((p) => (
+                        <button
+                          key={p.months}
+                          type="button"
+                          disabled={!draft.start}
+                          onClick={() => applyPreset(p.months)}
+                          onMouseEnter={() => setPresetHover(p.months)}
+                          onMouseLeave={() => setPresetHover(null)}
+                          title={`End ${p.label} after the start date`}
+                          className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/50 hover:bg-orange-50 hover:text-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className={`mt-0.5 text-sm font-semibold ${presetEnd ? 'text-brand-orange-dark' : draft.end ? 'text-slate-900' : 'text-slate-400'}`}>
-                    {presetEnd ? fmt(presetEnd) : draft.end ? fmt(draft.end) : draft.start ? 'Pick an end date' : '—'}
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {PRESETS.map((p) => (
-                      <button
-                        key={p.months}
-                        type="button"
-                        disabled={!draft.start}
-                        onClick={() => applyPreset(p.months)}
-                        onMouseEnter={() => setPresetHover(p.months)}
-                        onMouseLeave={() => setPresetHover(null)}
-                        title={`End ${p.label} after the start date`}
-                        className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/50 hover:bg-orange-50 hover:text-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
+                  <Calendar
+                    view={endView}
+                    onView={setEndView}
+                    start={draft.start}
+                    end={draft.end}
+                    rangeEnd={draft.start ? previewEnd : null}
+                    minDate={draft.start}
+                    locked={!draft.start}
+                    onPick={pickEnd}
+                    onHover={setHover}
+                  />
                 </div>
               </div>
 
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <div className="mb-1 flex items-center justify-between">
-                  <button type="button" onClick={() => shift(-1)} aria-label="Previous month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
-                    <Icon name="chevron" className="h-4 w-4 rotate-90" />
-                  </button>
-                  <button type="button" onClick={() => shift(1)} aria-label="Next month" className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100">
-                    <Icon name="chevron" className="h-4 w-4 -rotate-90" />
-                  </button>
-                </div>
-                <div className="-mt-9 flex gap-6">
-                  <Month year={view.year} month={view.month} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
-                  <div className="hidden sm:block">
-                    <Month year={second.getFullYear()} month={second.getMonth()} start={draft.start} end={draft.end} hover={hover} onPick={pick} onHover={setHover} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"
                   onClick={() => {
