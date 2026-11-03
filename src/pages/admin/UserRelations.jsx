@@ -165,6 +165,65 @@ function PartnerOrgPicker({ value, catalog, onSelect }) {
   )
 }
 
+// Header filter: search + multi-select checkboxes in a popover. Empty
+// selection = no filter. `options` is a list of strings.
+function ColumnFilter({ label, options, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const shown = options.filter((o) => o.toLowerCase().includes(q.trim().toLowerCase()))
+  const active = selected.length > 0
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => { setOpen((o) => !o); setQ('') }}
+        className={`inline-flex items-center gap-1 whitespace-nowrap uppercase tracking-wider ${active ? 'text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}
+      >
+        {label}
+        {active && <span className="rounded-full bg-orange-100 px-1.5 text-[10px] normal-case tracking-normal">{selected.length}</span>}
+        <Icon name="chevron" className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 z-20 mt-2 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white text-left normal-case tracking-normal shadow-soft">
+            <div className="border-b border-slate-100 p-2">
+              <input
+                autoFocus
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={`Search ${label.toLowerCase()}…`}
+                className="w-full rounded-lg bg-slate-50/60 px-2.5 py-1.5 text-sm font-normal text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+              />
+            </div>
+            <div className="max-h-52 overflow-y-auto py-1">
+              {shown.map((o) => (
+                <label key={o} className="flex items-center gap-2 px-3.5 py-1.5 text-sm font-normal text-slate-700 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(o)}
+                    onChange={() => onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o])}
+                    className="h-3.5 w-3.5 rounded accent-brand-orange"
+                  />
+                  <span className="truncate">{o}</span>
+                </label>
+              ))}
+              {!shown.length && <p className="px-3.5 py-2 text-sm font-normal text-slate-400">No matches.</p>}
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-100 px-3.5 py-2 text-xs font-normal">
+              <span className="text-slate-400">{selected.length} selected</span>
+              <button type="button" onClick={() => onChange([])} disabled={!active} className="font-medium text-brand-orange disabled:opacity-30">
+                Clear
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function UserRelations() {
   const navigate = useNavigate()
   const { can } = useAuth()
@@ -179,6 +238,9 @@ export default function UserRelations() {
   const [createError, setCreateError] = useState('')
 
   const [query, setQuery] = useState('')
+  const [sortDir, setSortDir] = useState(null) // null | 'asc' | 'desc'
+  const [managerFilter, setManagerFilter] = useState([])
+  const [tagFilter, setTagFilter] = useState([])
   const [editingEmail, setEditingEmail] = useState(null)
   const [draftManager, setDraftManager] = useState('')
   const [draftProducts, setDraftProducts] = useState([])
@@ -209,11 +271,31 @@ export default function UserRelations() {
     return ensureCatalogTag(productCatalog, setProductCatalog, text)
   }
 
+  const NO_MANAGER = 'No manager'
+  const NO_TAGS = 'No tags'
+  const managerOptions = useMemo(() => {
+    const names = [...new Set(users.map((u) => users.find((m) => m.email === u.managerEmail)?.name).filter(Boolean))].sort()
+    return [NO_MANAGER, ...names]
+  }, [users])
+  const tagOptions = useMemo(() => [...productCatalog, NO_TAGS], [productCatalog])
+
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return users
-    return users.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
-  }, [users, query])
+    let list = users.filter((u) => {
+      if (q && !(u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))) return false
+      if (managerFilter.length) {
+        const mName = users.find((m) => m.email === u.managerEmail)?.name ?? NO_MANAGER
+        if (!managerFilter.includes(mName)) return false
+      }
+      if (tagFilter.length) {
+        const tags = u.products?.length ? u.products : [NO_TAGS]
+        if (!tags.some((t) => tagFilter.includes(t))) return false
+      }
+      return true
+    })
+    if (sortDir) list = [...list].sort((a, b) => a.name.localeCompare(b.name) * (sortDir === 'asc' ? 1 : -1))
+    return list
+  }, [users, query, managerFilter, tagFilter, sortDir])
 
   const editingUser = users.find((u) => u.email === editingEmail) ?? null
   const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x))
@@ -430,6 +512,11 @@ export default function UserRelations() {
             </div>
             <span className="text-xs text-slate-400">
               {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
+              {(managerFilter.length > 0 || tagFilter.length > 0) && (
+                <button type="button" onClick={() => { setManagerFilter([]); setTagFilter([]) }} className="ml-2 font-medium text-brand-orange">
+                  Clear filters
+                </button>
+              )}
             </span>
           </div>
 
@@ -437,11 +524,25 @@ export default function UserRelations() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-y border-slate-100 bg-slate-50/50">
-                  <th className={`${thCls} !px-4`}>Team member</th>
-                  <th className={`${thCls} !px-4`}>Phone</th>
-                  <th className={`${thCls} !px-4`}>Manager</th>
-                  <th className={`${thCls} !px-4 whitespace-nowrap`}>Product tags</th>
-                  <th className={`${thCls} !px-4 text-right`}>Actions</th>
+                  <th className={`${thCls} !px-3 !pl-5`}>
+                    <button
+                      type="button"
+                      onClick={() => setSortDir((d) => (d === null ? 'asc' : d === 'asc' ? 'desc' : null))}
+                      className={`inline-flex items-center gap-1 uppercase tracking-wider ${sortDir ? 'text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}
+                      title="Sort by name"
+                    >
+                      Team member
+                      <span className="text-[11px] leading-none">{sortDir === 'asc' ? '↑' : sortDir === 'desc' ? '↓' : '↕'}</span>
+                    </button>
+                  </th>
+                  <th className={`${thCls} !px-3`}>Phone</th>
+                  <th className={`${thCls} !px-3`}>
+                    <ColumnFilter label="Manager" options={managerOptions} selected={managerFilter} onChange={setManagerFilter} />
+                  </th>
+                  <th className={`${thCls} !px-3`}>
+                    <ColumnFilter label="Product tags" options={tagOptions} selected={tagFilter} onChange={setTagFilter} />
+                  </th>
+                  <th className={`${thCls} !px-3 text-right`}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -451,7 +552,7 @@ export default function UserRelations() {
                   return (
                     <Fragment key={u.email}>
                       <tr className={`${rowCls} ${editing ? 'bg-orange-50/40' : ''}`}>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3">
                           <div className="flex items-center gap-2.5">
                             <Avatar name={u.name} size="sm" />
                             <div>
@@ -460,9 +561,9 @@ export default function UserRelations() {
                             </div>
                           </div>
                         </td>
-                        <td className={`${tdCls} !px-4`}>{u.mobile || '—'}</td>
-                        <td className={`${tdCls} !px-4`}>{manager ? manager.name : <span className="text-slate-300">No manager</span>}</td>
-                        <td className="px-4 py-3">
+                        <td className={`${tdCls} !px-3`}>{u.mobile || '—'}</td>
+                        <td className={`${tdCls} !px-3`}>{manager ? manager.name : <span className="text-slate-300">No manager</span>}</td>
+                        <td className="px-3 py-3">
                           {(u.products ?? []).length ? (
                             <div className="flex gap-1">
                               {u.products.map((p) => (
@@ -475,20 +576,20 @@ export default function UserRelations() {
                             <span className="text-sm text-slate-300">No tags</span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <td className="whitespace-nowrap px-3 py-3 text-right">
                           <button
                             type="button"
                             onClick={() => (editing ? setEditingEmail(null) : startEdit(u))}
-                            className="mr-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                            className="mr-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
                           >
-                            {editing ? 'Close' : 'Edit'}
+                            {editing ? 'Close' : 'Manage'}
                           </button>
                           <button
                             type="button"
                             onClick={() => navigate(`/user-module/access-management?user=${encodeURIComponent(u.email)}`)}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-orange transition-colors hover:bg-orange-50"
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-brand-orange transition-colors hover:bg-orange-50"
                           >
-                            Edit access
+                            Access controls
                           </button>
                         </td>
                       </tr>
