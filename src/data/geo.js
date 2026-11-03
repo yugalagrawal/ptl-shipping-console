@@ -31,9 +31,37 @@ export const MOCK_PINCODE_LOOKUP = {
   '834001': { city: 'Ranchi', state: 'Jharkhand' },
 }
 
+// Best-effort fallback for pincodes not in the table above: the first two
+// digits identify the postal circle, which is enough to give the demo a
+// plausible state + city for any real-looking pincode. A stand-in for the real
+// pincode API, nothing more.
+const PINCODE_PREFIX_LOOKUP = {
+  11: ['Delhi', 'New Delhi'], 12: ['Haryana', 'Gurugram'], 13: ['Haryana', 'Ambala'], 14: ['Punjab', 'Ludhiana'],
+  15: ['Punjab', 'Amritsar'], 16: ['Chandigarh', 'Chandigarh'], 17: ['Himachal Pradesh', 'Shimla'],
+  18: ['Jammu and Kashmir', 'Jammu'], 19: ['Jammu and Kashmir', 'Srinagar'], 20: ['Uttar Pradesh', 'Noida'],
+  21: ['Uttar Pradesh', 'Prayagraj'], 22: ['Uttar Pradesh', 'Lucknow'], 23: ['Uttar Pradesh', 'Varanasi'],
+  24: ['Uttar Pradesh', 'Bareilly'], 25: ['Uttar Pradesh', 'Moradabad'], 26: ['Uttarakhand', 'Dehradun'],
+  27: ['Uttar Pradesh', 'Gorakhpur'], 28: ['Uttar Pradesh', 'Agra'], 30: ['Rajasthan', 'Jaipur'],
+  31: ['Rajasthan', 'Sikar'], 32: ['Rajasthan', 'Ajmer'], 33: ['Rajasthan', 'Jodhpur'], 34: ['Rajasthan', 'Udaipur'],
+  36: ['Gujarat', 'Rajkot'], 37: ['Gujarat', 'Vadodara'], 38: ['Gujarat', 'Ahmedabad'], 39: ['Gujarat', 'Surat'],
+  40: ['Maharashtra', 'Mumbai'], 41: ['Maharashtra', 'Pune'], 42: ['Maharashtra', 'Nashik'], 43: ['Maharashtra', 'Aurangabad'],
+  44: ['Maharashtra', 'Nagpur'], 45: ['Madhya Pradesh', 'Indore'], 46: ['Madhya Pradesh', 'Bhopal'], 47: ['Madhya Pradesh', 'Jabalpur'],
+  48: ['Madhya Pradesh', 'Gwalior'], 49: ['Chhattisgarh', 'Raipur'], 50: ['Telangana', 'Hyderabad'], 51: ['Andhra Pradesh', 'Vijayawada'],
+  52: ['Andhra Pradesh', 'Guntur'], 53: ['Andhra Pradesh', 'Visakhapatnam'], 56: ['Karnataka', 'Bengaluru'], 57: ['Karnataka', 'Mysuru'],
+  58: ['Karnataka', 'Hubballi'], 59: ['Karnataka', 'Belagavi'], 60: ['Tamil Nadu', 'Chennai'], 61: ['Tamil Nadu', 'Tiruchirappalli'],
+  62: ['Tamil Nadu', 'Madurai'], 63: ['Tamil Nadu', 'Salem'], 64: ['Tamil Nadu', 'Coimbatore'], 67: ['Kerala', 'Kozhikode'],
+  68: ['Kerala', 'Kochi'], 69: ['Kerala', 'Thiruvananthapuram'], 70: ['West Bengal', 'Kolkata'], 71: ['West Bengal', 'Howrah'],
+  72: ['West Bengal', 'Durgapur'], 73: ['West Bengal', 'Siliguri'], 74: ['West Bengal', 'Krishnanagar'], 75: ['Odisha', 'Bhubaneswar'],
+  76: ['Odisha', 'Berhampur'], 77: ['Odisha', 'Sambalpur'], 78: ['Assam', 'Guwahati'], 79: ['Arunachal Pradesh', 'Itanagar'],
+  80: ['Bihar', 'Patna'], 81: ['Bihar', 'Bhagalpur'], 82: ['Bihar', 'Gaya'], 83: ['Jharkhand', 'Ranchi'], 84: ['Bihar', 'Muzaffarpur'],
+  85: ['Bihar', 'Purnia'],
+}
+
 export function lookupPincode(pin) {
+  const prefix = PINCODE_PREFIX_LOOKUP[Number(pin.slice(0, 2))]
+  const result = MOCK_PINCODE_LOOKUP[pin] ?? (prefix ? { state: prefix[0], city: prefix[1] } : null)
   return new Promise((resolve) => {
-    setTimeout(() => resolve(MOCK_PINCODE_LOOKUP[pin] ?? null), 400)
+    setTimeout(() => resolve(result), 400)
   })
 }
 

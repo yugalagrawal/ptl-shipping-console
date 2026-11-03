@@ -310,7 +310,7 @@ function tierFromVolume({ volumeKg }) {
   return 'Bronze'
 }
 
-function Field({ label, required, labelInfo, badge, hint, error, className = '', ...props }) {
+function Field({ label, required, labelInfo, badge, hint, error, locked, className = '', ...props }) {
   return (
     <label className={`block ${className}`}>
       <span className={LABEL}>
@@ -319,7 +319,11 @@ function Field({ label, required, labelInfo, badge, hint, error, className = '',
         {labelInfo && <InfoTip text={labelInfo} />}
         {badge && <span className="ml-auto">{badge}</span>}
       </span>
-      <input {...props} className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK}`} />
+      <input
+        {...props}
+        readOnly={locked || props.readOnly}
+        className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK} ${locked ? 'cursor-not-allowed !bg-slate-50 text-slate-600' : ''}`}
+      />
       {hint && <p className={`mt-1 text-[11px] ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
     </label>
   )
@@ -676,34 +680,30 @@ export default function NewClient() {
   )
   const [fullAddress, setFullAddress] = useState('')
   const [city, setCity] = useState('')
-  const [cityTouched, setCityTouched] = useState(false)
   const [pincode, setPincode] = useState('')
   const [pincodeLookupStatus, setPincodeLookupStatus] = useState('idle') // idle | loading | found | not-found
   const [state, setState] = useState('')
-  const [stateTouched, setStateTouched] = useState(false)
-  const [country, setCountry] = useState(STATES_COUNTRY[0])
+  const [country] = useState(STATES_COUNTRY[0])
 
+  // City / State / Country are never typed — the pincode alone fills them.
   useEffect(() => {
     if (!/^\d{6}$/.test(pincode)) {
       setPincodeLookupStatus('idle')
+      setCity('')
+      setState('')
       return
     }
     let cancelled = false
     setPincodeLookupStatus('loading')
     lookupPincode(pincode).then((result) => {
       if (cancelled) return
-      if (result) {
-        if (!cityTouched) setCity(result.city)
-        if (!stateTouched) setState(result.state)
-        setPincodeLookupStatus('found')
-      } else {
-        setPincodeLookupStatus('not-found')
-      }
+      setCity(result?.city ?? '')
+      setState(result?.state ?? '')
+      setPincodeLookupStatus(result ? 'found' : 'not-found')
     })
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pincode])
   const [sacNumber, setSacNumber] = useState('')
   const [hsnNumber, setHsnNumber] = useState('')
@@ -1367,46 +1367,16 @@ export default function NewClient() {
             required
             disabled={!groupFilled}
             value={pincode}
-            onChange={(e) => {
-              setPincode(e.target.value)
-              setCityTouched(false)
-              setStateTouched(false)
-            }}
+            inputMode="numeric"
+            maxLength={6}
+            onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="410208"
-            hint={
-              pincodeLookupStatus === 'loading'
-                ? 'Looking up city & state…'
-                : pincodeLookupStatus === 'found'
-                  ? 'City & state auto-filled — edit if needed'
-                  : pincodeLookupStatus === 'not-found'
-                    ? 'Not recognized in this demo — enter city/state manually'
-                    : undefined
-            }
+            error={pincodeLookupStatus === 'not-found'}
+            hint={pincodeLookupStatus === 'loading' ? 'Looking up…' : pincodeLookupStatus === 'not-found' ? 'Pincode not found' : undefined}
           />
-          <Field
-            label="City"
-            required
-            disabled={!groupFilled}
-            value={city}
-            onChange={(e) => {
-              setCity(e.target.value)
-              setCityTouched(true)
-            }}
-            placeholder="City from pincode"
-          />
-          <SelectField
-            label="State"
-            required
-            disabled={!groupFilled}
-            value={state}
-            onChange={(v) => {
-              setState(v)
-              setStateTouched(true)
-            }}
-            options={INDIAN_STATES}
-            placeholder="Select state"
-          />
-          <SelectField label="Country" required disabled value={country} onChange={setCountry} options={STATES_COUNTRY} />
+          <Field label="City" required locked disabled={!groupFilled} value={city} placeholder="City from pincode" />
+          <Field label="State" required locked disabled={!groupFilled} value={state} placeholder="State from pincode" />
+          <Field label="Country" required locked disabled value={country} />
 
           <div className="sm:col-span-2 lg:col-span-4 -mb-2 mt-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">If applicable</span>
