@@ -299,7 +299,7 @@ function Field({ label, required, labelInfo, hint, error, className = '', ...pro
         {labelInfo && <InfoTip text={labelInfo} />}
       </span>
       <input {...props} className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK}`} />
-      {hint && <p className={`mt-1 text-xs ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
+      {hint && <p className={`mt-1 text-[11px] ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
     </label>
   )
 }
@@ -1371,10 +1371,10 @@ export default function NewClient() {
           <div className="sm:col-span-2 lg:col-span-4 -mb-2 mt-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">If applicable</span>
           </div>
-          <Field label="SAC number" disabled={!groupFilled} value={sacNumber} onChange={(e) => setSacNumber(e.target.value)} placeholder="If services classification applies" />
-          <Field label="HSN number" disabled={!groupFilled} value={hsnNumber} onChange={(e) => setHsnNumber(e.target.value)} placeholder="If goods classification applies" />
-          <Field label="TAN number" disabled={!groupFilled} value={tanNumber} onChange={(e) => setTanNumber(e.target.value.toUpperCase())} />
-          <Field label="UDYAM number" disabled={!groupFilled} value={msmeNumber} onChange={(e) => setMsmeNumber(e.target.value)} placeholder="If MSME registered" />
+          <Field label="SAC number" disabled={!groupFilled} value={sacNumber} onChange={(e) => setSacNumber(e.target.value)} placeholder="Optional" hint="For services, e.g. 996511" />
+          <Field label="HSN number" disabled={!groupFilled} value={hsnNumber} onChange={(e) => setHsnNumber(e.target.value)} placeholder="Optional" hint="For goods, e.g. 8704" />
+          <Field label="TAN number" disabled={!groupFilled} value={tanNumber} onChange={(e) => setTanNumber(e.target.value.toUpperCase())} placeholder="Optional" hint="e.g. DELA12345B" />
+          <Field label="UDYAM number" disabled={!groupFilled} value={msmeNumber} onChange={(e) => setMsmeNumber(e.target.value)} placeholder="Optional" hint="If MSME, e.g. UDYAM-MH-01-0000001" />
         </Section>
       )}
 
