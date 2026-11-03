@@ -14,3 +14,71 @@ body {
 * {
   scrollbar-width: thin;
 }
+
+/* Org chart (User Module > User Relations) — nested lists drawn as a tree. */
+.org-tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 22px;
+  position: relative;
+}
+.org-tree > ul {
+  padding-top: 0;
+}
+.org-tree li {
+  list-style: none;
+  text-align: center;
+  position: relative;
+  padding: 22px 8px 0;
+}
+.org-tree > ul > li {
+  padding-top: 0;
+}
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 22px;
+  border-top: 1.5px solid #cbd5e1;
+}
+.org-tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1.5px solid #cbd5e1;
+}
+.org-tree > ul > li::before,
+.org-tree > ul > li::after {
+  display: none;
+}
+.org-tree li:only-child::before,
+.org-tree li:only-child::after {
+  display: none;
+}
+.org-tree li:only-child {
+  padding-top: 22px;
+}
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: 0 none;
+}
+.org-tree li:last-child::before {
+  border-right: 1.5px solid #cbd5e1;
+  border-radius: 0 10px 0 0;
+}
+.org-tree li:first-child::after {
+  border-radius: 10px 0 0 0;
+}
+.org-tree li:only-child::before {
+  display: none;
+}
+.org-tree ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 22px;
+  border-left: 1.5px solid #cbd5e1;
+}

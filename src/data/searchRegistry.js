@@ -27,6 +27,7 @@ export const SEARCH_REGISTRY = [
   { id: 'nav-logic', kind: 'nav', title: 'Logic Engine', subtitle: 'The rules that steer every other module', path: '/logic-engine', permissionKey: 'logic-engine', icon: 'logic' },
   { id: 'tab-access-management', kind: 'tab', title: 'Access Management', subtitle: 'User Module — roles, function-level permissions and city access for the LT Team login', path: '/user-module/access-management', permissionKey: 'access-management', icon: 'shield' },
   { id: 'tab-user-relations', kind: 'tab', title: 'User Management', subtitle: 'User Module — map reportees to managers and delegate access', path: '/user-module/user-relations', permissionKey: 'user-relations', icon: 'onboarding' },
+  { id: 'tab-user-hierarchy', kind: 'tab', title: 'User Relations', subtitle: 'User Module — who reports to whom at LetsTransport, partners and clients', path: '/user-module/user-hierarchy', permissionKey: null, icon: 'onboarding' },
   { id: 'tab-my-profile', kind: 'tab', title: 'My Profile', subtitle: 'User Module — your own identity, reporting line and access', path: '/user-module/my-profile', permissionKey: null, icon: 'user' },
   { id: 'nav-system-info', kind: 'nav', title: 'System Info', subtitle: 'Read-only reference — how every module connects', path: '/system-info', permissionKey: 'system-info', icon: 'info' },
 

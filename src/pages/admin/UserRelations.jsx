@@ -2,8 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { LT_USERS } from '../../data/users.js'
-import { PARTNERS } from '../../data/partners.js'
-import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
+import { ORG_CATALOG } from '../../data/orgs.js'
 import { isReportOf } from '../../data/relations.js'
 import Avatar from '../../components/Avatar.jsx'
 import BackButton from '../../components/BackButton.jsx'
@@ -362,17 +361,7 @@ export default function UserRelations() {
   const { can } = useAuth()
   const [users, setUsers] = useState(LT_USERS)
   const [productCatalog, setProductCatalog] = useState(() => [...PRODUCT_TAGS])
-  const partnerOrgCatalog = useMemo(
-    () => [
-      ...PARTNERS.map((p) => ({ name: p.organisationName, email: p.orgEmail, type: 'Partner' })),
-      ...ACTIVE_CLIENTS_SEED.map((c) => ({
-        name: c.name,
-        email: c.details?.contact?.pocEmail || c.details?.contact?.opsEmail || `ops@${c.id}.com`,
-        type: 'Client',
-      })),
-    ],
-    [],
-  )
+  const partnerOrgCatalog = ORG_CATALOG
 
   const [creating, setCreating] = useState(false)
   const [newUser, setNewUser] = useState({

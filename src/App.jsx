@@ -62,6 +62,7 @@ import FinanceAnalytics from './pages/finance/Analytics.jsx'
 import LogicEngine from './pages/LogicEngine.jsx'
 import AccessManagement from './pages/admin/AccessManagement.jsx'
 import UserRelations from './pages/admin/UserRelations.jsx'
+import UserHierarchy from './pages/admin/UserHierarchy.jsx'
 import MyProfile from './pages/admin/MyProfile.jsx'
 import SystemInfo from './pages/SystemInfo.jsx'
 
@@ -138,6 +139,7 @@ export default function App() {
         <Route path="/logic-engine" element={<LogicEngine />} />
         <Route path="/user-module/access-management" element={<AccessManagement />} />
         <Route path="/user-module/user-relations" element={<UserRelations />} />
+        <Route path="/user-module/user-hierarchy" element={<UserHierarchy />} />
         <Route path="/user-module/my-profile" element={<MyProfile />} />
         <Route path="/system-info" element={<SystemInfo />} />
       </Route>

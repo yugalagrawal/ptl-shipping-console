@@ -193,6 +193,13 @@ export const ADMIN_MODULE = {
       tagline: "Map reportees to managers; managers can delegate from their own access.",
     },
     {
+      key: 'user-hierarchy',
+      label: 'User Relations',
+      to: '/user-module/user-hierarchy',
+      icon: 'onboarding',
+      tagline: 'Who reports to whom — across LetsTransport and inside each partner and client.',
+    },
+    {
       key: 'my-profile',
       label: 'My Profile',
       to: '/user-module/my-profile',

@@ -32,11 +32,12 @@ export default function Sidebar() {
   }).filter(Boolean)
 
   // My Profile is self-service and has no gating function at all — every LT
-  // Team login sees their own. User Management (create/search users, the
+  // Team login sees their own. User Relations is a read-only org chart, open
+  // to every LT Team login the same way. User Management (create/search users, the
   // full User List) is org-wide admin territory, gated normally by
   // user-relations.manage — no manager bypass anymore now that Delegate
   // Access (the one thing a plain manager used it for) is gone.
-  const adminChildren = ADMIN_MODULE.children.filter((c) => c.key === 'my-profile' || can(c.key))
+  const adminChildren = ADMIN_MODULE.children.filter((c) => c.key === 'my-profile' || c.key === 'user-hierarchy' || can(c.key))
   const visibleAdminModule = adminChildren.length ? { ...ADMIN_MODULE, children: adminChildren } : null
 
   const visibleSystemInfo = can(SYSTEM_INFO_MODULE.key) ? SYSTEM_INFO_MODULE : null
