@@ -185,7 +185,7 @@ function RoleNote({ canSales, canFinance }) {
         : 'Your approval activates the client.'
   const mine = [canSales, canFinance, false]
   return (
-    <div className="max-w-xs rounded-2xl bg-white px-4 py-3 shadow-soft ring-1 ring-slate-200/70">
+    <div className="absolute right-0 top-0 hidden w-[300px] rounded-2xl bg-white px-4 py-2.5 shadow-soft ring-1 ring-slate-200/70 xl:block">
       <p className="text-xs font-medium text-slate-700">{text}</p>
       <div className="mt-2.5 flex items-center gap-1">
         {FLOW_STEPS.map((step, i) => {
@@ -288,7 +288,7 @@ export default function ClientApprovals() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="relative">
         <div>
           <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
