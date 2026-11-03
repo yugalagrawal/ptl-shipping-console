@@ -210,6 +210,12 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const PRICING_SOURCES = [
+  { key: 'standard-regions', title: 'Standard Regions', text: 'Clone the 13 standard regions (North 1, West 2…) with their cities into this client\'s own card. Rename, merge or reassign cities, then set rates.' },
+  { key: 'scratch', title: 'Start from scratch', text: 'Build the client\'s regions one at a time, assigning cities exactly as negotiated.' },
+  { key: 'templates', title: 'Existing Templates', text: 'Reuse a named region set already built in Client Pricing (1 saved) — starts as a copy, safe to edit for this client.' },
+  { key: 'rate-cards', title: 'Existing Rate Cards', text: 'Attach a standard rate card (2 available) as-is, with a flat discount and per-lane overrides.' },
+]
 const TIER_BADGE = {
   Platinum: 'bg-violet-50 text-violet-700',
   Gold: 'bg-amber-50 text-amber-700',
@@ -829,6 +835,8 @@ export default function NewClient() {
   const [expectedVolumeKg, setExpectedVolumeKg] = useState('')
   const [volumeUnit, setVolumeUnit] = useState(VOLUME_UNITS[0])
   const [editingTonnage, setEditingTonnage] = useState(false)
+  const [showAddPricing, setShowAddPricing] = useState(false)
+  const [pricingSource, setPricingSource] = useState('')
   const [copyRatesEnabled, setCopyRatesEnabled] = useState(false)
   const [copyRatesFrom, setCopyRatesFrom] = useState('')
 
@@ -1296,7 +1304,7 @@ export default function NewClient() {
       billingDocuments.some((doc) => doc.files.length > 0) &&
       (!centralisedPayment ||
         (billingState.trim().length > 0 && billingCity.trim().length > 0 && billingBranch.trim().length > 0)),
-    pricingType !== '' && (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
+    (noOda || odaEntries.length > 0) && (noAdditionalCharges || selectedCharges.length > 0), // Pricing — Final tier always has a value; ODA list and Additional Charges must both be an explicit choice (incl. "None")
     // KYC must actually be done — every listed document needs a file — before
     // this can leave "Client activation in progress" for Sales Admin's queue.
     // Remove a document row instead of leaving it empty if it doesn't apply.
@@ -1799,258 +1807,56 @@ export default function NewClient() {
 
       {step === 4 && (
         <div className="space-y-5">
-          <div className={`px-5 py-3.5 ${card}`}>
-            <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
-              <div className="flex items-center gap-3 self-center">
-                <span className="text-xs font-medium text-slate-600">
-                  Pricing type<span className="text-brand-orange-dark">*</span>
-                </span>
-                <div className="flex w-fit rounded-xl bg-slate-100 p-1 text-sm">
-                  {PRICING_TYPES.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setPricingType(t)}
-                      className={`rounded-lg px-5 py-1.5 font-medium transition-colors ${pricingType === t ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500'}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {pricingType === 'Custom' && (
-                <SelectField
-                  label="Region Definition"
-                  required
-                  value={regionMappingType}
-                  onChange={setRegionMappingType}
-                  options={REGION_MAPPING_TYPES}
-                  className="sm:w-44"
-                />
-              )}
-              {pricingType === 'Custom' && regionMappingType === 'Standard' && (
-                <Field
-                  label="Flat Discount on standard"
-                  required
+          <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-slate-500">
+            <span className="font-medium text-slate-600">Tier</span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[tier]}`}>{tier}</span>
+            {editingTonnage ? (
+              <>
+                <input
                   type="number"
                   min="0"
-                  max="100"
-                  value={discountPercent}
+                  autoFocus
+                  value={expectedVolumeKg === '' ? '' : String(Number(expectedVolumeKg) / 1000)}
                   onChange={(e) => {
-                    setDiscountPercent(e.target.value)
-                    setDiscountTouched(true)
+                    setExpectedVolumeKg(e.target.value === '' ? '' : String(Math.max(0, Number(e.target.value) || 0) * 1000))
+                    setVolumeUnit(VOLUME_UNITS[0])
                   }}
-                  hint={`Suggested ${TIER_DISCOUNTS[tier] ?? 0}% for ${tier}`}
-                  className="sm:w-44"
+                  onKeyDown={(e) => e.key === 'Enter' && setEditingTonnage(false)}
+                  placeholder="Tonnes / month"
+                  className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-brand-orange focus:outline-none"
                 />
-              )}
-              {pricingType === 'Custom' && regionMappingType === 'Custom' && (
-                <div>
-                  <span className="mb-1.5 block text-xs font-medium text-transparent select-none" aria-hidden="true">
-                    &nbsp;
-                  </span>
-                  <button
-                    type="button"
-                    onClick={openRegionBuilder}
-                    className="whitespace-nowrap rounded-xl bg-brand-orange px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
-                  >
-                    {customRegions.length > 0 ? 'Edit Client Region & Pricing' : 'Define Client Region & Pricing'}
-                  </button>
-                </div>
-              )}
-            <div className="ml-auto flex self-center items-center gap-2 text-[11px] text-slate-500">
-              {editingTonnage ? (
-                <>
-                  <input
-                    type="number"
-                    min="0"
-                    autoFocus
-                    value={expectedVolumeKg === '' ? '' : String(Number(expectedVolumeKg) / 1000)}
-                    onChange={(e) => {
-                      setExpectedVolumeKg(e.target.value === '' ? '' : String(Math.max(0, Number(e.target.value) || 0) * 1000))
-                      setVolumeUnit(VOLUME_UNITS[0])
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && setEditingTonnage(false)}
-                    placeholder="Tonnes / month"
-                    className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-brand-orange focus:outline-none"
-                  />
-                  <button type="button" onClick={() => setEditingTonnage(false)} className="font-medium text-brand-orange-dark hover:underline">
-                    Done
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TIER_BADGE[tier]}`}>{tier} tier</span>
-                  <span>Expected {(Number(effectiveVolume) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 })} tonne / month</span>
-                  <button type="button" onClick={() => setEditingTonnage(true)} title="Edit monthly tonnage" className="font-medium text-slate-400 hover:text-brand-orange-dark">
-                    Edit
-                  </button>
-                </>
-              )}
-            </div>
-            </div>
-            <div className="mt-2.5 space-y-0.5 text-[11px] leading-relaxed text-slate-400">
-              <p className={pricingType === 'Standard' ? 'text-slate-600' : ''}>
-                <span className="font-medium">Standard</span> — our non-editable 13 × 13 region rate matrix, used directly with no customisation.
-              </p>
-              <p className={pricingType === 'Custom' ? 'text-slate-600' : ''}>
-                <span className="font-medium">Custom</span> — modify our rate matrix for this client, with a flat discount or cell-level rates.
-              </p>
-            </div>
+                <button type="button" onClick={() => setEditingTonnage(false)} className="font-medium text-brand-orange-dark hover:underline">
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <span>Expected {(Number(effectiveVolume) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 })} tonne / month</span>
+                <button type="button" onClick={() => setEditingTonnage(true)} title="Edit monthly tonnage" className="font-medium text-slate-400 hover:text-brand-orange-dark">
+                  Edit
+                </button>
+              </>
+            )}
           </div>
 
-          {pricingType === '' ? null : pricingType === 'Custom' && regionMappingType === 'Custom' ? (
-            customRegions.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-10 text-center">
-                <p className="text-sm font-medium text-slate-500">No client regions defined yet.</p>
-                <p className="mt-1 text-xs text-slate-400">Use "Define Client Region & Pricing" above to build the client's own region set and lane pricing.</p>
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {customRegions.length} client region{customRegions.length === 1 ? '' : 's'} defined
-                  </span>
-                  {unmappedCities.length > 0 && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                      {unmappedCities.length} cit{unmappedCities.length === 1 ? 'y' : 'ies'} unmapped
-                    </span>
-                  )}
-                </div>
-                <div className="overflow-x-auto border-t border-slate-100">
-                  <table className="text-xs">
-                    <thead>
-                      <tr>
-                        <th className="sticky left-0 bg-slate-50 px-3 py-2 text-left font-medium text-slate-400"></th>
-                        {customRegions.map((r) => (
-                          <th key={r.id} className="whitespace-nowrap px-2 py-2 text-center font-semibold text-slate-500">
-                            {r.name}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customRegions.map((origin) => (
-                        <tr key={origin.id} className="border-t border-slate-100">
-                          <th className="sticky left-0 whitespace-nowrap bg-slate-50 px-3 py-1.5 text-left font-semibold text-slate-600">{origin.name}</th>
-                          {customRegions.map((dest) => {
-                            const override = regionCellValue(origin.id, dest.id)
-                            const fallback = unmappedDefaultRate !== '' ? unmappedDefaultRate : '—'
-                            return (
-                              <td key={dest.id} className="px-2 py-1.5 text-center tabular-nums">
-                                {override !== '' ? (
-                                  <span className="font-medium text-brand-orange-dark">{override}</span>
-                                ) : (
-                                  <span className="text-slate-400">{fallback}</span>
-                                )}
-                              </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-400">
-                  Orange = negotiated lane price. Grey = falls back to the default rate for unspecified lanes. Edit both from "Edit Client Region & Pricing" above.
-                </p>
-              </div>
-            )
-          ) : pricingType === 'Standard' && !showStandardMatrix ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-              <p className="text-xs text-slate-400">Please check standard pricing in detail.</p>
+          <div className={`overflow-hidden ${card}`}>
+            <div className="flex items-center justify-between gap-3 px-5 py-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Pricings</span>
               <button
                 type="button"
-                onClick={() => setShowStandardMatrix(true)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2 text-xs font-medium text-slate-600 transition-colors hover:border-brand-orange/40 hover:text-brand-orange-dark"
+                onClick={() => {
+                  setPricingSource('')
+                  setShowAddPricing(true)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-brand-orange-dark transition-colors hover:bg-orange-50"
               >
-                View standard pricing
-                <Icon name="chevron" className="h-3.5 w-3.5 -rotate-90" />
+                <Icon name="plus" className="h-3.5 w-3.5" />
+                Add pricing
               </button>
             </div>
-          ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {pricingType === 'Custom' ? `At ${effectiveDiscount}% discount${editingCells ? ' (custom)' : ''}` : 'Standard rate card'}
-              </span>
-              <div className="flex shrink-0 items-center gap-1">
-                {pricingType === 'Custom' && (
-                  <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-slate-500">
-                    <input
-                      type="checkbox"
-                      checked={requireCellChanges}
-                      onChange={(e) => handleRequireCellChangesToggle(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-slate-300 text-brand-orange focus:ring-brand-orange/40"
-                    />
-                    Require cell level changes
-                  </label>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowRegionMappingModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  <Icon name="route" className="h-3.5 w-3.5" />
-                  Region Definition
-                </button>
-                {pricingType === 'Standard' && (
-                  <button
-                    type="button"
-                    onClick={() => setShowStandardMatrix(false)}
-                    title="Collapse"
-                    className="inline-flex items-center rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    <Icon name="chevron" className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="overflow-x-auto border-t border-slate-100">
-              <table className="text-xs">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 bg-slate-50 px-3 py-2 text-left font-medium text-slate-400"></th>
-                    {ZONES.map((z) => (
-                      <th key={z} className="whitespace-nowrap px-2 py-2 text-center font-semibold text-slate-500">
-                        {z}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ZONES.map((origin) => (
-                    <tr key={origin} className="border-t border-slate-100">
-                      <th className="sticky left-0 whitespace-nowrap bg-slate-50 px-3 py-1.5 text-left font-semibold text-slate-600">{origin}</th>
-                      {ZONES.map((dest) => (
-                        <td key={dest} className="px-1 py-1 text-center">
-                          {editingCells ? (
-                            <input
-                              type="number"
-                              min="0"
-                              value={customMatrix[origin][dest]}
-                              onChange={(e) => updateCustomMatrixCell(origin, dest, e.target.value)}
-                              className="w-14 rounded border border-transparent px-1 py-1 text-center tabular-nums hover:border-slate-200 focus:border-brand-orange/40 focus:bg-white focus:outline-none"
-                            />
-                          ) : (
-                            <span className="block px-2 py-1.5 tabular-nums text-slate-700">{previewMatrix[origin][dest]}</span>
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-400">
-              {pricingType === 'Custom'
-                ? editingCells
-                  ? 'Custom rates — overrides the tier discount above. Still editable later under Client Approvals.'
-                  : 'This is what gets attached on creation — editable later under Client Approvals.'
-                : 'INR per kg, chargeable weight — origin (row) → destination (column). Same for every client; edited only from Client Pricing Configuration, never per-client here.'}
-            </p>
+            <div className="border-t border-slate-100 px-5 py-8 text-center text-sm text-slate-400">No pricings yet — click Add pricing.</div>
+            <p className="border-t border-slate-100 px-5 py-2 text-[11px] text-slate-400">Each row is one pricing attached to this client. ODA and additional charges stay client-wide.</p>
           </div>
-          )}
 
           <div className="flex items-center justify-between gap-3 px-1">
             <span className="text-sm font-semibold text-slate-800">ODA list</span>
@@ -2145,6 +1951,47 @@ export default function NewClient() {
           </div>
           )}
 
+
+          {showAddPricing && (
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShowAddPricing(false)}>
+              <div className="w-full max-w-2xl rounded-2xl bg-white shadow-soft" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">Define Client Region &amp; Pricing</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Build this client's own regions from negotiated cities, then price the lanes between them.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowAddPricing(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
+                    ×
+                  </button>
+                </div>
+                <div className="grid gap-3 p-6 sm:grid-cols-2">
+                  {PRICING_SOURCES.map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => setPricingSource(o.key)}
+                      className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${
+                        pricingSource === o.key ? 'border-brand-orange/60 bg-brand-orange/5' : 'border-slate-200/80 bg-white hover:border-brand-orange/40'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-slate-800">{o.title}</span>
+                      <span className="mt-1 block text-xs leading-relaxed text-slate-500">{o.text}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-end border-t border-slate-100 px-6 py-3.5">
+                  <button
+                    type="button"
+                    disabled={!pricingSource}
+                    onClick={() => setShowAddPricing(false)}
+                    className="rounded-xl bg-brand-orange px-5 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
