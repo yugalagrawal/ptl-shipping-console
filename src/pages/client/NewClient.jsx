@@ -1196,7 +1196,8 @@ export default function NewClient() {
       (opsEmail.trim() === '' || (emailOk(opsEmail) && !opsDupe)) &&
       (financeEmail.trim() === '' || (emailOk(financeEmail) && !financeDupe)) &&
       salesPerson.trim().length > 0,
-    noGstin ||
+    !!panDocument &&
+      (noGstin ||
       (identifications.length > 0 &&
         identifications.every(
           (row) =>
@@ -1206,7 +1207,7 @@ export default function NewClient() {
             row.city.trim().length > 0 &&
             row.state.trim().length > 0 &&
             row.country.trim().length > 0,
-        )),
+        ))),
     contractStart.trim().length > 0 &&
       contractEnd.trim().length > 0 &&
       contractExecutionDate.trim().length > 0 &&
@@ -1513,10 +1514,12 @@ export default function NewClient() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="PAN card number" locked value={pan} />
             <Field label="Legal entity name" locked value={legalName} />
+            <Field label="PAN card number" locked value={pan} />
             <div>
-              <span className={LABEL}>Upload document</span>
+              <span className={LABEL}>
+                Upload PAN Card<span className="text-brand-orange-dark">*</span>
+              </span>
               <UploadTile file={panDocument} onFile={setPanDocument} />
             </div>
           </div>
