@@ -611,7 +611,7 @@ export default function NewClient() {
   const [tradeName, setTradeName] = useState('')
   const [pan, setPan] = useState('')
   const [customerType, setCustomerType] = useState('')
-  const [paymentType, setPaymentType] = useState(PAYMENT_TYPES[0])
+  const [paymentType, setPaymentType] = useState('')
   const duplicateLegalEntity = useMemo(
     () => LEGAL_ENTITY_SUGGESTIONS.find((s) => s.label.trim().toLowerCase() === legalName.trim().toLowerCase()) ?? null,
     [legalName],
@@ -1190,6 +1190,7 @@ export default function NewClient() {
 
       {step === 0 && (
         <Section>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3 lg:col-span-4">
           <Typeahead
             label="Customer group"
             required
@@ -1226,7 +1227,6 @@ export default function NewClient() {
               setGroupId(s.groupId)
             }}
             placeholder={groupFilled ? 'ABC Manufacturing Pvt Ltd' : 'Fill Customer group first'}
-            className="sm:col-span-2"
             error={!!duplicateLegalEntity}
             hint={
               duplicateLegalEntity
@@ -1251,7 +1251,7 @@ export default function NewClient() {
             value={customerType}
             onChange={setCustomerType}
             options={CUSTOMER_TYPES}
-            placeholder="Select type"
+            placeholder="Select"
           />
           <SelectField
             label="Customer payment type"
@@ -1260,21 +1260,14 @@ export default function NewClient() {
             value={paymentType}
             onChange={setPaymentType}
             options={PAYMENT_TYPES}
+            placeholder="Select"
             renderOption={(t) => `${t} (${PAYMENT_TYPE_CODE[t]})`}
           />
-          <Field
-            label="Customer code"
-            disabled
-            readOnly
-            value={customerCode}
-            placeholder="Fill group, legal entity & payment type"
-            hint={customerCode ? 'Group + legal entity + payment type + serial' : undefined}
-            className="sm:col-span-2"
-          />
+          </div>
           <label className="block sm:col-span-2 lg:col-span-4">
-            <span className="mb-1.5 block text-xs font-medium text-slate-500">
+            <span className={LABEL}>
               Registered address
-              <span className="text-brand-orange-dark"> *</span>
+              <span className="text-brand-orange-dark">*</span>
             </span>
             <textarea
               value={fullAddress}
@@ -1282,7 +1275,7 @@ export default function NewClient() {
               onChange={(e) => setFullAddress(e.target.value)}
               rows={2}
               placeholder="Building, street, area"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 disabled:cursor-not-allowed disabled:text-slate-400"
+              className={`${INPUT} ${INPUT_OK}`}
             />
           </label>
           <Field
@@ -1315,7 +1308,7 @@ export default function NewClient() {
               setCity(e.target.value)
               setCityTouched(true)
             }}
-            placeholder="Mumbai"
+            placeholder="City from pincode"
           />
           <SelectField
             label="State"
@@ -1329,10 +1322,10 @@ export default function NewClient() {
             options={INDIAN_STATES}
             placeholder="Select state"
           />
-          <SelectField label="Country" required disabled={!groupFilled} value={country} onChange={setCountry} options={STATES_COUNTRY} />
+          <SelectField label="Country" required disabled value={country} onChange={setCountry} options={STATES_COUNTRY} />
 
           <div className="sm:col-span-2 lg:col-span-4 -mb-2 mt-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">If applicable</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">If applicable</span>
           </div>
           <Field label="SAC number" disabled={!groupFilled} value={sacNumber} onChange={(e) => setSacNumber(e.target.value)} placeholder="If services classification applies" />
           <Field label="HSN number" disabled={!groupFilled} value={hsnNumber} onChange={(e) => setHsnNumber(e.target.value)} placeholder="If goods classification applies" />
