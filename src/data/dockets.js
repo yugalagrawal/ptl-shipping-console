@@ -57,7 +57,7 @@ function logEntry(label, note = '', at = Date.now()) {
 // that can't be issued and every client's assigned series. In production this
 // is a locked counter / DB sequence — never random, never reissued.
 // Auto numbering runs one sequence per service, each inside its own block
-// (Surface 1…, Air 60…, Rail 65…, Sea 675…), so a number always tells its mode.
+// (Surface 1…, Air 60…, Rail 65…, Water/Other 675…), so a number always tells its mode.
 const AUTO_START = { surface: 100000000, air: 600000000, rail: 650000000, sea: 675000000 }
 const autoBody = Object.fromEntries(Object.entries(AUTO_START).map(([m, v]) => [m, v - 1]))
 const upcoming = {}
@@ -85,8 +85,10 @@ export function peekNextDocketNumber(mode = 'surface') {
   return upcomingFor(mode)
 }
 
+// The four modes used everywhere: Air, Surface, Rail and Water/Other (water and "other" are one mode;
+// its internal key stays 'sea').
 export const MODE = { SURFACE: 'surface', AIR: 'air', RAIL: 'rail', SEA: 'sea' }
-export const MODE_LABEL = { [MODE.SURFACE]: 'Surface', [MODE.AIR]: 'Air', [MODE.RAIL]: 'Rail', [MODE.SEA]: 'Sea' }
+export const MODE_LABEL = { [MODE.SURFACE]: 'Surface', [MODE.AIR]: 'Air', [MODE.RAIL]: 'Rail', [MODE.SEA]: 'Water/Other' }
 
 // How the docket physically moves from origin to destination Mini Hub —
 // "Solo MH" (direct, one Mini Hub to another, no hub relay), "Direct Hub"

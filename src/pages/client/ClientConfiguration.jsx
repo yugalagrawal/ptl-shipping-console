@@ -90,7 +90,7 @@ function SeriesPanel({ clientId, ranges, onChange, readOnly }) {
         {!readOnly && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="inline-flex rounded-lg bg-slate-100 p-0.5 font-medium">
-              {['Surface', 'Air', 'Rail', 'Sea'].map((m) => (
+              {['Surface', 'Air', 'Rail', 'Water/Other'].map((m) => (
                 <button key={m} type="button" onClick={() => setMode(m)} className={`rounded-md px-2.5 py-0.5 ${mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{m}</button>
               ))}
             </span>

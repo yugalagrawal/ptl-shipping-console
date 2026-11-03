@@ -190,7 +190,7 @@ function Toggle({ label, checked, onChange, disabled }) {
 }
 
 const SERVICE_TYPES = ['FirstMile - Pickup', 'MidMile', 'LastMile - Delivery']
-const TRANSPORT_MODES = ['Surface', 'Air', 'Rail', 'Water/Others']
+const TRANSPORT_MODES = ['Surface', 'Air', 'Rail', 'Water/Other']
 
 // Same generic checklist-in-a-dropdown widget as Access Management's Geography
 // Access section (ScopeDropdown, pages/admin/AccessManagement.jsx) — copied
@@ -1016,7 +1016,7 @@ export default function NewPartner() {
   // CFT→Kg conversion, one factor per Transportation mode actually selected
   // in Partner Services (Billing Info) — mirrors Client Onboarding's own CFT
   // conversion (NewClient.jsx) but scoped to whichever of the 4 modes
-  // (Surface/Air/Rail/Water/Others) this partner was picked for, instead of a
+  // (Surface/Air/Rail/Water/Other) this partner was picked for, instead of a
   // fixed Air+Surface pair, since a partner may not touch every mode.
   const [cftConversions, setCftConversions] = useState({})
   function cftConversionFor(mode) {

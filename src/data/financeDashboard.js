@@ -41,13 +41,13 @@ export const CLIENTS = [
   { id: 'Lotus Home Décor', size: 0.6, avgKg: 54, rate: 1.05, ded: 0.027, pick: 1.05 },
   { id: 'Quickbasket Grocers', size: 0.7, avgKg: 48, rate: 0.88, ded: 0.044, pick: 1.0 },
 ]
-export const MODES = ['Surface', 'Air', 'Rail', 'Ocean']
+export const MODES = ['Surface', 'Air', 'Rail', 'Water/Other']
 // share = docket volume vs Surface, rate = ₹/kg vs Surface, man = mid-mile cost per km vs Surface, dwell = hub dwell vs Surface.
 const MODE_X = {
   Surface: { share: 1, rate: 1, man: 1, dwell: 1, ok: () => true },
   Air: { share: 0.1, rate: 3.1, man: 4.2, dwell: 0.3, ok: (l) => l.km >= 900 },
   Rail: { share: 0.22, rate: 0.82, man: 0.58, dwell: 1.5, ok: (l) => l.km >= 500 },
-  Ocean: { share: 0.06, rate: 0.85, man: 0.42, dwell: 2.2, ok: (l) => ['MUM-BLR', 'BLR-CHE', 'AMD-MUM', 'KOL-BLR'].includes(l.id) },
+  'Water/Other': { share: 0.06, rate: 0.85, man: 0.42, dwell: 2.2, ok: (l) => ['MUM-BLR', 'BLR-CHE', 'AMD-MUM', 'KOL-BLR'].includes(l.id) },
 }
 
 function rng(seed) {

@@ -37,9 +37,13 @@ function totalOf(r) {
   return totalCache.get(k)
 }
 
-// Which mode a number belongs to ('surface' | 'air' | 'rail' | 'sea') — series are
+// Which mode a number belongs to ('surface' | 'air' | 'rail' | 'sea' = Water/Other) — series are
 // assigned by service, so the number block decides it.
-export const modeOfNumber = (n) => blockOfNumber(n)?.assigned.toLowerCase() ?? null
+// Keyed by the block id (not its label) so renaming a mode's label can't break the lookup.
+export const modeOfNumber = (n) => {
+  const id = blockOfNumber(n)?.id
+  return id ? (id.startsWith('surface') ? 'surface' : id) : null
+}
 
 // `mode` narrows to the ranges issued for that service; omitted = every range.
 function savedRanges(clientId, mode) {
@@ -157,7 +161,7 @@ export function takenRanges(excludeClientId) {
 }
 
 // Next free block of `size` issuable dockets inside the chosen mode's block
-// (Surface, Air, Rail or Sea), after everything already held there — other
+// (Surface, Air, Rail or Water/Other), after everything already held there — other
 // clients' saved ranges and this client's own rows (saved or still being
 // typed). Both ends are real dockets, so the editor accepts them as-is.
 // `autoNext` is the docket number auto numbering will issue next. Returns null
@@ -194,19 +198,19 @@ export function extendTo(to, n) {
 // The docket-number space split by mode, written as full 10-digit docket
 // numbers (the check digit runs 0–9, so a 9-digit block 1xxxxxxxx spans
 // 1xxxxxxxx0 – 1xxxxxxxx9). First digit 6 is kept for the non-surface modes and
-// divided between Air, Rail and Sea. Auto numbering starts at 1000000000.
+// divided between Air, Rail and Water/Other. Auto numbering starts at 1000000000.
 const blk = (id, fromBody, toBody, assigned, divisions) => ({ id, from: fromBody * 10, to: toBody * 10 + 9, assigned, ...(divisions ? { divisions } : {}) })
 export const SERIES_BLOCKS = [
   blk('surface', 100000000, 599999999, 'Surface'),
-  blk('other-modes', 600000000, 699999999, 'Air, Rail & Sea', [
+  blk('other-modes', 600000000, 699999999, 'Air, Rail & Water/Other', [
     blk('air', 600000000, 649999999, 'Air'),
     blk('rail', 650000000, 674999999, 'Rail'),
-    blk('sea', 675000000, 699999999, 'Sea'),
+    blk('sea', 675000000, 699999999, 'Water/Other'),
   ]),
   blk('surface-2', 700000000, 999999999, 'Surface'),
 ]
 
-// The blocks that actually carry a mode (Air/Rail/Sea instead of their parent).
+// The blocks that actually carry a mode (Air/Rail/Water-Other instead of their parent).
 export const LEAF_BLOCKS = SERIES_BLOCKS.flatMap((b) => b.divisions ?? [b])
 
 // Which block (and so which mode) a docket number falls in.
