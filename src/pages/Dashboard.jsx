@@ -7,7 +7,7 @@ export default function Dashboard() {
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-brand-orange">
           <Icon name="dashboard" className="h-7 w-7" />
         </span>
-        <h1 className="mt-5 text-xl font-semibold tracking-tight text-slate-900">This is Birdview Landing Page</h1>
+        <h1 className="mt-5 text-xl font-semibold tracking-tight text-slate-900">This is User's Birdview (Landing Page)</h1>
         <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
           <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
           Coming soon
