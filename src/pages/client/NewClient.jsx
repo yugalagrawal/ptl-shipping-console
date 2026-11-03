@@ -387,10 +387,12 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
 function Section({ title, subtitle, children }) {
   return (
     <div className={card}>
-      <div className="border-b border-slate-100 px-6 py-4">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
-      </div>
+      {title && (
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+        </div>
+      )}
       <div className="grid gap-x-4 gap-y-4 p-6 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
     </div>
   )
@@ -1187,7 +1189,7 @@ export default function NewClient() {
       </div>
 
       {step === 0 && (
-        <Section title="Company details" subtitle="Legal identity used on the LR, invoice and e-way bill.">
+        <Section>
           <Typeahead
             label="Customer group"
             required
