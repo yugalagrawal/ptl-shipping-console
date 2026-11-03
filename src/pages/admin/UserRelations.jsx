@@ -380,9 +380,11 @@ export default function UserRelations() {
       products: [...newUser.products],
     }
     LT_USERS.push(record)
-    setUsers((list) => [...list, record])
+    // `users` starts as the LT_USERS array itself, so the push above already
+    // added the record — re-read it instead of appending a second copy.
+    setUsers([...LT_USERS])
     resetNewUserForm()
-    startEdit(record)
+    navigate(`/user-module/access-management?user=${encodeURIComponent(record.email)}`, { state: { justCreated: true } })
   }
 
   return (

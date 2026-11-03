@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { LT_USERS } from '../../data/users.js'
 import {
   TASKS, TASKS_BY_MODULE, ROLE_NAMES, ZONES, BRANCH_MINI_HUBS,
@@ -325,6 +325,7 @@ export default function AccessManagement() {
 
   // Deep link from User Management's "Edit access" button (?user=email).
   const [searchParams] = useSearchParams()
+  const justCreated = !!useLocation().state?.justCreated
   const linkedEmail = searchParams.get('user')
   useEffect(() => {
     const linked = linkedEmail && LT_USERS.find((u) => u.email === linkedEmail)
@@ -709,6 +710,12 @@ export default function AccessManagement() {
 
       {selectedUser && draft && (
         <div className="space-y-6">
+          {justCreated && (
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800 ring-1 ring-emerald-100">
+              <Icon name="approve" className="h-4 w-4 shrink-0" />
+              {selectedUser.name} was created. Set their function, roles and access below, then save.
+            </div>
+          )}
           <div className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
             <div className="h-16 rounded-t-2xl bg-gradient-to-r from-brand-navy-dark via-brand-navy to-brand-navy-light" />
             <div className="px-6 pb-5">
