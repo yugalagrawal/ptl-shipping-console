@@ -674,6 +674,10 @@ export default function NewClient() {
   const [searchParams] = useSearchParams()
   const initialStep = STEPS.findIndex((s) => s.key === searchParams.get('step'))
   const [step, setStep] = useState(initialStep >= 0 ? initialStep : 0)
+  // Prototype shortcut: opening ?step=billing on a fresh client pre-fills the
+  // earlier steps with demo details so Billing Info can be tried straight away.
+  const demo = searchParams.get('step') === 'billing' && !searchParams.get('id')
+  const demoFile = (name) => new File(['demo'], name, { type: 'application/pdf' })
   const [showClientCreatedDialog, setShowClientCreatedDialog] = useState(false)
   const [showSubmittedDialog, setShowSubmittedDialog] = useState(false)
   // Set once Billing Info is confirmed and the activation record exists (or
@@ -687,7 +691,7 @@ export default function NewClient() {
     : null
 
   // Company Info
-  const [groupName, setGroupName] = useState('')
+  const [groupName, setGroupName] = useState(demo ? 'Demo Retail Group' : '')
   const [groupId, setGroupId] = useState(null)
   const groupFilled = groupName.trim().length > 0
   // Falls back to a name match so pasting/typing an existing group's exact
@@ -701,11 +705,11 @@ export default function NewClient() {
     () => (effectiveGroupId ? LEGAL_ENTITY_SUGGESTIONS.filter((s) => s.groupId === effectiveGroupId) : []),
     [effectiveGroupId],
   )
-  const [legalName, setLegalName] = useState('')
+  const [legalName, setLegalName] = useState(demo ? 'Demo Retail Private Limited' : '')
   const [tradeName, setTradeName] = useState('')
-  const [pan, setPan] = useState('')
-  const [customerType, setCustomerType] = useState('')
-  const [paymentType, setPaymentType] = useState('')
+  const [pan, setPan] = useState(demo ? 'AAJCD4821K' : '')
+  const [customerType, setCustomerType] = useState(demo ? 'AIC' : '')
+  const [paymentType, setPaymentType] = useState(demo ? 'Credit Customer' : '')
   const duplicateLegalEntity = useMemo(
     () => LEGAL_ENTITY_SUGGESTIONS.find((s) => s.label.trim().toLowerCase() === legalName.trim().toLowerCase()) ?? null,
     [legalName],
@@ -732,11 +736,11 @@ export default function NewClient() {
     () => deriveCustomerCode({ groupName, legalName, paymentType }),
     [groupName, legalName, paymentType],
   )
-  const [fullAddress, setFullAddress] = useState('')
-  const [city, setCity] = useState('')
-  const [pincode, setPincode] = useState('')
+  const [fullAddress, setFullAddress] = useState(demo ? '12, Demo Industrial Estate, Andheri East' : '')
+  const [city, setCity] = useState(demo ? 'Mumbai' : '')
+  const [pincode, setPincode] = useState(demo ? '400059' : '')
   const [pincodeLookupStatus, setPincodeLookupStatus] = useState('idle') // idle | loading | found | not-found
-  const [state, setState] = useState('')
+  const [state, setState] = useState(demo ? 'Maharashtra' : '')
   const [country] = useState(STATES_COUNTRY[0])
 
   // City / State / Country are never typed — the pincode alone fills them.
@@ -765,12 +769,12 @@ export default function NewClient() {
   const [msmeNumber, setMsmeNumber] = useState('')
 
   // Contact Info
-  const [pocFirstName, setPocFirstName] = useState('')
-  const [pocLastName, setPocLastName] = useState('')
+  const [pocFirstName, setPocFirstName] = useState(demo ? 'Rohan' : '')
+  const [pocLastName, setPocLastName] = useState(demo ? 'Mehta' : '')
   const pocName = joinName(pocFirstName, pocLastName) // derived, never typed
   const [phoneCode] = useState(PHONE_CODES[0])
-  const [pocMobile, setPocMobile] = useState('')
-  const [pocEmail, setPocEmail] = useState('')
+  const [pocMobile, setPocMobile] = useState(demo ? '9876543210' : '')
+  const [pocEmail, setPocEmail] = useState(demo ? 'rohan.mehta@demoretail.in' : '')
   const [opsEmail, setOpsEmail] = useState('')
   const [financeEmail, setFinanceEmail] = useState('')
   const [salesPerson, setSalesPerson] = useState(user?.name ?? '')
@@ -785,10 +789,12 @@ export default function NewClient() {
   }, [user])
 
   // GSTIN Info (repeatable) — row 1 is mandatory unless noGstin is checked
-  const [panDocument, setPanDocument] = useState(null)
+  const [panDocument, setPanDocument] = useState(demo ? demoFile('pan-card.pdf') : null)
   const [noGstin, setNoGstin] = useState(false)
   const [identifications, setIdentifications] = useState([
-    { id: idRowSeq++, idNumber: '', country: 'India', address: '', pincode: '', city: '', state: '', document: null },
+    demo
+      ? { id: idRowSeq++, idNumber: '27AAJCD4821K1Z5', country: 'India', address: '12, Demo Industrial Estate, Andheri East', pincode: '400059', city: 'Mumbai', state: 'Maharashtra', pincodeState: 'Maharashtra', document: demoFile('gst-certificate.pdf') }
+      : { id: idRowSeq++, idNumber: '', country: 'India', address: '', pincode: '', city: '', state: '', document: null },
   ])
 
   function handleNoGstin(checked) {
