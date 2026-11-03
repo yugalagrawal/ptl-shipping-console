@@ -738,6 +738,7 @@ export default function NewClient() {
   const demoFile = (name) => new File(['demo'], name, { type: 'application/pdf' })
   const [showClientCreatedDialog, setShowClientCreatedDialog] = useState(false)
   const [showSubmittedDialog, setShowSubmittedDialog] = useState(false)
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   // Set once Billing Info is confirmed and the activation record exists (or
   // read from the URL when resuming one) — lets later steps update that same
   // record's status in place.
@@ -1217,6 +1218,7 @@ export default function NewClient() {
   // and KYC still need finishing before it's actually Active.
   function handleNext() {
     if (isLastStep) {
+      setShowSubmitConfirm(false)
       // Full snapshot of every step — this is what Sales Admin's review panel
       // reads from in Client Approvals (identity/address, contact, billing,
       // identification rows + docs); pricing/additional charges stay separate
@@ -2124,7 +2126,7 @@ export default function NewClient() {
         <button
           type="button"
           disabled={!stepValid}
-          onClick={handleNext}
+          onClick={isLastStep ? () => setShowSubmitConfirm(true) : handleNext}
           className={`${btnPrimary} disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:bg-slate-200`}
         >
           {step === 3 ? 'Confirm & Create Client' : isLastStep ? 'Submit for activation' : 'Next'}
@@ -2416,10 +2418,42 @@ export default function NewClient() {
         </div>
       )}
 
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShowSubmitConfirm(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-soft" onClick={(e) => e.stopPropagation()}>
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <Icon name="info" className="h-5 w-5" />
+            </span>
+            <h3 className="mt-3 text-base font-semibold text-slate-900">Submit for approval?</h3>
+            <p className="mt-1.5 text-sm text-slate-500">
+              <span className="font-medium text-slate-700">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'This client'}</span> will go to Client Approvals and cannot be edited after submitting.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button type="button" onClick={() => setShowSubmitConfirm(false)} className={`${btnSecondary} flex-1 justify-center`}>
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="flex-1 rounded-xl bg-brand-orange px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
+              >
+                Yes, submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSubmittedDialog && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-soft">
-            <h3 className="text-base font-semibold text-slate-900">Client submitted for Approval</h3>
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Icon name="approve" className="h-5 w-5" />
+            </span>
+            <h3 className="mt-3 text-base font-semibold text-slate-900">
+              <span className="break-words">{tradeName.trim() || legalName.trim() || ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name || 'This client'}</span> submitted for approval
+            </h3>
+            <p className="mt-1.5 text-sm text-slate-500">Track its status under Client activation in progress.</p>
           </div>
         </div>
       )}
