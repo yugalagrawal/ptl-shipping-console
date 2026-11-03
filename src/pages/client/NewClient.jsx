@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
-import { card } from '../../components/ui.js'
+import { btnPrimary, btnSecondary } from '../../components/ui.js'
+
+const card = 'rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70'
+const LABEL = 'mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-600'
+const INPUT = 'w-full rounded-xl border bg-white px-3.5 py-2 text-sm text-slate-800 placeholder:text-slate-400 transition-colors focus:outline focus:outline-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400'
+const INPUT_OK = 'border-slate-200 focus:border-brand-orange focus:outline-brand-orange/20'
+const INPUT_ERR = 'border-rose-300 focus:outline-rose-200'
+
+function InfoTip({ text }) {
+  return (
+    <span title={text} className="cursor-help text-slate-300 hover:text-slate-500">
+      <Icon name="info" className="h-3.5 w-3.5" />
+    </span>
+  )
+}
 import RegionPincodeMappingModal from '../../components/RegionPincodeMappingModal.jsx'
 import OdaListManager from '../../components/OdaListManager.jsx'
 import {
@@ -271,21 +285,12 @@ function tierFromVolume({ volumeKg }) {
 function Field({ label, required, labelInfo, hint, error, className = '', ...props }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-500">
+      <span className={LABEL}>
         {label}
-        {required && <span className="text-brand-orange-dark"> *</span>}
-        {labelInfo && (
-          <span title={labelInfo} className="cursor-help text-slate-400">
-            ⓘ
-          </span>
-        )}
+        {required && <span className="text-brand-orange-dark">*</span>}
+        {labelInfo && <InfoTip text={labelInfo} />}
       </span>
-      <input
-        {...props}
-        className={`w-full rounded-xl border bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 disabled:cursor-not-allowed disabled:text-slate-500 ${
-          error ? 'border-rose-300 focus:outline-rose-300' : 'border-slate-200 focus:outline-brand-orange/40'
-        }`}
-      />
+      <input {...props} className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK}`} />
       {hint && <p className={`mt-1 text-xs ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
     </label>
   )
@@ -294,27 +299,30 @@ function Field({ label, required, labelInfo, hint, error, className = '', ...pro
 function SelectField({ label, value, onChange, options, required, disabled, placeholder, renderOption, className = '' }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-xs font-medium text-slate-500">
+      <span className={LABEL}>
         {label}
-        {required && <span className="text-brand-orange-dark"> *</span>}
+        {required && <span className="text-brand-orange-dark">*</span>}
       </span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40 disabled:cursor-not-allowed disabled:text-slate-400"
-      >
-        {placeholder && (
-          <option value="" disabled>
-            {placeholder}
-          </option>
-        )}
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {renderOption ? renderOption(o) : o}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${INPUT} ${INPUT_OK} appearance-none pr-9 ${value === '' ? 'text-slate-400' : ''}`}
+        >
+          {placeholder && (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {renderOption ? renderOption(o) : o}
+            </option>
+          ))}
+        </select>
+        <Icon name="chevron" className="pointer-events-none absolute right-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+      </div>
     </label>
   )
 }
@@ -342,14 +350,10 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
 
   return (
     <label className={`relative block ${className}`}>
-      <span className={`mb-1.5 flex items-center gap-1 text-xs ${boldLabel ? 'font-semibold text-slate-800' : 'font-medium text-slate-500'}`}>
+      <span className={`mb-1.5 flex items-center gap-1 text-xs ${boldLabel ? 'font-semibold text-slate-800' : 'font-medium text-slate-600'}`}>
         {label}
-        {labelInfo && (
-          <span title={labelInfo} className="cursor-help text-slate-400">
-            ⓘ
-          </span>
-        )}
         {required && <span className="text-brand-orange-dark">*</span>}
+        {labelInfo && <InfoTip text={labelInfo} />}
       </span>
       <input
         type="text"
@@ -359,18 +363,16 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         placeholder={placeholder}
-        className={`w-full rounded-xl border bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 disabled:cursor-not-allowed disabled:text-slate-400 ${
-          error ? 'border-rose-300 focus:outline-rose-300' : 'border-slate-200 focus:outline-brand-orange/40'
-        }`}
+        className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK}`}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-soft">
+        <div className="absolute z-20 mt-1.5 max-h-52 w-full overflow-y-auto rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
           {filtered.map((s) => (
             <button
               key={s.id}
               type="button"
               onMouseDown={() => onSelectSuggestion(s)}
-              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              className="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
             >
               {renderSuggestion ? renderSuggestion(s) : s.label}
             </button>
@@ -384,12 +386,12 @@ function Typeahead({ label, required, labelInfo, boldLabel, value, onChange, sug
 
 function Section({ title, subtitle, children }) {
   return (
-    <div className={`space-y-4 p-6 ${card}`}>
-      <div>
-        <h2 className="font-medium text-slate-900">{title}</h2>
+    <div className={card}>
+      <div className="border-b border-slate-100 px-6 py-4">
+        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
         {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
       </div>
-      <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
+      <div className="grid gap-x-4 gap-y-4 p-6 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
     </div>
   )
 }
@@ -397,30 +399,40 @@ function Section({ title, subtitle, children }) {
 function Stepper({ step, onJump }) {
   return (
     <div className="flex items-center">
-      {STEPS.map((s, i) => (
-        <div key={s.key} className="flex flex-1 items-center last:flex-none">
-          <button
-            type="button"
-            disabled={i > step}
-            onClick={() => onJump(i)}
-            className="flex flex-col items-center gap-2 disabled:cursor-not-allowed"
-          >
-            <span
-              className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
-                i === step
-                  ? 'bg-brand-orange text-white'
-                  : i < step
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : 'bg-slate-100 text-slate-400'
-              }`}
+      {STEPS.map((st, i) => {
+        const done = i < step
+        const current = i === step
+        return (
+          <div key={st.key} className="flex flex-1 items-center last:flex-none">
+            <button
+              type="button"
+              disabled={i > step}
+              onClick={() => onJump(i)}
+              className="group flex items-center gap-2.5 disabled:cursor-not-allowed"
             >
-              <Icon name={i < step ? 'approve' : s.icon} className="h-[18px] w-[18px]" />
-            </span>
-            <span className={`text-xs font-medium ${i === step ? 'text-slate-900' : i < step ? 'text-emerald-600' : 'text-slate-400'}`}>{s.label}</span>
-          </button>
-          {i < STEPS.length - 1 && <div className={`mx-2 h-px flex-1 ${i < step ? 'bg-emerald-200' : 'bg-slate-200'}`} />}
-        </div>
-      ))}
+              <span
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                  current
+                    ? 'bg-brand-orange text-white ring-4 ring-brand-orange/15'
+                    : done
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                {done ? <Icon name="approve" className="h-4 w-4" /> : i + 1}
+              </span>
+              <span
+                className={`hidden whitespace-nowrap text-xs font-medium lg:block ${
+                  current ? 'text-slate-900' : done ? 'text-slate-600 group-hover:text-slate-900' : 'text-slate-400'
+                }`}
+              >
+                {st.label}
+              </span>
+            </button>
+            {i < STEPS.length - 1 && <div className={`mx-3 h-px flex-1 ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -472,7 +484,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
   const stateMismatch = Boolean(pincodeLookupResult && row.state && pincodeLookupResult.state !== row.state)
 
   return (
-    <div className="space-y-4 rounded-xl border border-slate-200 p-4">
+    <div className="space-y-4 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">GSTIN {index + 1}</span>
         {removable && (
@@ -1171,14 +1183,20 @@ export default function NewClient() {
       </div>
 
       {correctionRow?.correctionComment && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-rose-500">Correction requested by Sales Admin</div>
-          <p className="mt-1 text-sm text-rose-700">{correctionRow.correctionComment}</p>
+        <div className="flex gap-3 rounded-2xl bg-rose-50 p-4 ring-1 ring-rose-100">
+          <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+          <div>
+            <div className="text-xs font-semibold text-rose-600">Correction requested</div>
+            <p className="mt-0.5 text-sm text-rose-700">{correctionRow.correctionComment}</p>
+          </div>
         </div>
       )}
 
-      <div className={`p-6 ${card}`}>
+      <div className={`px-6 py-4 ${card}`}>
         <Stepper step={step} onJump={setStep} />
+        <p className="mt-3 text-xs font-medium text-slate-500 lg:hidden">
+          Step {step + 1} of {STEPS.length} · {STEPS[step].label}
+        </p>
       </div>
 
       {step === 0 && (
@@ -1388,9 +1406,9 @@ export default function NewClient() {
 
       {step === 2 && (
         <div className={`space-y-5 p-6 ${card}`}>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between -mx-6 -mt-6 border-b border-slate-100 px-6 py-4">
             <div>
-              <h2 className="font-medium text-slate-900">GSTIN Info</h2>
+              <h2 className="text-sm font-semibold text-slate-900">GSTIN Info</h2>
               <p className="mt-0.5 text-xs text-slate-400">A pan-India shipper often holds one GSTIN per state — add one row per registration.</p>
             </div>
             <button
@@ -1535,13 +1553,11 @@ export default function NewClient() {
             </div>
           </label>
 
-          <div className="space-y-3 rounded-xl border border-slate-200 p-4 sm:col-span-2 lg:col-span-4">
+          <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 sm:col-span-2 lg:col-span-4">
             <div className="flex items-center justify-between">
               <span className="mb-0 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 CFT to KG conversion for charges
-                <span title="Volumetric weight factor used to convert chargeable volume (CFT) into chargeable weight (Kg) when billing this client. Different shipment types can use different factors." className="cursor-help text-slate-400">
-                  ⓘ
-                </span>
+                <InfoTip text="Volumetric weight factor used to convert chargeable volume (CFT) into chargeable weight (Kg) when billing this client. Different shipment types can use different factors." />
               </span>
             </div>
             <div className="flex flex-wrap gap-6">
@@ -1600,13 +1616,13 @@ export default function NewClient() {
             <p className="text-xs text-slate-400">At least one document upload is mandatory.</p>
           </div>
 
-          <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-4">
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/80 bg-white sm:col-span-2 lg:col-span-4">
+          <div className="flex items-center gap-3 px-4 py-3">
             <Toggle label="Copy rates from existing client" checked={false} onChange={() => {}} disabled />
             <span className="text-xs text-slate-400">Will build its functionality later</span>
           </div>
 
-          <div className="space-y-3 sm:col-span-2 lg:col-span-4">
-            <div>
+            <div className="px-4 py-3">
               <Toggle label="Is centralised payment" checked={centralisedPayment} onChange={setCentralisedPayment} />
               {centralisedPayment && (
                 <div className="mt-3 grid gap-4 sm:grid-cols-3">
@@ -1632,7 +1648,7 @@ export default function NewClient() {
                 </div>
               )}
             </div>
-            <div>
+            <div className="px-4 py-3">
               <div className="flex items-center gap-4">
                 <Toggle label="Security deposit required" checked={securityDeposit} onChange={setSecurityDeposit} />
                 {securityDeposit && (
@@ -1641,7 +1657,7 @@ export default function NewClient() {
                     value={securityDepositAmount}
                     onChange={(e) => setSecurityDepositAmount(e.target.value)}
                     placeholder="Amount (₹)"
-                    className="max-w-xs flex-1 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                    className={`${INPUT} ${INPUT_OK} max-w-xs flex-1`}
                   />
                 )}
               </div>
@@ -1674,12 +1690,11 @@ export default function NewClient() {
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="space-y-3 rounded-xl border border-slate-200 p-4 sm:col-span-2 lg:col-span-4">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Exemptions</span>
-            <div className="space-y-3">
+            <div className="px-4 py-3">
               <Toggle label="Tax exemption" checked={taxExemption} onChange={setTaxExemption} />
+            </div>
+            <div className="px-4 py-3">
               <Toggle label="Fuel surcharge exemption" checked={fuelSurchargeExemption} onChange={setFuelSurchargeExemption} />
             </div>
           </div>
@@ -1688,8 +1703,8 @@ export default function NewClient() {
 
       {step === 4 && (
         <div className={`space-y-5 p-6 ${card}`}>
-          <div>
-            <h2 className="font-medium text-slate-900">Pricing</h2>
+          <div className="-mx-6 -mt-6 border-b border-slate-100 px-6 py-4">
+            <h2 className="text-sm font-semibold text-slate-900">Pricing</h2>
             <p className="mt-0.5 text-xs text-slate-400">Tier is fixed by declared volume — Standard uses the list rate, Custom applies a discount %.</p>
           </div>
 
@@ -1699,8 +1714,8 @@ export default function NewClient() {
               <span className="mb-1.5 flex items-center gap-1 text-xs font-medium text-slate-500">
                 Tier
                 <span className="group relative inline-flex">
-                  <span tabIndex={0} className="cursor-help text-slate-400 outline-none">
-                    ⓘ
+                  <span tabIndex={0} className="cursor-help text-slate-300 outline-none hover:text-slate-500">
+                    <Icon name="info" className="h-3.5 w-3.5" />
                   </span>
                   <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 w-60 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-left normal-case opacity-0 shadow-soft transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                     <p className="text-[11px] font-semibold text-slate-700">Fixed by declared volume</p>
@@ -2030,18 +2045,15 @@ export default function NewClient() {
 
       {step === 5 && (
         <div className={`space-y-5 p-6 ${card}`}>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between -mx-6 -mt-6 border-b border-slate-100 px-6 py-4">
             <div>
-              <h2 className="font-medium text-slate-900">KYC upload</h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                Add every proof document this client needs on file — all of them must be uploaded before this can go to Sales Admin for approval. Remove a row
-                instead of leaving it empty if it doesn't apply.
-              </p>
+              <h2 className="text-sm font-semibold text-slate-900">KYC upload</h2>
+              <p className="mt-0.5 text-xs text-slate-400">Upload every proof document this client needs. All must be uploaded before submitting; remove rows that don't apply.</p>
             </div>
             <button
               type="button"
               onClick={addDocument}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
             >
               <Icon name="plus" className="h-3.5 w-3.5" />
               Add document
@@ -2054,9 +2066,9 @@ export default function NewClient() {
             const fromPan = doc.type === 'PAN Card' && !doc.file && panDocument
             const effectiveFile = doc.file ?? (doc.type === 'PAN Card' ? panDocument : null)
             return (
-            <div key={doc.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center">
+            <div key={doc.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 sm:flex-row sm:items-end">
               <SelectField label="Document type" value={doc.type} onChange={(v) => updateDocument(doc.id, 'type', v)} options={DOCUMENT_TYPES} className="sm:w-56" />
-              <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-3 text-center text-xs text-slate-500 transition-colors hover:border-brand-orange/40">
+              <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-center text-xs text-slate-500 transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30">
                 {effectiveFile ? (
                   <>
                     {effectiveFile.name}
@@ -2078,33 +2090,34 @@ export default function NewClient() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div className="flex gap-3">
+      <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-slate-200">
+        <div className="flex items-center gap-2">
           {step > 0 && (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s - 1)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            >
+            <button type="button" onClick={() => setStep((s) => s - 1)} className={btnSecondary}>
               Previous
             </button>
           )}
           <button
             type="button"
             onClick={goBack}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            className="rounded-xl px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
           >
             Save as draft
           </button>
         </div>
-        <button
-          type="button"
-          disabled={!stepValid}
-          onClick={handleNext}
-          className="rounded-xl bg-brand-orange px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200"
-        >
-          {step === 3 ? 'Confirm & Create Client' : isLastStep ? 'Submit for activation' : 'Next'}
-        </button>
+        <div className="flex items-center gap-4">
+          <span className="hidden text-xs text-slate-400 sm:block">
+            Step {step + 1} of {STEPS.length}
+          </span>
+          <button
+            type="button"
+            disabled={!stepValid}
+            onClick={handleNext}
+            className={`${btnPrimary} disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:bg-slate-200`}
+          >
+            {step === 3 ? 'Confirm & Create Client' : isLastStep ? 'Submit for activation' : 'Next'}
+          </button>
+        </div>
       </div>
 
       {showRegionMappingModal && <RegionPincodeMappingModal onClose={() => setShowRegionMappingModal(false)} />}
@@ -2157,7 +2170,7 @@ export default function NewClient() {
                   <button
                     type="button"
                     onClick={seedRegionsFromStandard}
-                    className="rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-orange/40 hover:bg-brand-orange/5"
+                    className="rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 text-left transition-colors hover:border-brand-orange/40 hover:bg-brand-orange/5"
                   >
                     <p className="text-sm font-semibold text-slate-800">Start from Standard regions</p>
                     <p className="mt-1 text-xs text-slate-400">
@@ -2167,7 +2180,7 @@ export default function NewClient() {
                   <button
                     type="button"
                     onClick={startRegionsFresh}
-                    className="rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-orange/40 hover:bg-brand-orange/5"
+                    className="rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 text-left transition-colors hover:border-brand-orange/40 hover:bg-brand-orange/5"
                   >
                     <p className="text-sm font-semibold text-slate-800">Start from scratch</p>
                     <p className="mt-1 text-xs text-slate-400">Build the client's regions one at a time, assigning cities exactly as negotiated.</p>
@@ -2176,7 +2189,7 @@ export default function NewClient() {
                     <button
                       type="button"
                       onClick={() => setPickingRegionTemplate(true)}
-                      className="rounded-xl border border-slate-200 p-4 text-left transition-colors hover:border-brand-orange/40 hover:bg-brand-orange/5 sm:col-span-2"
+                      className="rounded-2xl border border-slate-200/80 bg-slate-50/30 p-4 text-left transition-colors hover:border-brand-orange/40 hover:bg-brand-orange/5 sm:col-span-2"
                     >
                       <p className="text-sm font-semibold text-slate-800">Pull existing mapping</p>
                       <p className="mt-1 text-xs text-slate-400">
