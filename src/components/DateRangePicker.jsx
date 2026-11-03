@@ -155,6 +155,9 @@ function Calendar({ view, onView, start, end, rangeEnd, minDate, locked, onPick,
 
 const viewOf = (d) => ({ year: d.getFullYear(), month: d.getMonth() })
 
+// Shared with DatePicker (single date) so both pickers look identical.
+export { Calendar, viewOf, parse, toIso, fmt, startOfToday }
+
 export default function DateRangePicker({ label, required, start, end, onChange, placeholder = 'Select date range', className = '' }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState({ start: null, end: null })

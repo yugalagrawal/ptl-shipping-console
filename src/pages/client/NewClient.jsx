@@ -9,13 +9,6 @@ const INPUT = 'w-full rounded-xl border bg-white px-3.5 py-2 text-sm text-slate-
 const INPUT_OK = 'border-slate-200 focus:border-brand-orange focus:outline-brand-orange/20'
 const INPUT_ERR = 'border-rose-300 focus:outline-rose-200'
 
-function InfoTip({ text }) {
-  return (
-    <span title={text} className="cursor-help text-slate-300 hover:text-slate-500">
-      <Icon name="info" className="h-3.5 w-3.5" />
-    </span>
-  )
-}
 import RegionPincodeMappingModal from '../../components/RegionPincodeMappingModal.jsx'
 import OdaListManager from '../../components/OdaListManager.jsx'
 import {
@@ -114,6 +107,8 @@ import { LT_USERS } from '../../data/users.js'
 import { isReportOf } from '../../data/relations.js'
 import PersonNameFields from '../../components/PersonNameFields.jsx'
 import DateRangePicker from '../../components/DateRangePicker.jsx'
+import DatePicker from '../../components/DatePicker.jsx'
+import InfoTip from '../../components/InfoTip.jsx'
 import { joinName, namePartOk } from '../../utils/personName.js'
 import { GROUP_SUGGESTIONS, LEGAL_ENTITY_SUGGESTIONS, groupById } from '../../data/groups.js'
 import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, submitClientForApproval } from '../../data/clients.js'
@@ -147,7 +142,8 @@ const CUSTOMER_TYPES = ['AIC', 'MSME', 'RETAIL', 'CAGENT', 'GOVT']
 const PHONE_CODES = ['🇮🇳 +91']
 const STATES_COUNTRY = ['India']
 const BILLING_PERIODS = ['Immediate', 'Weekly', 'Fortnightly', 'Monthly']
-const BILL_PRINT_FORMATS = ['7-Arrow', 'Format-1', 'Format-2']
+const BILL_PRINT_FORMATS = ['Format - 1', 'Format - 2', 'Format - 3']
+const DEFAULT_BILL_PRINT_FORMAT = BILL_PRINT_FORMATS[0]
 // Matches the legacy Softpal KYC document-type list (ground truth from
 // screenshots) rather than the earlier ad-hoc set.
 const DOCUMENT_TYPES = ['AADHAR Card (Back)', 'AADHAR Card (Front)', 'EIC Certificate', 'GST Certificate', 'MSME Certificate', 'PAN Card', 'Post Dated Check', 'Signed Contract']
@@ -365,6 +361,45 @@ function SelectField({ label, labelInfo, hint, value, onChange, options, require
       </div>
       {hint && <p className="mt-1 truncate whitespace-nowrap text-[11px] text-slate-400">{hint}</p>}
     </label>
+  )
+}
+
+// Dropdown whose default option carries a "Default" tag (native <select> can't).
+function DefaultFlagSelect({ label, required, value, options, defaultValue, onChange, className = '' }) {
+  const [open, setOpen] = useState(false)
+  const tag = <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">Default</span>
+  return (
+    <div className={`relative ${className}`}>
+      <span className={LABEL}>
+        {label}
+        {required && <span className="text-brand-orange-dark">*</span>}
+      </span>
+      <button type="button" onClick={() => setOpen((o) => !o)} className={`${INPUT} ${INPUT_OK} flex items-center justify-between gap-2 text-left`}>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-slate-800">{value}</span>
+          {value === defaultValue && tag}
+        </span>
+        <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1.5 w-full min-w-[180px] rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+            {options.map((o) => (
+              <button
+                key={o}
+                type="button"
+                onClick={() => { onChange(o); setOpen(false) }}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 ${value === o ? 'bg-orange-50/60 font-medium text-slate-900' : 'text-slate-600'}`}
+              >
+                {o}
+                {o === defaultValue && tag}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -765,7 +800,7 @@ export default function NewClient() {
   // for the rare backdated/postdated case.
   const [contractExecutionDate, setContractExecutionDate] = useState(todayISO())
   const [billingPeriod, setBillingPeriod] = useState(BILLING_PERIODS[2])
-  const [billPrintFormat, setBillPrintFormat] = useState(BILL_PRINT_FORMATS[0])
+  const [billPrintFormat, setBillPrintFormat] = useState(DEFAULT_BILL_PRINT_FORMAT)
   const [creditLimit, setCreditLimit] = useState('')
   const [centralisedPayment, setCentralisedPayment] = useState(false)
   const [billingState, setBillingState] = useState('')
@@ -808,7 +843,9 @@ export default function NewClient() {
 
   // Pricing (tier + additional charges)
   // Tier is fixed by declared volume — not a choice, just shown for context.
-  const tier = useMemo(() => tierFromVolume({ volumeKg: expectedVolumeKg }), [expectedVolumeKg])
+  // Optional: left blank, it counts as 1.
+  const effectiveVolume = expectedVolumeKg.trim() === '' ? '1' : expectedVolumeKg
+  const tier = useMemo(() => tierFromVolume({ volumeKg: effectiveVolume }), [effectiveVolume])
 
   // Standard = the fixed, un-discounted rate card, same for every client
   // (editing it lives in Client Pricing Configuration, never per-client
@@ -1121,7 +1158,7 @@ export default function NewClient() {
           contractStart, contractEnd, contractExecutionDate, billingPeriod, billPrintFormat, creditLimit,
           centralisedPayment, billingState, billingCity, billingBranch,
           securityDeposit, securityDepositAmount, securityDepositPaid, depositPaymentDate, depositPaymentType, depositReferenceNo,
-          taxExemption, fuelSurchargeExemption, expectedVolumeKg, volumeUnit,
+          taxExemption, fuelSurchargeExemption, expectedVolumeKg: effectiveVolume, volumeUnit,
           copyRatesEnabled, copyRatesFrom, billingDocuments, cftConversions,
         },
         documents,
@@ -1238,7 +1275,6 @@ export default function NewClient() {
       billingPeriod.trim().length > 0 &&
       billPrintFormat.trim().length > 0 &&
       creditLimit.trim().length > 0 &&
-      expectedVolumeKg.trim().length > 0 &&
       billingDocuments.some((doc) => doc.file) &&
       cftConversions.every((row) => String(row.conversion).trim().length > 0) &&
       (!centralisedPayment ||
@@ -1585,28 +1621,27 @@ export default function NewClient() {
                 setContractEnd(end)
               }}
             />
-            <Field
+            <DatePicker
               label="Contract Submission Date"
               required
-              type="date"
               labelInfo="The Date when contract was finalized/logged."
               value={contractExecutionDate}
-              onChange={(e) => setContractExecutionDate(e.target.value)}
+              onChange={setContractExecutionDate}
             />
             <SelectField label="Billing period" required value={billingPeriod} onChange={setBillingPeriod} options={BILLING_PERIODS} />
 
-            <SelectField label="Bill print format" required value={billPrintFormat} onChange={setBillPrintFormat} options={BILL_PRINT_FORMATS} />
-            <Field label="Maximum credit limit (₹)" required type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="500000" />
+            <DefaultFlagSelect label="Bill print format" required value={billPrintFormat} onChange={setBillPrintFormat} options={BILL_PRINT_FORMATS} defaultValue={DEFAULT_BILL_PRINT_FORMAT} />
+            <Field label="Maximum credit limit (₹)" required type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="500000" hint="No orders beyond limit" />
             <label className="block sm:col-span-2">
               <span className={LABEL}>
-                Monthly Vol. Expectation<span className="text-brand-orange-dark">*</span>
+                Monthly Vol. Expectation
               </span>
               <div className="flex items-center rounded-xl border border-slate-200 bg-white transition-colors focus-within:border-brand-orange focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/20">
                 <input
                   type="number"
                   value={expectedVolumeKg}
                   onChange={(e) => setExpectedVolumeKg(e.target.value)}
-                  placeholder="Decides the pricing tier"
+                  placeholder="Optional — counted as 1"
                   className="w-full min-w-0 rounded-xl border-0 bg-transparent px-3.5 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
                 />
                 <div className="flex shrink-0 gap-0.5 border-l border-slate-200 p-1">
