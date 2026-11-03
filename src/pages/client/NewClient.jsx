@@ -828,6 +828,7 @@ export default function NewClient() {
   const [fuelSurchargeExemption, setFuelSurchargeExemption] = useState(false)
   const [expectedVolumeKg, setExpectedVolumeKg] = useState('')
   const [volumeUnit, setVolumeUnit] = useState(VOLUME_UNITS[0])
+  const [editingTonnage, setEditingTonnage] = useState(false)
   const [copyRatesEnabled, setCopyRatesEnabled] = useState(false)
   const [copyRatesFrom, setCopyRatesFrom] = useState('')
 
@@ -1799,9 +1800,36 @@ export default function NewClient() {
       {step === 4 && (
         <div className="space-y-5">
           <div className={`relative space-y-4 p-5 ${card}`}>
-            <span title="Set by declared monthly volume" className={`absolute right-4 top-3.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${TIER_BADGE[tier]}`}>
-              {tier} tier
-            </span>
+            <div className="absolute right-4 top-3 flex items-center gap-2 text-[11px] text-slate-500">
+              {editingTonnage ? (
+                <>
+                  <input
+                    type="number"
+                    min="0"
+                    autoFocus
+                    value={expectedVolumeKg === '' ? '' : String(Number(expectedVolumeKg) / 1000)}
+                    onChange={(e) => {
+                      setExpectedVolumeKg(e.target.value === '' ? '' : String(Math.max(0, Number(e.target.value) || 0) * 1000))
+                      setVolumeUnit(VOLUME_UNITS[0])
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && setEditingTonnage(false)}
+                    placeholder="Tonnes / month"
+                    className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-brand-orange focus:outline-none"
+                  />
+                  <button type="button" onClick={() => setEditingTonnage(false)} className="font-medium text-brand-orange-dark hover:underline">
+                    Done
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${TIER_BADGE[tier]}`}>{tier} tier</span>
+                  <span>{(Number(effectiveVolume) / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 })} tonne / month</span>
+                  <button type="button" onClick={() => setEditingTonnage(true)} title="Edit monthly tonnage" className="font-medium text-slate-400 hover:text-brand-orange-dark">
+                    Edit
+                  </button>
+                </>
+              )}
+            </div>
             <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
               <div>
                 <span className={LABEL}>
