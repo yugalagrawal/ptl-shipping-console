@@ -47,13 +47,11 @@ function endForMonths(start, months) {
   return e
 }
 
-// Calendar months the range touches, minus one: 15 Nov – 15 Jan touches
-// Nov, Dec and Jan (3), so it reads "2 months".
+// Plain day count, both dates included: 1 Nov – 15 Nov reads "15 days".
 export function describeRange(start, end) {
   if (!start || !end) return ''
-  const touched = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
-  const months = Math.max(touched - 1, 1) // inside one calendar month still reads "1 month"
-  return `${months} ${months === 1 ? 'month' : 'months'}`
+  const days = Math.round((new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1) - start) / 86400000)
+  return `${days} ${days === 1 ? 'day' : 'days'}`
 }
 
 function monthCells(year, month) {
