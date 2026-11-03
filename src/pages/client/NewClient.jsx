@@ -524,6 +524,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
       setPincodeLookupStatus('idle')
       setPincodeLookupResult(null)
       if (row.city) onUpdate(row.id, 'city', '')
+      if (row.pincodeState) onUpdate(row.id, 'pincodeState', '')
       return
     }
     let cancelled = false
@@ -531,6 +532,7 @@ function IdentificationRow({ row, index, onUpdate, onRemove, removable, companyP
     lookupPincode(row.pincode).then((result) => {
       if (cancelled) return
       onUpdate(row.id, 'city', result?.city ?? '')
+      onUpdate(row.id, 'pincodeState', result?.state ?? '') // lets the step block a pincode from another state
       setPincodeLookupStatus(result ? 'found' : 'not-found')
       setPincodeLookupResult(result ?? null)
     })
@@ -1232,6 +1234,7 @@ export default function NewClient() {
             row.city.trim().length > 0 &&
             row.state.trim().length > 0 &&
             row.country.trim().length > 0 &&
+            row.pincodeState === row.state &&
             !!row.document,
         ))),
     contractStart.trim().length > 0 &&
