@@ -275,6 +275,26 @@ function deriveCustomerCode({ groupName, legalName, paymentType }) {
 // data/geo.js (imported above) — shared with OdaListManager's own
 // "type a pincode" quick-add.
 
+// Prototype stand-in for the production PAN verification API: a well-formed
+// PAN comes back "Verified" with a registered name. The 4th character of a PAN
+// is its holder type (P person, C company, F firm...), so the dummy name
+// follows it. Deterministic per PAN so the same input always shows the same name.
+const PAN_FORMAT = /^[A-Z]{5}[0-9]{4}[A-Z]$/
+const DUMMY_NAMES = {
+  P: ['MOHD AZAD', 'RAJESH KUMAR SHARMA', 'PRIYA SINGH', 'ANITA DESAI', 'VIKRAM NAIR'],
+  C: ['ACME FOODS PRIVATE LIMITED', 'BRIGHT LOGISTICS PRIVATE LIMITED', 'NORTHSTAR RETAIL PRIVATE LIMITED'],
+  F: ['SHARMA TRADERS', 'GUPTA & SONS', 'KUMAR ENTERPRISES'],
+  default: ['SUNRISE TRADING COMPANY', 'METRO SUPPLIES', 'GREENLEAF VENTURES'],
+}
+const KNOWN_PAN_NAMES = { CRPPA2503J: 'MOHD AZAD' }
+function dummyRegisteredName(pan) {
+  if (KNOWN_PAN_NAMES[pan]) return KNOWN_PAN_NAMES[pan]
+  const pool = DUMMY_NAMES[pan[3]] ?? DUMMY_NAMES.default
+  let h = 0
+  for (const ch of pan) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return pool[h % pool.length]
+}
+
 let idRowSeq = 1
 let docRowSeq = 1
 let cftRowSeq = 1
@@ -290,13 +310,14 @@ function tierFromVolume({ volumeKg }) {
   return 'Bronze'
 }
 
-function Field({ label, required, labelInfo, hint, error, className = '', ...props }) {
+function Field({ label, required, labelInfo, badge, hint, error, className = '', ...props }) {
   return (
     <label className={`block ${className}`}>
       <span className={LABEL}>
         {label}
         {required && <span className="text-brand-orange-dark">*</span>}
         {labelInfo && <InfoTip text={labelInfo} />}
+        {badge && <span className="ml-auto">{badge}</span>}
       </span>
       <input {...props} className={`${INPUT} ${error ? INPUT_ERR : INPUT_OK}`} />
       {hint && <p className={`mt-1 text-[11px] ${error ? 'font-medium text-rose-500' : 'text-slate-400'}`}>{hint}</p>}
@@ -646,6 +667,9 @@ export default function NewClient() {
   }, [legalName])
   const organisationType = useMemo(() => organisationTypeFromPan(pan), [pan])
   const panOwner = EXISTING_PANS[pan.trim().toUpperCase()] ?? null
+  const panFormatOk = PAN_FORMAT.test(pan.trim().toUpperCase())
+  const panVerified = panFormatOk && !panOwner
+  const panRegisteredName = panVerified ? dummyRegisteredName(pan.trim().toUpperCase()) : ''
   const customerCode = useMemo(
     () => deriveCustomerCode({ groupName, legalName, paymentType }),
     [groupName, legalName, paymentType],
@@ -1142,7 +1166,7 @@ export default function NewClient() {
       !duplicateLegalEntity &&
       !panOwner &&
       legalName.trim().length > 0 &&
-      pan.trim().length > 0 &&
+      panVerified &&
       paymentType.trim().length > 0 &&
       fullAddress.trim().length > 0 &&
       pincode.trim().length > 0 &&
@@ -1283,10 +1307,26 @@ export default function NewClient() {
             required
             disabled={!groupFilled}
             value={pan}
-            onChange={(e) => setPan(e.target.value.toUpperCase())}
+            onChange={(e) => setPan(e.target.value.toUpperCase().slice(0, 10))}
             placeholder="AAACA1234A"
-            error={!!panOwner}
-            hint={panOwner ? 'PAN already exists for another client' : organisationType ? <span className="font-medium text-brand-navy">{organisationType}</span> : undefined}
+            error={!!panOwner || (pan.trim().length === 10 && !panFormatOk)}
+            badge={
+              panVerified ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+                  <Icon name="approve" className="h-3 w-3" />
+                  Verified
+                </span>
+              ) : undefined
+            }
+            hint={
+              panOwner
+                ? 'PAN already exists for another client'
+                : pan.trim().length === 10 && !panFormatOk
+                  ? 'Not a valid PAN — format AAACA1234A'
+                  : panVerified
+                    ? `Registered as ${panRegisteredName}`
+                    : undefined
+            }
           />
           <SelectField
             label="Customer Type"
