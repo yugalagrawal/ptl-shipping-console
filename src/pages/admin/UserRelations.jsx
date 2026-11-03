@@ -252,7 +252,7 @@ export default function UserRelations() {
   const [createError, setCreateError] = useState('')
 
   const [query, setQuery] = useState('')
-  const [sortDir, setSortDir] = useState(null) // null | 'asc' | 'desc'
+  const [sortDir, setSortDir] = useState('asc') // 'asc' | 'desc' by name
   const [managerFilter, setManagerFilter] = useState([])
   const [tagFilter, setTagFilter] = useState([])
   const [editingEmail, setEditingEmail] = useState(null)
@@ -307,7 +307,7 @@ export default function UserRelations() {
       }
       return true
     })
-    if (sortDir) list = [...list].sort((a, b) => a.name.localeCompare(b.name) * (sortDir === 'asc' ? 1 : -1))
+    list = [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) * (sortDir === 'asc' ? 1 : -1))
     return list
   }, [users, query, managerFilter, tagFilter, sortDir])
 
@@ -541,9 +541,9 @@ export default function UserRelations() {
                   <th className={`${thCls} !px-3 !pl-5`}>
                     <button
                       type="button"
-                      onClick={() => setSortDir((d) => (d === null ? 'asc' : d === 'asc' ? 'desc' : null))}
-                      className={`inline-flex items-center gap-1 uppercase tracking-wider ${sortDir ? 'text-brand-orange' : 'text-slate-400 hover:text-slate-600'}`}
-                      title="Sort by name"
+                      onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                      className={`inline-flex items-center gap-1 uppercase tracking-wider text-brand-orange`}
+                      title={sortDir === 'asc' ? 'Sorted A → Z' : 'Sorted Z → A'}
                     >
                       Team member
                       <SortIcon dir={sortDir} className="h-3.5 w-3.5" />
