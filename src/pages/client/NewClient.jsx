@@ -734,7 +734,7 @@ export default function NewClient() {
   const [step, setStep] = useState(initialStep >= 0 ? initialStep : 0)
   // Prototype shortcut: opening ?step=billing on a fresh client pre-fills the
   // earlier steps with demo details so Billing Info can be tried straight away.
-  const demo = ['billing', 'kyc'].includes(searchParams.get('step')) && !searchParams.get('id')
+  const demo = ['billing', 'tier', 'kyc'].includes(searchParams.get('step')) && !searchParams.get('id')
   const demoFile = (name) => new File(['demo'], name, { type: 'application/pdf' })
   const [showClientCreatedDialog, setShowClientCreatedDialog] = useState(false)
   const [showSubmittedDialog, setShowSubmittedDialog] = useState(false)
@@ -1382,7 +1382,7 @@ export default function NewClient() {
         {/* The heading becomes the client's own name once it's typed, so it's
             always clear who is being onboarded. */}
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">{tradeName.trim() || legalName.trim() || 'Create new client'}</h1>
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">{tradeName.trim() || legalName.trim() || (step > 0 ? ACTIVATIONS_SEED.find((r) => r.id === activationId)?.name : '') || 'Create new client'}</h1>
           {(tradeName.trim() || legalName.trim()) && (
             <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-medium text-brand-orange-dark">New client · Draft</span>
           )}
