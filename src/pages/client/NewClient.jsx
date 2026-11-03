@@ -479,7 +479,7 @@ function Typeahead({ hintTitle, code, label, required, labelInfo, boldLabel, val
 
 // One KYC document card: status tick, name, file name and a small preview of
 // the uploaded file. Locked cards (uploaded on an earlier step) fade Remove.
-function KycDocCard({ label, note, file, locked, onUpload, onRemove }) {
+function KycDocCard({ label, note, file, locked, onUpload }) {
   const [url, setUrl] = useState(null)
   useEffect(() => {
     if (!(file instanceof Blob)) return undefined
@@ -520,15 +520,10 @@ function KycDocCard({ label, note, file, locked, onUpload, onRemove }) {
           <input type="file" className="hidden" onChange={(e) => e.target.files[0] && onUpload(e.target.files[0])} />
         </label>
       ) : (
-        <div className="flex items-center gap-3 text-xs font-medium">
-          <label className="cursor-pointer text-sky-600 hover:underline">
-            {done ? 'Replace' : 'Upload'}
-            <input type="file" className="hidden" onChange={(e) => onUpload(e.target.files[0] ?? null)} />
-          </label>
-          <button type="button" onClick={onRemove} className="text-rose-500 hover:underline">
-            Remove
-          </button>
-        </div>
+        <label className="cursor-pointer text-xs font-medium text-sky-600 hover:underline" title="Untick the document above to remove it">
+          {done ? 'Replace' : 'Upload'}
+          <input type="file" className="hidden" onChange={(e) => e.target.files[0] && onUpload(e.target.files[0])} />
+        </label>
       )}
     </div>
   )
@@ -1183,9 +1178,6 @@ export default function NewClient() {
   }
   function updateDocument(id, field, value) {
     setDocuments((rows) => rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
-  }
-  function removeDocument(id) {
-    setDocuments((rows) => rows.filter((r) => r.id !== id))
   }
 
   function addBillingFiles(id, fileList) {
@@ -2111,7 +2103,6 @@ export default function NewClient() {
                   label={doc.type}
                   file={doc.file}
                   onUpload={(f) => updateDocument(doc.id, 'file', f)}
-                  onRemove={() => removeDocument(doc.id)}
                 />
               ))}
             </div>
