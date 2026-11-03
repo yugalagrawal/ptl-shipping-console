@@ -2072,34 +2072,25 @@ export default function NewClient() {
         </div>
       )}
 
-      <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-slate-200">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-3">
           {step > 0 && (
             <button type="button" onClick={() => setStep((s) => s - 1)} className={btnSecondary}>
               Previous
             </button>
           )}
-          <button
-            type="button"
-            onClick={goBack}
-            className="rounded-xl px-3.5 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-          >
+          <button type="button" onClick={goBack} className={btnSecondary}>
             Save as draft
           </button>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="hidden text-xs text-slate-400 sm:block">
-            Step {step + 1} of {STEPS.length}
-          </span>
-          <button
-            type="button"
-            disabled={!stepValid}
-            onClick={handleNext}
-            className={`${btnPrimary} disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:bg-slate-200`}
-          >
-            {step === 3 ? 'Confirm & Create Client' : isLastStep ? 'Submit for activation' : 'Next'}
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={!stepValid}
+          onClick={handleNext}
+          className={`${btnPrimary} disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:bg-slate-200`}
+        >
+          {step === 3 ? 'Confirm & Create Client' : isLastStep ? 'Submit for activation' : 'Next'}
+        </button>
       </div>
 
       {showRegionMappingModal && <RegionPincodeMappingModal onClose={() => setShowRegionMappingModal(false)} />}
