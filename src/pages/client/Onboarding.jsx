@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import Avatar from '../../components/Avatar.jsx'
+import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
-import { card } from '../../components/ui.js'
+import { btnPrimary } from '../../components/ui.js'
 import { ACTIVATIONS_SEED, ACTIVATION_STATUS_LABEL, ACTIVATION_STATUS_BADGE, ACTIVATION_RESUME_STEP } from '../../data/activations.js'
 import { PENDING_CLIENTS_SEED, APPROVAL_STAGE_LABEL, APPROVAL_STAGE_BADGE } from '../../data/clients.js'
+
+const PAGE_SIZE = 10
 
 // Once submitted, a client leaves ACTIVATIONS_SEED (see removeActivation)
 // and lives in PENDING_CLIENTS_SEED instead while Sales Admin/Finance Admin
@@ -31,12 +33,117 @@ const DRAFTS = [
   { name: 'Zepto Instant Commerce', step: 'Company details', updatedAt: '2 days ago' },
 ]
 
+const initialsOf = (name) =>
+  name
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+function ClientTile({ name }) {
+  return (
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-sm font-semibold text-brand-orange-dark">
+      {initialsOf(name)}
+    </span>
+  )
+}
+
+function SearchBox({ value, onChange, placeholder }) {
+  return (
+    <div className="flex w-full max-w-sm items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/40">
+      <Icon name="search" className="h-4 w-4 shrink-0 text-slate-400" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full border-0 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+      />
+    </div>
+  )
+}
+
+// Flat single-select list in a popover (no native <select>).
+function StatusFilter({ value, options, onChange }) {
+  const [open, setOpen] = useState(false)
+  const current = options.find((o) => o.value === value)
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-w-[190px] items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+      >
+        <span className={value === 'all' ? 'text-slate-500' : 'font-medium text-slate-800'}>{current?.label}</span>
+        <Icon name="chevron" className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1.5 w-full min-w-[220px] rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200">
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => { onChange(o.value); setOpen(false) }}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 ${value === o.value ? 'font-medium text-slate-900' : 'text-slate-600'}`}
+              >
+                {o.label}
+                {value === o.value && <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function Pager({ total, page, onPage }) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const from = total ? (page - 1) * PAGE_SIZE + 1 : 0
+  const to = Math.min(page * PAGE_SIZE, total)
+  const btn = 'flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40'
+  return (
+    <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-sm text-slate-500">
+      <span>
+        {from}–{to} of {total}
+      </span>
+      <div className="flex items-center gap-2">
+        <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)} className={btn} aria-label="Previous page">
+          <Icon name="chevron" className="h-3.5 w-3.5 rotate-90" />
+        </button>
+        <span className="min-w-[44px] text-center font-medium text-slate-700">
+          {page} / {pages}
+        </span>
+        <button type="button" disabled={page >= pages} onClick={() => onPage(page + 1)} className={btn} aria-label="Next page">
+          <Icon name="chevron" className="h-3.5 w-3.5 -rotate-90" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Empty({ title, hint }) {
+  return (
+    <div className="flex flex-col items-center px-6 py-14 text-center">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+        <Icon name="search" className="h-5 w-5" />
+      </span>
+      <p className="mt-3 text-sm font-medium text-slate-700">{title}</p>
+      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    </div>
+  )
+}
+
 export default function Onboarding() {
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab ?? 'drafts')
   const [draftsQuery, setDraftsQuery] = useState('')
   const [progressQuery, setProgressQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
   // A client lands here (and leaves Drafts) the moment Billing Info is
   // confirmed in the wizard — read straight off the shared seed so a status
   // set from inside the wizard (see data/activations.js) shows up here too.
@@ -47,42 +154,41 @@ export default function Onboarding() {
   const [pendingApprovals] = useState(PENDING_CLIENTS_SEED)
   const inProgress = [...activations, ...pendingApprovalsAsActivationRows(pendingApprovals)]
 
-  const filteredDrafts = DRAFTS.filter((d) => d.name.toLowerCase().includes(draftsQuery.trim().toLowerCase()))
+  useEffect(() => setPage(1), [tab, draftsQuery, progressQuery, statusFilter])
+
+  const dq = draftsQuery.trim().toLowerCase()
+  const pq = progressQuery.trim().toLowerCase()
+  const filteredDrafts = DRAFTS.filter((d) => d.name.toLowerCase().includes(dq))
   const filteredInProgress = inProgress.filter(
-    (p) =>
-      (statusFilter === 'all' || p.status === statusFilter) &&
-      (p.name.toLowerCase().includes(progressQuery.trim().toLowerCase()) || p.owner.toLowerCase().includes(progressQuery.trim().toLowerCase())),
+    (p) => (statusFilter === 'all' || p.status === statusFilter) && (p.name.toLowerCase().includes(pq) || p.owner.toLowerCase().includes(pq)),
   )
+  const statusOptions = [{ value: 'all', label: 'All statuses' }, ...Object.entries(IN_PROGRESS_STATUS_LABEL).map(([value, label]) => ({ value, label }))]
+
+  const rows = tab === 'drafts' ? filteredDrafts : filteredInProgress
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const tabBtn = (key, active) =>
+    `rounded-lg px-4 py-2 text-sm font-medium transition-colors ${active ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-5xl space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Onboarding</h1>
-          <p className="mt-1 text-slate-500">Create, draft and activate new clients before they can be booked against.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Create, draft and activate new clients before they can be booked against.</p>
         </div>
-        <Link
-          to="/client-module/onboarding/new"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand-orange px-4 py-2.5 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
-        >
+        <Link to="/client-module/onboarding/new" className={btnPrimary}>
           <Icon name="plus" className="h-4 w-4" />
           Create new client
         </Link>
       </div>
 
-      <div className="flex gap-2 rounded-xl bg-slate-100 p-1 text-sm sm:w-fit">
-        <button
-          type="button"
-          onClick={() => setTab('drafts')}
-          className={`rounded-lg px-4 py-2 font-medium transition-colors ${tab === 'drafts' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          Drafts <span className="text-slate-400">({DRAFTS.length})</span>
+      <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
+        <button type="button" onClick={() => setTab('drafts')} className={tabBtn('drafts', tab === 'drafts')}>
+          Drafts <span className="ml-1 text-slate-400">{DRAFTS.length}</span>
         </button>
-        <button
-          type="button"
-          onClick={() => setTab('in-progress')}
-          className={`rounded-lg px-4 py-2 font-medium transition-colors ${tab === 'in-progress' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
-        >
+        <button type="button" onClick={() => setTab('in-progress')} className={tabBtn('in-progress', tab === 'in-progress')}>
           Client activation in progress
           {inProgress.length > 0 && (
             <span className="ml-1.5 rounded-full bg-brand-orange/10 px-1.5 py-0.5 text-[11px] font-semibold text-brand-orange-dark">{inProgress.length}</span>
@@ -90,116 +196,91 @@ export default function Onboarding() {
         </button>
       </div>
 
-      {tab === 'drafts' && (
-        <div className="space-y-4">
-          <div className="relative max-w-sm">
-            <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={draftsQuery}
-              onChange={(e) => setDraftsQuery(e.target.value)}
-              placeholder="Search drafts by client name…"
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-            />
-          </div>
-          <div className={`overflow-hidden ${card}`}>
-          {DRAFTS.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-slate-400">No drafts in progress.</div>
-          ) : filteredDrafts.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-slate-400">No drafts match "{draftsQuery}".</div>
+      <div className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+          {tab === 'drafts' ? (
+            <SearchBox value={draftsQuery} onChange={setDraftsQuery} placeholder="Search drafts by client name…" />
           ) : (
-            <div className="divide-y divide-slate-100">
-              {filteredDrafts.map((d) => (
-                <div key={d.name} className="flex items-center justify-between px-6 py-3.5">
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">{d.name}</div>
-                    <div className="mt-0.5 text-xs text-slate-400">
-                      Last edited {d.updatedAt} · stopped at <span className="text-slate-500">{d.step}</span>
-                    </div>
-                  </div>
-                  <Link to="/client-module/onboarding/new" className="text-sm font-medium text-brand-orange-dark hover:underline">
-                    Resume
-                  </Link>
-                </div>
-              ))}
-            </div>
+            <>
+              <SearchBox value={progressQuery} onChange={setProgressQuery} placeholder="Search by client or owner…" />
+              <StatusFilter value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+            </>
           )}
-          </div>
         </div>
-      )}
 
-      {tab === 'in-progress' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative max-w-sm flex-1">
-              <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={progressQuery}
-                onChange={(e) => setProgressQuery(e.target.value)}
-                placeholder="Search by client or owner…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-white py-2 pl-3 pr-8 text-sm text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-            >
-              <option value="all">All statuses</option>
-              {Object.entries(IN_PROGRESS_STATUS_LABEL).map(([status, label]) => (
-                <option key={status} value={status}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={`overflow-hidden ${card}`}>
-          {inProgress.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-slate-400">Nothing awaiting activation.</div>
-          ) : filteredInProgress.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-slate-400">
-              {progressQuery ? `No matches for "${progressQuery}".` : 'No clients match this status.'}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {filteredInProgress.map((p) => {
-                const resumeStep = ACTIVATION_RESUME_STEP[p.status]
-                const rowContent = (
-                  <>
-                    <Avatar name={p.owner} size="sm" />
+        <div className="border-t border-slate-100">
+          {tab === 'drafts' &&
+            (DRAFTS.length === 0 ? (
+              <Empty title="No drafts in progress" hint="Create a client and it will be saved here until you finish." />
+            ) : !pageRows.length ? (
+              <Empty title={`No drafts match "${draftsQuery}"`} />
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {pageRows.map((d) => (
+                  <div key={d.name} className="flex items-center gap-4 px-5 py-4">
+                    <ClientTile name={d.name} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-slate-800">{p.name}</div>
+                      <div className="truncate text-sm font-medium text-slate-900">{d.name}</div>
                       <div className="mt-0.5 text-xs text-slate-400">
-                        Created {p.createdAt} · {p.owner}
+                        Last edited {d.updatedAt} · Draft · stopped at <span className="text-slate-500">{d.step}</span>
                       </div>
-                      {p.correctionComment && <div className="mt-0.5 truncate text-xs text-rose-600">"{p.correctionComment}"</div>}
                     </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${IN_PROGRESS_STATUS_BADGE[p.status] ?? 'bg-slate-100 text-slate-500'}`}>
-                      {IN_PROGRESS_STATUS_LABEL[p.status] ?? p.status}
-                    </span>
-                    {resumeStep && <Icon name="chevron" className="h-4 w-4 shrink-0 -rotate-90 text-slate-300" />}
-                  </>
-                )
-                return resumeStep ? (
-                  <Link
-                    key={p.id}
-                    to={`/client-module/onboarding/new?step=${resumeStep}&id=${p.id}`}
-                    className="flex items-center gap-3 px-6 py-3.5 hover:bg-slate-50"
-                  >
-                    {rowContent}
-                  </Link>
-                ) : (
-                  <div key={p.id} className="flex items-center gap-3 px-6 py-3.5">
-                    {rowContent}
+                    <Link
+                      to="/client-module/onboarding/new"
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-brand-orange-dark transition-colors hover:bg-orange-50"
+                    >
+                      Resume
+                    </Link>
                   </div>
-                )
-              })}
-            </div>
-          )}
-          </div>
+                ))}
+              </div>
+            ))}
+
+          {tab === 'in-progress' &&
+            (inProgress.length === 0 ? (
+              <Empty title="Nothing awaiting activation" />
+            ) : !pageRows.length ? (
+              <Empty title={progressQuery ? `No matches for "${progressQuery}"` : 'No clients match this status'} />
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {pageRows.map((p) => {
+                  const resumeStep = ACTIVATION_RESUME_STEP[p.status]
+                  const content = (
+                    <>
+                      <ClientTile name={p.name} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-slate-900">{p.name}</div>
+                        <div className="mt-0.5 text-xs text-slate-400">
+                          Created {p.createdAt} · {p.owner}
+                        </div>
+                        {p.correctionComment && (
+                          <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                            <span className="truncate">{p.correctionComment}</span>
+                          </div>
+                        )}
+                      </div>
+                      <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${IN_PROGRESS_STATUS_BADGE[p.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                        {IN_PROGRESS_STATUS_LABEL[p.status] ?? p.status}
+                      </span>
+                      <Icon name="chevron" className={`h-4 w-4 shrink-0 -rotate-90 ${resumeStep ? 'text-slate-400' : 'text-transparent'}`} />
+                    </>
+                  )
+                  return resumeStep ? (
+                    <Link key={p.id} to={`/client-module/onboarding/new?step=${resumeStep}&id=${p.id}`} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/70">
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={p.id} className="flex items-center gap-4 px-5 py-4">
+                      {content}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
         </div>
-      )}
+
+        <Pager total={rows.length} page={page} onPage={setPage} />
+      </div>
     </div>
   )
 }
