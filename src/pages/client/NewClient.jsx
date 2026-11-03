@@ -836,6 +836,7 @@ export default function NewClient() {
   const [volumeUnit, setVolumeUnit] = useState(VOLUME_UNITS[0])
   const [editingTonnage, setEditingTonnage] = useState(false)
   const [showAddPricing, setShowAddPricing] = useState(false)
+  const [editingCharge, setEditingCharge] = useState(null)
   const [pricingSource, setPricingSource] = useState('')
   const [copyRatesEnabled, setCopyRatesEnabled] = useState(false)
   const [copyRatesFrom, setCopyRatesFrom] = useState('')
@@ -1855,41 +1856,47 @@ export default function NewClient() {
             <div className="border-t border-slate-100 px-5 py-8 text-center text-sm text-slate-400">No pricings yet — click Add pricing.</div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 px-1">
-            <span className="text-sm font-semibold text-slate-800">ODA list</span>
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
-              <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
-              No ODA for this client
-            </label>
+          <div className={`p-5 ${card}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">ODA list{!noOda && <span className="text-brand-orange-dark">*</span>}</h3>
+                <p className="mt-0.5 text-xs text-slate-400">Starts as a copy of the default list — View / Edit to move pincodes between ODA 1 / 2 / 3 for this client only.</p>
+              </div>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
+                <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+                No ODA for this client
+              </label>
+            </div>
+            {!noOda && (
+              <div className="mt-4">
+                <OdaListManager
+                  bare
+                  title="Client ODA List"
+                  entries={odaEntries}
+                  onEntriesChange={setOdaEntries}
+                  rate={odaDefaultRate}
+                  onRateChange={setOdaDefaultRate}
+                  overrides={odaPricing}
+                  onOverridesChange={setOdaPricing}
+                />
+              </div>
+            )}
           </div>
 
-          {!noOda && (
-            <OdaListManager
-              title="Client ODA List"
-              entries={odaEntries}
-              onEntriesChange={setOdaEntries}
-              rate={odaDefaultRate}
-              onRateChange={setOdaDefaultRate}
-              overrides={odaPricing}
-              onOverridesChange={setOdaPricing}
-            />
-          )}
+          <div className={`p-5 ${card}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">Additional charges{!noAdditionalCharges && <span className="text-brand-orange-dark">*</span>}</h3>
+                <p className="mt-0.5 text-xs text-slate-400">Each charge starts from the master rule and price — change the values for this client if needed.</p>
+              </div>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
+                <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+                No additional charges for this client
+              </label>
+            </div>
 
-          <div className="flex items-center justify-between gap-3 px-1">
-            <span className="text-sm font-semibold text-slate-800">
-              Additional charges{!noAdditionalCharges && <span className="text-brand-orange-dark">*</span>}
-            </span>
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
-              <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
-              No additional charges for this client
-            </label>
-          </div>
-
-          {!noAdditionalCharges && (
-          <div className="rounded-xl border border-slate-200">
-              <div className="space-y-4 p-4">
-                {selectedCharges.length === 0 && <p className="text-xs text-slate-400">No charges selected yet.</p>}
-
+            {!noAdditionalCharges && (
+              <div className="mt-4 space-y-4">
                 <div className="flex flex-wrap gap-2">
                   {ADDITIONAL_CHARGES_MASTER.map((c) => {
                     const isSelected = selectedCharges.some((s) => s.name === c.name)
@@ -1899,7 +1906,7 @@ export default function NewClient() {
                         type="button"
                         onClick={() => (isSelected ? removeCharge(c.name) : addCharge(c.name))}
                         title={`Default: ${c.defaultValue}`}
-                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-medium transition-colors ${
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-medium transition-colors ${
                           isSelected
                             ? 'border-brand-orange/40 bg-brand-orange/5 text-brand-orange-dark'
                             : 'border-slate-200 bg-slate-50/60 text-slate-600 hover:border-brand-orange/40'
@@ -1912,42 +1919,55 @@ export default function NewClient() {
                   })}
                 </div>
 
+                {selectedCharges.length === 0 && <p className="text-xs text-slate-400">No charges selected yet.</p>}
+
                 {selectedCharges.length > 0 && (
                   <div className="space-y-2">
-                    {selectedCharges.map((selected) => (
-                      <div key={selected.name} className="rounded-lg bg-slate-50/60 p-3">
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-slate-700">{selected.name}</span>
-                          <button type="button" onClick={() => removeCharge(selected.name)} className="text-xs font-medium text-rose-600 hover:underline">
-                            Remove
-                          </button>
+                    {selectedCharges.map((selected) => {
+                      const editing = editingCharge === selected.name
+                      return (
+                        <div key={selected.name} className="rounded-xl bg-slate-50/70 px-4 py-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-800">{selected.name}</div>
+                              <div className="mt-0.5 text-xs text-slate-500">{formatChargeRule(selected.rule) || 'Set a value'}</div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
+                              <button type="button" onClick={() => setEditingCharge(editing ? null : selected.name)} className="text-sky-600 hover:underline">
+                                {editing ? 'Done' : 'Edit'}
+                              </button>
+                              <button type="button" onClick={() => removeCharge(selected.name)} className="text-rose-600 hover:underline">
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                          {editing && (
+                            <div className="mt-3 border-t border-slate-200/70 pt-3">
+                              <label className="mb-2 block">
+                                <span className="mb-1 block text-[11px] font-medium text-slate-500">Rule</span>
+                                <select
+                                  value={selected.rule.type}
+                                  onChange={(e) => updateChargeRule(selected.name, emptyChargeRule(e.target.value))}
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                                >
+                                  {RULES_CATALOG.map((r) => (
+                                    <option key={r.type} value={r.type}>
+                                      {r.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <ChargeValueFields rule={selected.rule} onChange={(next) => updateChargeRule(selected.name, next)} />
+                            </div>
+                          )}
                         </div>
-                        <label className="mb-2 block">
-                          <span className="mb-1 block text-[11px] font-medium text-slate-500">Rule</span>
-                          <select
-                            value={selected.rule.type}
-                            onChange={(e) => updateChargeRule(selected.name, emptyChargeRule(e.target.value))}
-                            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                          >
-                            {RULES_CATALOG.map((r) => (
-                              <option key={r.type} value={r.type}>
-                                {r.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <ChargeValueFields rule={selected.rule} onChange={(next) => updateChargeRule(selected.name, next)} />
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
-            <p className="border-t border-slate-100 px-4 py-1.5 text-[11px] text-slate-400">
-              Defaults come from the charges master — changes here apply to this client only.
-            </p>
+            )}
           </div>
-          )}
-
 
           {showAddPricing && (
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShowAddPricing(false)}>

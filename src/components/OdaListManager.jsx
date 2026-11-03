@@ -137,7 +137,7 @@ function countBy(rows, key) {
 // Action). Used per-client in the New Client wizard and as the shared
 // "Default ODA List" in Client Pricing Configuration > Additional Charges;
 // it only reads/writes through the callbacks.
-export default function OdaListManager({ title = 'Client ODA List', entries, onEntriesChange, rate, onRateChange }) {
+export default function OdaListManager({ bare = false, title = 'Client ODA List', entries, onEntriesChange, rate, onRateChange }) {
   const [open, setOpen] = useState(false)
   const [sheetCat, setSheetCat] = useState(null) // null = overview, else 1|2|3
   const [editingRates, setEditingRates] = useState(false)
@@ -249,7 +249,7 @@ export default function OdaListManager({ title = 'Client ODA List', entries, onE
   const inputCls = 'rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs tabular-nums text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40'
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
+    <div className={bare ? '' : 'rounded-xl border border-slate-200 p-4'}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
           {entries.length === 0 ? (
