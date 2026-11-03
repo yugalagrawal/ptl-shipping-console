@@ -185,9 +185,9 @@ function RoleNote({ canSales, canFinance }) {
         : 'Your approval activates the client.'
   const mine = [canSales, canFinance, false]
   return (
-    <div className="absolute right-0 top-0 hidden w-[290px] rounded-xl bg-white px-3.5 py-2 shadow-soft ring-1 ring-slate-200/70 md:block">
-      <p className="whitespace-nowrap text-[11px] font-medium text-slate-700">{text}</p>
-      <div className="mt-1.5 flex items-center gap-0.5">
+    <div className="hidden h-11 flex-col justify-center rounded-xl bg-white px-3.5 shadow-soft ring-1 ring-slate-200/70 md:flex">
+      <p className="whitespace-nowrap text-[11px] font-medium leading-tight text-slate-700">{text}</p>
+      <div className="mt-1 flex items-center gap-0.5">
         {FLOW_STEPS.map((step, i) => {
           const isActive = i === 2 && canFinance
           return (
@@ -288,15 +288,13 @@ export default function ClientApprovals() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <div className="relative">
-        <div>
-          <BackButton />
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
-          <p className="mt-0.5 text-xs text-slate-500">Review client details and pricing, check approval statuses, and approve clients to make them active.</p>
-        </div>
-        <RoleNote canSales={canApproveSales} canFinance={canApproveFinance} />
+      <div>
+        <BackButton />
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Approvals</h1>
+        <p className="mt-0.5 text-xs text-slate-500">Review client details and pricing, check approval statuses, and approve clients to make them active.</p>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex w-fit gap-1 rounded-xl bg-slate-100 p-1">
         <button type="button" onClick={() => { setTab('mine'); setExpandedId(null) }} className={tabBtn(tab === 'mine')}>
           Your Pending Approvals <span className="ml-1 text-slate-400">{myRows.length}</span>
@@ -304,6 +302,8 @@ export default function ClientApprovals() {
         <button type="button" onClick={() => { setTab('status'); setExpandedId(null) }} className={tabBtn(tab === 'status')}>
           Approval Status <span className="ml-1 text-slate-400">{statusCount}</span>
         </button>
+      </div>
+      <RoleNote canSales={canApproveSales} canFinance={canApproveFinance} />
       </div>
 
       <div className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
