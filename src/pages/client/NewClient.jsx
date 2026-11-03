@@ -1892,9 +1892,21 @@ export default function NewClient() {
           </div>
 
           {pricingType === '' ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-8 text-center">
-              <p className="text-sm font-medium text-slate-500">Select a pricing type to continue.</p>
-              <p className="mt-1 text-xs text-slate-400">Standard uses the list rate; Custom applies a discount or the client's own regions.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { type: 'Standard', text: 'Our non-editable 13 × 13 region rate matrix, used directly with no customisation.' },
+                { type: 'Custom', text: 'Modify our rate matrix for this client — apply a discount or set cell-level rates.' },
+              ].map((o) => (
+                <button
+                  key={o.type}
+                  type="button"
+                  onClick={() => setPricingType(o.type)}
+                  className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-5 py-4 text-left transition-colors hover:border-brand-orange/50 hover:bg-orange-50/30"
+                >
+                  <span className="text-sm font-semibold text-slate-700">{o.type}</span>
+                  <span className="mt-1 block text-xs text-slate-500">{o.text}</span>
+                </button>
+              ))}
             </div>
           ) : pricingType === 'Custom' && regionMappingType === 'Custom' ? (
             customRegions.length === 0 ? (
