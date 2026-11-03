@@ -1308,7 +1308,7 @@ export default function NewClient() {
   // certificate per GSTIN) followed by the extra documents added on this step.
   const lockedDocuments = [
     { id: 'kyc-pan', type: 'PAN Card', note: pan.trim().toUpperCase(), file: panDocument, onUpload: setPanDocument },
-    ...(noGstin ? [] : identifications.map((r, i) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', label: identifications.length > 1 ? `GST Certificate · GSTIN ${i + 1}` : 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document, onUpload: (f) => setIdentifications((rows) => rows.map((x) => (x.id === r.id ? { ...x, document: f } : x))) }))),
+    ...(noGstin ? [] : identifications.map((r, i) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', label: identifications.length > 1 ? `GST Certificate · GSTIN ${i + 1}` : 'GST Certificate', chip: identifications.length > 1 ? `GSTIN ${i + 1}` : 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document, onUpload: (f) => setIdentifications((rows) => rows.map((x) => (x.id === r.id ? { ...x, document: f } : x))) }))),
   ]
   const allDocuments = [...lockedDocuments.map(({ id, type, file }) => ({ id, type, file })), ...documents]
 
@@ -2070,6 +2070,16 @@ export default function NewClient() {
           <div>
             <span className={LABEL}>Add more documents</span>
             <div className="flex flex-wrap gap-2">
+              {lockedDocuments.map((doc) => (
+                <span
+                  key={doc.id}
+                  title="Already uploaded in an earlier step"
+                  className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-brand-orange/30 bg-brand-orange/5 px-3.5 py-2 text-xs font-medium text-brand-orange-dark opacity-60"
+                >
+                  <Icon name="approve" className="h-3.5 w-3.5 shrink-0" />
+                  {doc.chip ?? doc.type}
+                </span>
+              ))}
               {DOCUMENT_TYPES.filter((t) => t !== 'PAN Card' && t !== 'GST Certificate').map((type) => {
                 const added = documents.some((d) => d.type === type)
                 return (
