@@ -411,14 +411,14 @@ function DefaultFlagSelect({ label, required, value, options, defaultValue, onCh
 
 function Toggle({ label, checked, onChange, disabled }) {
   return (
-    <label className={`flex items-center gap-2.5 text-sm ${disabled ? 'text-slate-300' : 'text-slate-600'}`}>
+    <label className={`flex items-center gap-2.5 text-sm ${disabled ? 'text-slate-500' : 'text-slate-600'}`}>
       <button
         type="button"
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed ${checked ? 'bg-brand-orange' : 'bg-slate-200'} ${disabled ? 'opacity-50' : ''}`}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed ${checked ? 'bg-brand-orange' : 'bg-slate-200'} ${disabled ? 'opacity-70' : ''}`}
       >
-        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-soft transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        <span className={`absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow-soft transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </button>
       {label}
     </label>
@@ -1725,63 +1725,49 @@ export default function NewClient() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white sm:col-span-2 lg:col-span-4">
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-4">
-                <Toggle label="Security deposit required" checked={securityDeposit} onChange={setSecurityDeposit} />
-                {securityDeposit && (
-                  <input
-                    type="number"
-                    value={securityDepositAmount}
-                    onChange={(e) => setSecurityDepositAmount(e.target.value)}
-                    placeholder="Amount (₹)"
-                    className={`${INPUT} ${INPUT_OK} max-w-xs flex-1`}
-                  />
+          <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:col-span-2 lg:col-span-4">
+            <Toggle label="Security deposit required" checked={securityDeposit} onChange={setSecurityDeposit} />
+            {securityDeposit && (
+              <div className="mt-3 grid gap-4 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Field label="Amount (₹)" type="number" value={securityDepositAmount} onChange={(e) => setSecurityDepositAmount(e.target.value)} placeholder="0" />
+                <div>
+                  <span className="mb-1.5 block text-xs font-medium text-slate-600">Paid</span>
+                  <div className="flex w-fit rounded-xl bg-slate-100 p-1 text-sm">
+                    {['Yes', 'No'].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setSecurityDepositPaid(v)}
+                        className={`rounded-lg px-4 py-1 font-medium transition-colors ${securityDepositPaid === v ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500'}`}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {securityDepositPaid === 'Yes' && (
+                  <>
+                    <DatePicker label="Payment date" value={depositPaymentDate} onChange={setDepositPaymentDate} />
+                    <SelectField label="Payment type" value={depositPaymentType} onChange={setDepositPaymentType} options={DEPOSIT_PAYMENT_TYPES} />
+                    <Field label="Reference no." value={depositReferenceNo} onChange={(e) => setDepositReferenceNo(e.target.value)} placeholder="UTR / cheque / txn no." />
+                  </>
                 )}
               </div>
-              {securityDeposit && (
-                <div className="mt-3 flex flex-wrap items-end gap-4">
-                  <div>
-                    <span className="mb-1.5 block text-xs font-medium text-slate-500">Paid</span>
-                    <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs">
-                      {['Yes', 'No'].map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => setSecurityDepositPaid(v)}
-                          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${securityDepositPaid === v ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500'}`}
-                        >
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {securityDepositPaid === 'Yes' ? (
-                    <>
-                      <DatePicker label="Payment date" value={depositPaymentDate} onChange={setDepositPaymentDate} />
-                      <SelectField label="Payment type" value={depositPaymentType} onChange={setDepositPaymentType} options={DEPOSIT_PAYMENT_TYPES} />
-                      <Field label="Reference no." value={depositReferenceNo} onChange={(e) => setDepositReferenceNo(e.target.value)} placeholder="UTR / cheque / txn no." />
-                    </>
-                  ) : (
-                    <p className="text-xs text-slate-400">Will show as pending on the client's side once that's built.</p>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50/60 sm:col-span-2 lg:col-span-4">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-50 sm:col-span-2 lg:col-span-4">
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
                   <rect x="5" y="11" width="14" height="9" rx="2" />
                   <path d="M8 11V8a4 4 0 0 1 8 0v3" />
                 </svg>
-                More billing options
+                Upcoming features
               </span>
               <span className="rounded-full bg-slate-200/70 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">Coming soon</span>
             </div>
-            <div className="pointer-events-none flex select-none flex-wrap gap-x-8 gap-y-3 px-4 py-3.5 opacity-50" aria-disabled="true">
+            <div className="pointer-events-none flex select-none flex-wrap gap-x-8 gap-y-3 px-4 py-3.5 opacity-80" aria-disabled="true">
               <Toggle label="Is centralised payment" checked={false} onChange={() => {}} disabled />
               <Toggle label="Tax exemption" checked={false} onChange={() => {}} disabled />
               <Toggle label="Fuel surcharge exemption" checked={false} onChange={() => {}} disabled />
