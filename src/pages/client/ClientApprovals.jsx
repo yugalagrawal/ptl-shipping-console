@@ -222,6 +222,9 @@ export default function ClientApprovals() {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('mine')
   const [sortMode, setSortMode] = useState('recent')
+  // Prototype-only: 1/2/3 force the role note to show each case (Sales only,
+  // Finance only, both) so the copy can be reviewed without switching users.
+  const [demoCase, setDemoCase] = useState(null)
   const [page, setPage] = useState(1)
   useEffect(() => setPage(1), [tab, query, sortMode])
 
@@ -303,7 +306,32 @@ export default function ClientApprovals() {
           Approval Status <span className="ml-1 text-slate-400">{statusCount}</span>
         </button>
       </div>
-      <RoleNote canSales={canApproveSales} canFinance={canApproveFinance} />
+      <div className="relative">
+        <div className="absolute -top-[22px] right-0 hidden items-center gap-1 md:flex">
+          <span className="mr-0.5 text-[9px] font-medium uppercase tracking-wider text-slate-300">Preview</span>
+          {[
+            [1, 'Sales only'],
+            [2, 'Finance only'],
+            [3, 'Both'],
+          ].map(([n, label]) => (
+            <button
+              key={n}
+              type="button"
+              title={label}
+              onClick={() => setDemoCase((c) => (c === n ? null : n))}
+              className={`h-[18px] w-[18px] rounded text-[10px] font-semibold transition-colors ${
+                demoCase === n ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <RoleNote
+          canSales={demoCase ? demoCase !== 2 : canApproveSales}
+          canFinance={demoCase ? demoCase !== 1 : canApproveFinance}
+        />
+      </div>
       </div>
 
       <div className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
