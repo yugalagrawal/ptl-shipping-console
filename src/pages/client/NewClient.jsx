@@ -1308,7 +1308,7 @@ export default function NewClient() {
   // certificate per GSTIN) followed by the extra documents added on this step.
   const lockedDocuments = [
     { id: 'kyc-pan', type: 'PAN Card', note: pan.trim().toUpperCase(), file: panDocument, onUpload: setPanDocument },
-    ...(noGstin ? [] : identifications.map((r) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document, onUpload: (f) => setIdentifications((rows) => rows.map((x) => (x.id === r.id ? { ...x, document: f } : x))) }))),
+    ...(noGstin ? [] : identifications.map((r, i) => ({ id: `kyc-gst-${r.id}`, type: 'GST Certificate', label: identifications.length > 1 ? `GST Certificate · GSTIN ${i + 1}` : 'GST Certificate', note: r.idNumber.trim().toUpperCase(), file: r.document, onUpload: (f) => setIdentifications((rows) => rows.map((x) => (x.id === r.id ? { ...x, document: f } : x))) }))),
   ]
   const allDocuments = [...lockedDocuments.map(({ id, type, file }) => ({ id, type, file })), ...documents]
 
@@ -2066,13 +2066,7 @@ export default function NewClient() {
       )}
 
       {step === 5 && (
-        <div className={`space-y-6 p-6 ${card}`}>
-          <div className="space-y-2">
-            {lockedDocuments.map((doc) => (
-              <KycDocCard key={doc.id} label={doc.type} note={doc.note} file={doc.file ?? { name: 'File on record' }} locked onUpload={doc.onUpload} />
-            ))}
-          </div>
-
+        <div className={`space-y-5 p-6 ${card}`}>
           <div>
             <span className={LABEL}>Add more documents</span>
             <div className="flex flex-wrap gap-2">
@@ -2095,18 +2089,14 @@ export default function NewClient() {
             </div>
           </div>
 
-          {documents.length > 0 && (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <KycDocCard
-                  key={doc.id}
-                  label={doc.type}
-                  file={doc.file}
-                  onUpload={(f) => updateDocument(doc.id, 'file', f)}
-                />
-              ))}
-            </div>
-          )}
+          <div className="space-y-2">
+            {lockedDocuments.map((doc) => (
+              <KycDocCard key={doc.id} label={doc.label ?? doc.type} note={doc.note} file={doc.file ?? { name: 'File on record' }} locked onUpload={doc.onUpload} />
+            ))}
+            {documents.map((doc) => (
+              <KycDocCard key={doc.id} label={doc.type} file={doc.file} onUpload={(f) => updateDocument(doc.id, 'file', f)} />
+            ))}
+          </div>
         </div>
       )}
 
