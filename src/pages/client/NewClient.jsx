@@ -1641,7 +1641,7 @@ export default function NewClient() {
                   type="number"
                   value={expectedVolumeKg}
                   onChange={(e) => setExpectedVolumeKg(e.target.value)}
-                  placeholder="Optional — counted as 1"
+                  placeholder="1"
                   className="w-full min-w-0 rounded-xl border-0 bg-transparent px-3.5 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
                 />
                 <div className="flex shrink-0 gap-0.5 border-l border-slate-200 p-1">
