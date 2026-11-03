@@ -275,6 +275,8 @@ function BranchMiniHubDropdown({ items, selectedMiniHubs, onToggleBranchGroup, o
   )
 }
 
+const sectionCard = 'rounded-2xl bg-white p-6 shadow-soft ring-1 ring-slate-200/70'
+
 export default function AccessManagement() {
   const [users, setUsers] = useState(LT_USERS)
   const [query, setQuery] = useState('')
@@ -629,7 +631,7 @@ export default function AccessManagement() {
   const isDirty = draft && selectedUser && JSON.stringify(draft) !== JSON.stringify(draftFromUser(selectedUser))
 
   return (
-    <div className="mx-auto max-w-5xl space-y-7">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Access Management</h1>
         <p className="mt-0.5 text-xs text-slate-500">Set a team member's function, roles, task access and location scope.</p>
@@ -691,60 +693,54 @@ export default function AccessManagement() {
       )}
 
       {selectedUser && draft && (
-        <div className={`space-y-6 p-6 ${card}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar name={selectedUser.name} />
-              <div>
-                <div className="font-medium text-slate-800">{selectedUser.name}</div>
-                <div className="text-xs text-slate-400">{selectedUser.email}</div>
+        <div className="space-y-6">
+          <div className="rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70">
+            <div className="h-16 rounded-t-2xl bg-gradient-to-r from-brand-navy-dark via-brand-navy to-brand-navy-light" />
+            <div className="px-6 pb-5">
+              <div className="-mt-8 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-full bg-white p-1 shadow-soft">
+                    <Avatar name={selectedUser.name} />
+                  </div>
+                  <div className="mt-10">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-xl font-semibold tracking-tight text-slate-900">{selectedUser.name}</h2>
+                      {custom && (
+                        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">Custom permissions</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-slate-500">{selectedUser.email}</div>
+                  </div>
+                </div>
               </div>
-              {custom && (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
-                  Custom permissions
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={handleRevert} disabled={!isDirty} className={`${btnSecondary} disabled:cursor-not-allowed disabled:opacity-40`}>
-                Revert
-              </button>
-              <button type="button" onClick={handleSave} disabled={!isDirty} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
-                Save permissions
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200/70 bg-slate-50/40 p-3.5 sm:grid-cols-3">
-            <div>
-              <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Name</div>
-              <div className="mt-0.5 text-sm text-slate-700">
-                {[selectedUser.firstName, selectedUser.lastName].filter(Boolean).join(' ') || '—'}
-              </div>
-            </div>
-            <div className="col-span-2 sm:col-span-2">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Phone number</div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-700">
-                <span>{selectedUser.mobile || '—'}</span>
-                {selectedUser.mobile && (
-                  <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                    selectedUser.phoneVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    <Icon name="approve" className="h-3 w-3" />
-                    {selectedUser.phoneVerified ? 'Verified' : 'Not verified'}
-                  </span>
-                )}
-                <span className="group relative inline-flex">
-                  <Icon name="info" className="h-3.5 w-3.5 cursor-help text-slate-300" />
-                  <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 w-52 -translate-x-1/2 rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                    A verified tick means this phone number is OTP verified.
-                  </span>
-                </span>
+              <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-100 pt-4 sm:grid-cols-3">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone number</div>
+                  <div className="mt-1 flex items-center gap-1.5 text-sm text-slate-800">
+                    <span>{selectedUser.mobile || '—'}</span>
+                    {selectedUser.mobile && (
+                      <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        selectedUser.phoneVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        <Icon name="approve" className="h-3 w-3" />
+                        {selectedUser.phoneVerified ? 'Verified' : 'Not verified'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Manager</div>
+                  <div className="mt-1 text-sm text-slate-800">{users.find((m) => m.email === selectedUser.managerEmail)?.name ?? '—'}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Products</div>
+                  <div className="mt-1 text-sm text-slate-800">{(selectedUser.products ?? []).join(', ') || '—'}</div>
+                </div>
               </div>
             </div>
           </div>
 
-          <section>
+          <section className={sectionCard}>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Function</h3>
             <p className="mt-1 text-xs text-slate-400">Pick one or more departments. This narrows the role presets below.</p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -761,7 +757,7 @@ export default function AccessManagement() {
             </div>
           </section>
 
-          <section>
+          <section className={sectionCard}>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Role presets</h3>
             <p className="mt-1 text-xs text-slate-400">
               {draft.departments.length
@@ -785,7 +781,7 @@ export default function AccessManagement() {
             </div>
           </section>
 
-          <section>
+          <section className={sectionCard}>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tasks</h3>
             <p className="mt-1 text-xs text-slate-400">
               Tick a task to unlock its access levels; unticked tasks grant nothing. A column header ticks that level for all unlocked tasks.
@@ -920,7 +916,7 @@ export default function AccessManagement() {
             })()}
           </section>
 
-          <section>
+          <section className={sectionCard}>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Location access</h3>
             <p className="mt-1 text-xs text-slate-400">
               Region → Zone → Hub → Branch → Mini Hub. Picking a broader tier selects everything under it; untick to narrow. Empty means all.
@@ -974,7 +970,7 @@ export default function AccessManagement() {
             </div>
           </section>
 
-          <section>
+          <section className={sectionCard}>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Geography Access</h3>
             <p className="mt-1 text-xs text-slate-400">
               State/UT → City → Pincode, and Territory → Circle. Picking a broader tier selects everything under it; untick to narrow. Empty means all.
@@ -1042,6 +1038,25 @@ export default function AccessManagement() {
               />
             </div>
           </section>
+
+          <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 px-5 py-3 text-white shadow-lg">
+            <span className="text-sm text-slate-300">
+              {isDirty ? <>Unsaved changes for <span className="font-medium text-white">{selectedUser.name}</span></> : 'No changes yet'}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRevert}
+                disabled={!isDirty}
+                className="rounded-xl px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Revert
+              </button>
+              <button type="button" onClick={handleSave} disabled={!isDirty} className={`${btnPrimary} disabled:cursor-not-allowed disabled:opacity-40`}>
+                Save permissions
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
