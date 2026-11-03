@@ -295,6 +295,11 @@ function dummyRegisteredName(pan) {
   return pool[h % pool.length]
 }
 
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const emailOk = (v) => EMAIL_FORMAT.test(v.trim())
+// 10 digits shown as "99999 99999"
+const formatMobile = (digits) => (digits.length > 5 ? `${digits.slice(0, 5)} ${digits.slice(5)}` : digits)
+
 let idRowSeq = 1
 let docRowSeq = 1
 let cftRowSeq = 1
@@ -712,7 +717,7 @@ export default function NewClient() {
 
   // Contact Info
   const [pocName, setPocName] = useState('')
-  const [phoneCode, setPhoneCode] = useState(PHONE_CODES[0])
+  const [phoneCode] = useState(PHONE_CODES[0])
   const [pocMobile, setPocMobile] = useState('')
   const [pocEmail, setPocEmail] = useState('')
   const [opsEmail, setOpsEmail] = useState('')
@@ -1174,9 +1179,10 @@ export default function NewClient() {
       state.trim().length > 0 &&
       country.trim().length > 0,
     pocName.trim().length > 0 &&
-      phoneCode.trim().length > 0 &&
-      pocMobile.trim().length > 0 &&
-      pocEmail.trim().length > 0 &&
+      pocMobile.length === 10 &&
+      emailOk(pocEmail) &&
+      (opsEmail.trim() === '' || emailOk(opsEmail)) &&
+      (financeEmail.trim() === '' || emailOk(financeEmail)) &&
       salesPerson.trim().length > 0,
     noGstin ||
       (identifications.length > 0 &&
@@ -1389,54 +1395,76 @@ export default function NewClient() {
       )}
 
       {step === 1 && (
-        <Section title="Contact information">
-          <Field label="Client POC Name" required value={pocName} onChange={(e) => setPocName(e.target.value)} placeholder="Name" />
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-slate-500">
-              POC Mobile
-              <span className="text-brand-orange-dark"> *</span>
-            </span>
-            <div className="flex gap-1.5">
-              <select
-                value={phoneCode}
-                onChange={(e) => setPhoneCode(e.target.value)}
-                className="w-[4.5rem] shrink-0 appearance-none rounded-xl border border-slate-200 bg-slate-50/60 px-2 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              >
-                {PHONE_CODES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={pocMobile}
-                onChange={(e) => setPocMobile(e.target.value)}
-                placeholder="99999 99999"
-                className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-              />
-            </div>
-          </label>
-          <Field
-            label="POC Email"
-            required
-            value={pocEmail}
-            onChange={(e) => setPocEmail(e.target.value)}
-            placeholder="dispatch@company.in"
-          />
-          <Typeahead
-            label="Sales Person"
-            labelInfo="LT employee who owns this account"
-            required
-            value={salesPerson}
-            onChange={setSalesPerson}
-            suggestions={SALES_PERSON_SUGGESTIONS}
-            onSelectSuggestion={(s) => setSalesPerson(s.label)}
-            placeholder="Type to search…"
-          />
+        <Section>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3 lg:col-span-4">
+            <Field label="Client POC Name" required value={pocName} onChange={(e) => setPocName(e.target.value)} placeholder="Name" />
 
-          <Field label="Ops Email" value={opsEmail} onChange={(e) => setOpsEmail(e.target.value)} placeholder="Ops email" className="sm:col-span-2" />
-          <Field label="Finance Email" value={financeEmail} onChange={(e) => setFinanceEmail(e.target.value)} placeholder="Finance email" className="sm:col-span-2" />
+            <label className="block">
+              <span className={LABEL}>
+                POC Mobile
+                <span className="text-brand-orange-dark">*</span>
+              </span>
+              <div className="flex items-center rounded-xl border border-slate-200 bg-white transition-colors focus-within:border-brand-orange focus-within:outline focus-within:outline-2 focus-within:outline-brand-orange/20">
+                <span className="select-none border-r border-slate-200 px-3.5 text-sm font-medium text-slate-600">{phoneCode.replace(/^\S+\s/, '')}</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={formatMobile(pocMobile)}
+                  onChange={(e) => setPocMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="99999 99999"
+                  className="w-full min-w-0 rounded-xl border-0 bg-transparent px-3.5 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                />
+              </div>
+              {pocMobile.length > 0 && pocMobile.length < 10 && <p className="mt-1 text-[11px] text-slate-400">{10 - pocMobile.length} more digits</p>}
+            </label>
+
+            <Field
+              label="POC Email"
+              required
+              type="email"
+              value={pocEmail}
+              onChange={(e) => setPocEmail(e.target.value)}
+              placeholder="dispatch@company.in"
+              error={pocEmail.trim().length > 0 && !emailOk(pocEmail)}
+              hint={pocEmail.trim().length > 0 && !emailOk(pocEmail) ? 'Enter a valid email' : undefined}
+            />
+
+            <div className="border-t border-slate-100 sm:col-span-3" />
+
+            <Typeahead
+              label="Sales Person"
+              labelInfo="LT employee who owns this account"
+              required
+              value={salesPerson}
+              onChange={setSalesPerson}
+              suggestions={SALES_PERSON_SUGGESTIONS}
+              onSelectSuggestion={(s) => setSalesPerson(s.label)}
+              placeholder="Type to search…"
+              hint={salesPerson && salesPerson === user?.name ? 'Assigned from your login' : undefined}
+            />
+            {[
+              ['Ops Email', opsEmail, setOpsEmail],
+              ['Finance Email', financeEmail, setFinanceEmail],
+            ].map(([label, value, set]) => (
+              <Field
+                key={label}
+                label={label}
+                type="email"
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                placeholder="name@company.in"
+                error={value.trim().length > 0 && !emailOk(value)}
+                hint={value.trim().length > 0 && !emailOk(value) ? 'Enter a valid email' : undefined}
+                badge={
+                  emailOk(pocEmail) && value.trim() !== pocEmail.trim() ? (
+                    <button type="button" onClick={() => set(pocEmail.trim())} className="text-[11px] font-medium text-brand-orange-dark hover:underline">
+                      Same as POC email
+                    </button>
+                  ) : undefined
+                }
+              />
+            ))}
+          </div>
         </Section>
       )}
 
