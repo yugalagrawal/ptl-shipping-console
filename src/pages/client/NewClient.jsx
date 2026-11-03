@@ -112,7 +112,7 @@ function ChargeValueFields({ rule, onChange }) {
 }
 import { LT_USERS } from '../../data/users.js'
 import { GROUP_SUGGESTIONS, LEGAL_ENTITY_SUGGESTIONS, groupById } from '../../data/groups.js'
-import { ACTIVE_CLIENTS_SEED, submitClientForApproval } from '../../data/clients.js'
+import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, submitClientForApproval } from '../../data/clients.js'
 import { ACTIVATION_STATUS, ACTIVATIONS_SEED, createActivation, updateActivationStatus, removeActivation } from '../../data/activations.js'
 import { CITIES, CITY_BRANCHES } from '../../data/permissions.js'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -159,6 +159,14 @@ const CFT_CONVERSION_TYPES = ['Air', 'Surface']
 // Each of today's seeded groups only has one legal entity, so [0] is
 // unambiguous; a client tied to a multi-entity group would need the actual
 // entity it onboarded under once that's tracked per-client.
+// PANs already on file for onboarded / in-approval clients — a PAN can belong
+// to only one client, so typing one of these flags it (see panOwner).
+const EXISTING_PANS = Object.fromEntries(
+  [...ACTIVE_CLIENTS_SEED, ...PENDING_CLIENTS_SEED]
+    .map((c) => [String(c.details?.company?.pan ?? '').trim().toUpperCase(), c.name])
+    .filter(([pan]) => pan),
+)
+
 const COPY_RATES_CLIENT_OPTIONS = ACTIVE_CLIENTS_SEED.map((c) => ({
   id: c.id,
   label: groupById(c.groupId)?.legalEntities[0] ?? c.name,
@@ -637,6 +645,7 @@ export default function NewClient() {
     return `CL${String((idx >= 0 ? idx : LEGAL_ENTITY_SUGGESTIONS.length) + 1).padStart(6, '0')}`
   }, [legalName])
   const organisationType = useMemo(() => organisationTypeFromPan(pan), [pan])
+  const panOwner = EXISTING_PANS[pan.trim().toUpperCase()] ?? null
   const customerCode = useMemo(
     () => deriveCustomerCode({ groupName, legalName, paymentType }),
     [groupName, legalName, paymentType],
@@ -1131,6 +1140,7 @@ export default function NewClient() {
   const stepValid = [
     groupFilled &&
       !duplicateLegalEntity &&
+      !panOwner &&
       legalName.trim().length > 0 &&
       pan.trim().length > 0 &&
       paymentType.trim().length > 0 &&
@@ -1204,6 +1214,16 @@ export default function NewClient() {
         </div>
       )}
 
+      {step === 0 && panOwner && (
+        <div className="flex items-center gap-2.5 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 ring-1 ring-rose-100">
+          <Icon name="info" className="h-4 w-4 shrink-0" />
+          <span>
+            PAN already exists for another client
+            <span className="font-normal text-rose-500"> · {panOwner}</span>
+          </span>
+        </div>
+      )}
+
       <div className={`p-6 ${card}`}>
         <Stepper step={step} onJump={setStep} />
       </div>
@@ -1265,7 +1285,8 @@ export default function NewClient() {
             value={pan}
             onChange={(e) => setPan(e.target.value.toUpperCase())}
             placeholder="AAACA1234A"
-            hint={organisationType ? <span className="font-medium text-brand-navy">{organisationType}</span> : undefined}
+            error={!!panOwner}
+            hint={panOwner ? 'PAN already exists for another client' : organisationType ? <span className="font-medium text-brand-navy">{organisationType}</span> : undefined}
           />
           <SelectField
             label="Customer Type"
