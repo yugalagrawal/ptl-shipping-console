@@ -6,6 +6,7 @@
 // the exact same shape — a template is just one that isn't attached to a
 // client yet.
 import { ZONES, ZONE_CLASSIFICATIONS } from './pricing.js'
+import { CITIES as SHEET_CITIES } from './geoMaster.js'
 
 // Same state/city coverage already used for Client ODA List's picker
 // (NewClient.jsx's ODA_PINCODE_DIRECTORY), just dropped to the pincode-less
@@ -70,7 +71,22 @@ export function buildRegionsFromStandard() {
 // "Pull existing mapping" option clones it (see cloneRegionTemplate) rather
 // than referencing it directly, so a client's own edits afterward never
 // mutate the shared template.
-export const REGION_TEMPLATES = []
+// Seeded with one template, as production has: "Test Template for my North 1
+// Sales Team" with 4 regions (A1, A2, S1, S2). Production's city lists aren't
+// known here, so the 7 North 1 cities from the Geography sheet are split
+// across the four regions as sample coverage.
+function seedTemplate() {
+  const north1 = SHEET_CITIES.filter((c) => c.region === 'North 1').map((c) => ({ state: c.state, city: c.name }))
+  const groups = [north1.slice(0, 2), north1.slice(2, 4), north1.slice(4, 6), north1.slice(6)]
+  return {
+    id: 'region-tpl-seed-1',
+    name: 'Test Template for my North 1 Sales Team',
+    regions: ['A1', 'A2', 'S1', 'S2'].map((name, i) => ({ id: `seed-tpl-${name}`, name, cities: groups[i] })),
+    overrides: {},
+    defaultRate: '',
+  }
+}
+export const REGION_TEMPLATES = [seedTemplate()]
 
 export function addRegionTemplate(name) {
   const template = { id: `region-tpl-${templateSeq++}`, name, regions: [], overrides: {}, defaultRate: '' }

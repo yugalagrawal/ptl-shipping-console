@@ -13,9 +13,10 @@ function scaledMatrix(multiplier) {
 }
 
 export const RATE_CARDS_SEED = [
-  { id: 'standard-v1', code: 'STANDARD_V1', name: 'Standard_V1', isGeneral: true, matrix: STANDARD_MATRIX.map((row) => [...row]) },
-  { id: 'pharma-01', code: 'PHARMA-01', name: 'Pharma-01', matrix: scaledMatrix(1.12) },
-  { id: 'pharma-02', code: 'PHARMA-02', name: 'Pharma-02', matrix: scaledMatrix(1.08) },
+  { id: 'standard-v1', code: 'STA001', name: 'Standard_V1', description: 'LetsTransport standard base freight', isGeneral: true, matrix: STANDARD_MATRIX.map((row) => [...row]) },
+  { id: 'lt-standard-rate-card', code: 'LTS001', name: 'LT_Standard_Rate_Card', description: 'LetsTransport standard base freight', matrix: STANDARD_MATRIX.map((row) => [...row]) },
+  { id: 'pharma-01', code: 'PHA001', name: 'Pharma-01', description: 'Temperature-controlled pharma, 12% above standard', matrix: scaledMatrix(1.12) },
+  { id: 'pharma-02', code: 'PHA002', name: 'Pharma-02', description: 'Temperature-controlled pharma, 8% above standard', matrix: scaledMatrix(1.08) },
 ]
 
 export function slugFromCode(code) {

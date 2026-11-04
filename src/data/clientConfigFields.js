@@ -374,6 +374,11 @@ export const CLIENT_CONFIG_TABS = [
       },
     ],
   },
+  {
+    id: 'pricing-configurations',
+    label: 'Pricing Configurations',
+    cards: [],
+  },
 ]
 
 // Session-only "saved" configuration per client — a real backend would own

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
+import ClientTemplatesTab from '../../components/ClientTemplatesTab.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { card, thCls, tdCls, rowCls } from '../../components/ui.js'
 import RegionPincodeMappingModal from '../../components/RegionPincodeMappingModal.jsx'
@@ -315,15 +316,41 @@ function CodeCombobox({ value, options, onChange }) {
   )
 }
 
-function Modal({ title, onClose, children }) {
+// Rate card names allow only letters, numbers and _ — spaces become _ and
+// anything else is dropped as you type.
+const cleanName = (v) => v.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '').replace(/_{2,}/g, '_')
+// Rate card codes are 3 letters + 3 numbers (ABC123). Created from the name:
+// its first three letters, then the next free number for those letters.
+const CODE_RE = /^[A-Z]{3}[0-9]{3}$/
+const autoCode = (name, cards) => {
+  const letters = name.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X')
+  if (!/[A-Za-z]/.test(name)) return ''
+  let n = 1
+  while (cards.some((c) => c.code === `${letters}${String(n).padStart(3, '0')}`)) n += 1
+  return `${letters}${String(n).padStart(3, '0')}`
+}
+const ACRONYMS = { FMCG: 'FMCG' }
+const nameFromCode = (code) =>
+  code
+    .split(/[-_\s]+/)
+    .map((w) => ACRONYMS[w] ?? w.charAt(0) + w.slice(1).toLowerCase())
+    .join('_')
+
+function Modal({ title, subtitle, size = 'max-w-4xl', headerAction, onClose, children }) {
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-soft">
+      <div className={`max-h-[85vh] w-full ${size} overflow-hidden rounded-2xl bg-white shadow-soft`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <Icon name="close" className="h-4 w-4" />
-          </button>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+            {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {headerAction}
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+              <Icon name="close" className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         <div className="max-h-[calc(85vh-56px)] overflow-auto">{children}</div>
       </div>
@@ -357,12 +384,17 @@ export default function ClientPricingConfiguration() {
   const [createStep, setCreateStep] = useState('details') // 'details' | 'source' | 'source-existing'
   const [newCardCode, setNewCardCode] = useState('')
   const [newCardName, setNewCardName] = useState('')
+  const [newCardDescription, setNewCardDescription] = useState('')
+  const [codeEditing, setCodeEditing] = useState(false)
+  const [nameOpen, setNameOpen] = useState(false)
   // A card created via finalizeCreateRateCard isn't "real" until its first
   // Save & publish — if the edit modal that opens right after creation gets
   // cancelled/closed instead, the card (and its matrix/history) are rolled
   // back rather than left behind half-made.
   const [pendingNewCard, setPendingNewCard] = useState(null) // { id, previousSelectedId } | null
 
+  const codeTaken = !!newCardCode && rateCards.some((c) => c.code === newCardCode)
+  const codeValid = CODE_RE.test(newCardCode)
   const selectedRateCard = rateCards.find((c) => c.id === selectedRateCardId) ?? rateCards[0]
   const currentMatrix = matricesByCardId[selectedRateCardId]
   const rateCardHistory = historiesByCardId[selectedRateCardId] ?? []
@@ -390,22 +422,22 @@ export default function ClientPricingConfiguration() {
   function openCreateRateCardModal() {
     setNewCardCode('')
     setNewCardName('')
+    setNewCardDescription('')
+    setCodeEditing(false)
+    setNameOpen(false)
     setCreateStep('details')
     setShowCreateRateCardModal(true)
   }
 
-  // Picking/creating a code also suggests a Name from it (only while Name
-  // is still untouched) — e.g. "ELECTRONICS" -> "Electronics" — since for
-  // these industry codes the two are almost always the same word.
-  function handlePickCode(code) {
-    setNewCardCode(code)
-    if (!newCardName.trim()) {
-      setNewCardName(code.toLowerCase().replace(/(^|[\s-])\w/g, (m) => m.toUpperCase()))
-    }
+  // Name comes first and the Code follows from it automatically (PHARMA,
+  // HOME-APPLIANCES, …) until the user chooses to edit the code by hand.
+  function handleNameChange(name) {
+    setNewCardName(name)
+    if (!codeEditing) setNewCardCode(autoCode(name, rateCards))
   }
 
   function goToSourceStep() {
-    if (!newCardCode.trim() || !newCardName.trim()) return
+    if (!codeValid || !newCardName.trim() || !newCardDescription.trim() || codeTaken) return
     setCreateStep('source')
   }
 
@@ -424,11 +456,12 @@ export default function ClientPricingConfiguration() {
   function finalizeCreateRateCard(sourceMatrix) {
     const code = newCardCode.trim().toUpperCase()
     const name = newCardName.trim()
-    if (!code || !name) return
+    const description = newCardDescription.trim()
+    if (!code || !name || !description) return
     const id = slugFromCode(code) || slugFromCode(name)
     if (rateCards.some((c) => c.id === id)) return
     const matrixRows = sourceMatrix.map((row) => [...row])
-    setRateCards((cards) => [...cards, { id, code, name }])
+    setRateCards((cards) => [...cards, { id, code, name, description }])
     setMatricesByCardId((byId) => ({ ...byId, [id]: matrixRows }))
     setHistoriesByCardId((byId) => ({ ...byId, [id]: [] }))
     setShowCreateRateCardModal(false)
@@ -733,6 +766,13 @@ export default function ClientPricingConfiguration() {
         </button>
         <button
           type="button"
+          onClick={() => setTab('templates')}
+          className={`rounded-lg px-4 py-2 font-medium transition-colors ${tab === 'templates' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          Region Templates
+        </button>
+        <button
+          type="button"
           onClick={() => setTab('client-pricing')}
           className={`rounded-lg px-4 py-2 font-medium transition-colors ${tab === 'client-pricing' ? 'bg-white text-slate-900 shadow-soft' : 'text-slate-500 hover:text-slate-700'}`}
         >
@@ -843,8 +883,23 @@ export default function ClientPricingConfiguration() {
       {showRegionMappingModal && <RegionPincodeMappingModal onClose={() => setShowRegionMappingModal(false)} />}
 
       {showBrowseRateCardsModal && (
-        <Modal title="Rate Cards" onClose={() => setShowBrowseRateCardsModal(false)}>
-          <div className="border-b border-slate-100 p-4">
+        <Modal title="Rate Cards" subtitle={`${rateCards.length} rate card${rateCards.length === 1 ? '' : 's'}`} size="max-w-md"
+          headerAction={
+            <button
+              type="button"
+              onClick={() => {
+                setShowBrowseRateCardsModal(false)
+                openCreateRateCardModal()
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-orange px-3 py-1.5 text-xs font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
+            >
+              <Icon name="plus" className="h-3.5 w-3.5" />
+              Create New Rate Card
+            </button>
+          }
+          onClose={() => setShowBrowseRateCardsModal(false)}
+        >
+          <div className="px-5 pt-4">
             <div className="relative">
               <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -857,67 +912,144 @@ export default function ClientPricingConfiguration() {
               />
             </div>
           </div>
-          <div className="max-h-96 overflow-y-auto p-2">
-            {rateCards
-              .filter((c) => {
-                const q = rateCardSearch.trim().toLowerCase()
-                return !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-              })
-              .map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => {
-                    selectRateCard(c.id)
-                    setShowBrowseRateCardsModal(false)
-                  }}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50 ${
-                    c.id === selectedRateCardId ? 'bg-slate-50' : ''
-                  }`}
-                >
-                  <div>
-                    <div className="text-sm font-medium text-slate-800">{c.name}</div>
-                    <div className="text-xs text-slate-400">{c.code}</div>
-                  </div>
-                  {c.isGeneral && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">Standard</span>
-                  )}
-                </button>
-              ))}
-            {rateCards.filter((c) => {
+          <div className="max-h-[360px] space-y-2 overflow-y-auto px-5 py-3">
+            {(() => {
               const q = rateCardSearch.trim().toLowerCase()
-              return !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
-            }).length === 0 && <div className="px-3.5 py-8 text-center text-sm text-slate-400">No rate cards match "{rateCardSearch}".</div>}
+              const list = rateCards.filter((c) => !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q))
+              if (list.length === 0) return <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-xs text-slate-400">No rate cards match "{rateCardSearch}".</div>
+              return list.map((c) => {
+                const all = (matricesByCardId[c.id] ?? c.matrix ?? []).flat().map(Number).filter((v) => Number.isFinite(v) && v > 0)
+                const range = all.length ? `₹${Math.min(...all)}–₹${Math.max(...all)}/kg` : 'No prices yet'
+                const on = c.id === selectedRateCardId
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      selectRateCard(c.id)
+                      setShowBrowseRateCardsModal(false)
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors ${on ? 'border-brand-orange bg-brand-orange/5 ring-1 ring-brand-orange/40' : 'border-slate-200 hover:border-brand-orange/40'}`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-slate-800">{c.name}</span>
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-slate-500">{c.code}</span>
+                      </span>
+                      {c.description && <span className="mt-0.5 block truncate text-xs text-slate-500">{c.description}</span>}
+                      <span className="mt-0.5 block text-xs text-slate-400">
+                        {ZONES.length} regions · {range}
+                      </span>
+                    </span>
+                  </button>
+                )
+              })
+            })()}
           </div>
         </Modal>
       )}
 
       {showCreateRateCardModal && createStep === 'details' && (
-        <Modal title="Create rate card" onClose={() => setShowCreateRateCardModal(false)}>
-          <div className="space-y-4 p-5">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Code</span>
-              <CodeCombobox value={newCardCode} options={INDUSTRY_CODES} onChange={handlePickCode} />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Name</span>
-              <input
-                type="text"
-                value={newCardName}
-                onChange={(e) => setNewCardName(e.target.value)}
-                placeholder="Electronics"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+        <Modal title="Create rate card" subtitle="Step 1 of 2 · Basic details" size="max-w-md" onClose={() => setShowCreateRateCardModal(false)}>
+          <div className="space-y-3.5 p-4">
+            <div className="flex gap-3">
+              <div className="min-w-0 flex-1">
+                <span className="mb-1 block text-xs font-medium text-slate-600">
+                  Name <span className="text-brand-orange-dark">*</span>
+                </span>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newCardName}
+                    onChange={(e) => {
+                      handleNameChange(cleanName(e.target.value))
+                      setNameOpen(true)
+                    }}
+                    onFocus={() => setNameOpen(true)}
+                    onBlur={() => setTimeout(() => setNameOpen(false), 120)}
+                    placeholder="e.g. Home_Appliances"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                  />
+                  {nameOpen && (() => {
+                    const q = newCardName.trim().toLowerCase()
+                    const names = INDUSTRY_CODES.map(nameFromCode)
+                    const hits = names.filter((n) => !q || n.toLowerCase().includes(q))
+                    const exact = names.some((n) => n.toLowerCase() === q)
+                    if (hits.length === 0 && (!q || exact)) return null
+                    return (
+                      <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                        {hits.map((n) => (
+                          <button key={n} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { handleNameChange(n); setNameOpen(false) }} className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+                            {n}
+                            <span className="text-[11px] text-slate-400">{autoCode(n, rateCards)}</span>
+                          </button>
+                        ))}
+                        {q && !exact && (
+                          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setNameOpen(false)} className="flex w-full items-center gap-1.5 border-t border-slate-100 px-3 py-1.5 text-left text-sm font-medium text-brand-orange-dark hover:bg-slate-50">
+                            <Icon name="plus" className="h-3.5 w-3.5" />
+                            Create "{newCardName.trim()}"
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+              <div className="w-32 shrink-0">
+                <span className="mb-1 flex items-center justify-between text-xs font-medium text-slate-600">
+                  <span>
+                    Code <span className="text-brand-orange-dark">*</span>
+                  </span>
+                  {!codeEditing && newCardCode && (
+                    <button type="button" onClick={() => setCodeEditing(true)} className="font-medium text-brand-orange-dark hover:underline">
+                      Edit
+                    </button>
+                  )}
+                </span>
+                <input
+                  type="text"
+                  value={newCardCode}
+                  readOnly={!codeEditing}
+                  onChange={(e) => setNewCardCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                  placeholder="ABC123"
+                  className={`w-full rounded-lg border px-3 py-2 text-sm tabular-nums placeholder:text-slate-300 focus:outline focus:outline-2 focus:outline-brand-orange/40 ${codeEditing ? 'border-slate-200 bg-white text-slate-800' : 'border-slate-200 bg-slate-100/70 text-slate-600'}`}
+                />
+              </div>
+            </div>
+            {codeTaken ? (
+              <p className="-mt-2 text-xs text-rose-600">This code is already used by another rate card.</p>
+            ) : codeEditing && newCardCode && !codeValid ? (
+              <p className="-mt-2 text-xs text-rose-600">Code is 3 letters then 3 numbers, like ABC123.</p>
+            ) : (
+              <p className="-mt-2 text-xs text-slate-400">Name: letters, numbers and _ only. Code is made from the name.</p>
+            )}
+
+            <div>
+              <span className="mb-1 flex items-center justify-between text-xs font-medium text-slate-600">
+                <span>
+                  Description <span className="text-brand-orange-dark">*</span>
+                </span>
+                <span className="font-normal tabular-nums text-slate-400">{newCardDescription.length}/120</span>
+              </span>
+              <textarea
+                rows={2}
+                maxLength={120}
+                value={newCardDescription}
+                onChange={(e) => setNewCardDescription(e.target.value)}
+                placeholder="Who this card is for"
+                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
               />
-            </label>
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
               <button type="button" onClick={() => setShowCreateRateCardModal(false)} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={goToSourceStep}
-                disabled={!newCardCode.trim() || !newCardName.trim()}
-                className="rounded-lg bg-brand-orange px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!codeValid || !newCardName.trim() || !newCardDescription.trim() || codeTaken}
+                className="rounded-lg bg-brand-orange px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
               </button>
@@ -1098,72 +1230,10 @@ export default function ClientPricingConfiguration() {
         </>
       )}
 
+      {tab === 'templates' && <ClientTemplatesTab />}
+
       {tab === 'client-pricing' && (
         <div className="space-y-6">
-          <div className={`overflow-hidden ${card}`}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-              <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10 text-brand-orange-dark">
-                  <Icon name="route" className="h-4.5 w-4.5" />
-                </span>
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Region Mapping Templates</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Named, reusable region sets — pick one from "Pull existing mapping" in the New Client wizard.</p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <input
-                  type="text"
-                  value={newTemplateName}
-                  onChange={(e) => setNewTemplateName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && openNewTemplate()}
-                  placeholder="New template name…"
-                  className="w-44 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                />
-                <button
-                  type="button"
-                  onClick={openNewTemplate}
-                  disabled={!newTemplateName.trim()}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-orange px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                >
-                  <Icon name="plus" className="h-3.5 w-3.5" />
-                  New
-                </button>
-              </div>
-            </div>
-            {REGION_TEMPLATES.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                  <Icon name="route" className="h-5 w-5" />
-                </span>
-                <p className="text-sm font-medium text-slate-700">No region mapping templates yet</p>
-                <p className="text-xs text-slate-500">Name one above to get started.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {REGION_TEMPLATES.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{t.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {t.regions.length} region{t.regions.length === 1 ? '' : 's'} · {t.regions.reduce((n, r) => n + r.cities.length, 0)} cities mapped
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button type="button" onClick={() => loadTemplateDraft(t)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
-                        <Icon name="edit" className="h-3.5 w-3.5" />
-                        Edit
-                      </button>
-                      <button type="button" onClick={() => handleDeleteTemplate(t.id)} title="Delete template" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500">
-                        <Icon name="close" className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10 text-brand-orange-dark">

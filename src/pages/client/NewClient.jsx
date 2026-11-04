@@ -11,6 +11,14 @@ const INPUT_ERR = 'border-rose-300 focus:outline-rose-200'
 
 import RegionPincodeMappingModal from '../../components/RegionPincodeMappingModal.jsx'
 import OdaListManager from '../../components/OdaListManager.jsx'
+import ClientRegionFlow from '../../components/ClientRegionFlow.jsx'
+import ClientRateCardFlow from '../../components/ClientRateCardFlow.jsx'
+import SavedPricingCard from '../../components/SavedPricingCard.jsx'
+import PricingSourceArt from '../../components/PricingSourceArt.jsx'
+import ClientTemplateFlow from '../../components/ClientTemplateFlow.jsx'
+import { computeRateCardGrid } from '../../data/standardRateCards.js'
+import { buildStandardRegionsFromSheet, CITIES as GEO_CITIES, REGIONS as GEO_REGIONS } from '../../data/geoMaster.js'
+import indiaShape from '../../data/indiaStatePaths.json'
 import {
   TIER_DISCOUNTS,
   ZONES,
@@ -210,11 +218,13 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// State -> colour by the region that holds most of its cities (Geography sheet).
+const REGION_NAMES = GEO_REGIONS.map((r) => r.name)
 const PRICING_SOURCES = [
-  { key: 'standard-regions', title: 'Standard Regions', text: 'Clone the 13 standard regions (North 1, West 2…) with their cities into this client\'s own card. Rename, merge or reassign cities, then set rates.' },
-  { key: 'scratch', title: 'Start from scratch', text: 'Build the client\'s regions one at a time, assigning cities exactly as negotiated.' },
-  { key: 'templates', title: 'Existing Templates', text: 'Reuse a named region set already built in Client Pricing (1 saved) — starts as a copy, safe to edit for this client.' },
-  { key: 'rate-cards', title: 'Existing Rate Cards', text: 'Attach a standard rate card (2 available) as-is, with a flat discount and per-lane overrides.' },
+  { key: 'rate-cards', title: 'Pick from Standard Rate Cards', text: "Pick a standard rate card, then add a discount or change cell prices if needed.", tag: 'Most common' },
+  { key: 'standard-regions', title: 'Start with Standard Regions', text: "Start with 13 standard regions, edit as needed, then enter your grid prices.", tag: 'Editable regions' },
+  { key: 'templates', title: 'Saved Templates', text: "Reuse a region template saved by you or your team, then price its grid.", tag: 'Reusable regions' },
+  { key: 'scratch', title: 'Start from Scratch', text: "Build your own regions from the ground up, then set every price yourself.", tag: 'Fully custom deals' },
 ]
 const TIER_BADGE = {
   Platinum: 'bg-violet-50 text-violet-700',
@@ -953,6 +963,12 @@ export default function NewClient() {
   const [customRegionOverrides, setCustomRegionOverrides] = useState({})
   const [unmappedDefaultRate, setUnmappedDefaultRate] = useState('')
   const [showRegionBuilder, setShowRegionBuilder] = useState(false)
+  const [regionFlowStep, setRegionFlowStep] = useState('')
+  const [rateCardStep, setRateCardStep] = useState('')
+  const [templatePicking, setTemplatePicking] = useState(false)
+  const [rateCardPreselect, setRateCardPreselect] = useState('')
+  const [editingPricingId, setEditingPricingId] = useState(null)
+  const [savedPricings, setSavedPricings] = useState([])
   const [expandedRegionCities, setExpandedRegionCities] = useState(null)
   const [regionCitySearch, setRegionCitySearch] = useState('')
 
@@ -1867,17 +1883,29 @@ export default function NewClient() {
         <div className="space-y-5">
           <div className={`overflow-hidden ${card}`}>
             <div className="flex items-center justify-between gap-3 px-5 py-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setPricingSource('')
-                  setShowAddPricing(true)
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-brand-orange-dark transition-colors hover:bg-orange-50"
-              >
-                <Icon name="plus" className="h-3.5 w-3.5" />
-                Add pricing
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                {savedPricings.length > 0 && (
+                  <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-1.5 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
+                      <Icon name="approve" className="h-3 w-3" />
+                    </span>
+                    Pricing added ({savedPricings.length})
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPricingSource('')
+                    setShowAddPricing(true)
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    savedPricings.length > 0 ? 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600' : 'border-slate-200 bg-white text-brand-orange-dark hover:bg-orange-50'
+                  }`}
+                >
+                  <Icon name="plus" className="h-3.5 w-3.5" />
+                  {savedPricings.length > 0 ? 'Add another pricing' : 'Add pricing'}
+                </button>
+              </div>
               <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-slate-500">
                 <span className="font-medium text-slate-600">Tier</span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[tier]}`}>{tier}</span>
@@ -1910,19 +1938,42 @@ export default function NewClient() {
                 )}
               </div>
             </div>
-            <div className="border-t border-slate-100 px-5 py-8 text-center text-sm text-slate-400">No pricings yet — click Add pricing.</div>
+            {savedPricings.length === 0 ? (
+              <div className="border-t border-slate-100 px-5 py-8 text-center text-sm text-slate-400">No pricings yet — click Add pricing.</div>
+            ) : (
+              <div className="space-y-3 border-t border-slate-100 p-4">
+                {savedPricings.map((p, i) => (
+                  <SavedPricingCard
+                    key={`${p.id}-${p.version}`}
+                    p={p}
+                    index={i + 1}
+                    defaultOpen={!!p.fresh}
+                    onEdit={() => {
+                      if (p.kind !== 'rate-card' && !p.regions) return
+                      setEditingPricingId(p.id)
+                      if (p.kind === 'rate-card') {
+                        setRateCardStep('rates')
+                      } else {
+                        setCustomRegions(JSON.parse(JSON.stringify(p.regions)))
+                        setCustomRegionOverrides({ ...p.overrides })
+                        setUnmappedDefaultRate(p.defaultRate)
+                        setRegionFlowStep('rates')
+                      }
+                    }}
+                    onRemove={() => setSavedPricings((rows) => rows.filter((r) => r.id !== p.id))}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
+          <div>
+            <label className="flex mb-2 w-fit cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
+              <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+              This client has no ODA
+            </label>
           <div className={`p-5 ${card}`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-800">Out of Delivery Area (ODA) list{!noOda && <span className="text-brand-orange-dark">*</span>}</h3>
-              </div>
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
-                <input type="checkbox" checked={noOda} onChange={(e) => handleNoOda(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
-                No ODA for this client
-              </label>
-            </div>
+            <h3 className="text-sm font-semibold text-slate-800">Out of Delivery Area (ODA) list{!noOda && <span className="text-brand-orange-dark">*</span>}</h3>
             {!noOda && (
               <div className="mt-4">
                 <OdaListManager
@@ -1938,17 +1989,15 @@ export default function NewClient() {
               </div>
             )}
           </div>
+          </div>
 
+          <div>
+            <label className="flex mb-2 w-fit cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
+              <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
+              This client has no additional charges
+            </label>
           <div className={`p-5 ${card}`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-800">Additional charges{!noAdditionalCharges && <span className="text-brand-orange-dark">*</span>}</h3>
-              </div>
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
-                <input type="checkbox" checked={noAdditionalCharges} onChange={(e) => handleNoAdditionalCharges(e.target.checked)} className="h-3.5 w-3.5 rounded accent-brand-orange" />
-                No additional charges for this client
-              </label>
-            </div>
+            <h3 className="text-sm font-semibold text-slate-800">Additional charges{!noAdditionalCharges && <span className="text-brand-orange-dark">*</span>}</h3>
 
             {!noAdditionalCharges && (
               <div className="mt-4 space-y-4">
@@ -1982,10 +2031,10 @@ export default function NewClient() {
                       const editing = editingCharge === selected.name
                       return (
                         <div key={selected.name} className="rounded-xl bg-slate-50/70 px-4 py-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-slate-800">{selected.name}</div>
-                              <div className="mt-0.5 text-xs text-slate-500">{formatChargeRule(selected.rule) || 'Set a value'}</div>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                              <span className="text-sm font-medium text-slate-800">{selected.name}</span>
+                              <span className="text-xs text-slate-500">· {formatChargeRule(selected.rule) || 'Set a value'}</span>
                             </div>
                             <div className="flex shrink-0 items-center gap-3 text-xs font-medium">
                               <button type="button" onClick={() => setEditingCharge(editing ? null : selected.name)} className="text-sky-600 hover:underline">
@@ -2023,42 +2072,66 @@ export default function NewClient() {
               </div>
             )}
           </div>
+          </div>
 
           {showAddPricing && (
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShowAddPricing(false)}>
-              <div className="w-full max-w-2xl rounded-2xl bg-white shadow-soft" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+              <div className="w-full max-w-xl rounded-2xl bg-white shadow-soft" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-3.5">
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">Define Client Region &amp; Pricing</h3>
-                    <p className="mt-0.5 text-xs text-slate-500">Build this client's own regions from negotiated cities, then price the lanes between them.</p>
+                    <h3 className="text-base font-semibold text-slate-900">Add pricing</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">How do you want to set this client's regions and rates?</p>
                   </div>
                   <button type="button" onClick={() => setShowAddPricing(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
                     ×
                   </button>
                 </div>
-                <div className="grid gap-3 p-6 sm:grid-cols-2">
+                <div className="grid gap-3 p-5 sm:grid-cols-2">
                   {PRICING_SOURCES.map((o) => (
                     <button
                       key={o.key}
                       type="button"
                       onClick={() => setPricingSource(o.key)}
-                      className={`rounded-2xl border px-4 py-3.5 text-left transition-colors ${
-                        pricingSource === o.key ? 'border-brand-orange/60 bg-brand-orange/5' : 'border-slate-200/80 bg-white hover:border-brand-orange/40'
+                      className={`flex flex-col gap-2 rounded-2xl border bg-white p-3.5 text-left transition-colors ${
+                        pricingSource === o.key ? 'border-brand-orange ring-1 ring-brand-orange/40' : 'border-slate-200/80 hover:border-brand-orange/40'
                       }`}
                     >
+                      <span className="flex h-[68px] items-center justify-center rounded-xl bg-slate-50 px-2">
+                        <PricingSourceArt kind={o.key} />
+                      </span>
                       <span className="text-sm font-semibold text-slate-800">{o.title}</span>
-                      <span className="mt-1 block text-xs leading-relaxed text-slate-500">{o.text}</span>
+                      <span className="text-xs leading-relaxed text-slate-500">{o.text}</span>
+                      <span className={`w-fit rounded-md px-2 py-0.5 text-[11px] font-medium ${o.key === 'rate-cards' ? 'bg-brand-orange/10 text-brand-orange-dark' : 'bg-slate-100 text-slate-500'}`}>{o.tag}</span>
                     </button>
                   ))}
                 </div>
-                <div className="flex justify-end border-t border-slate-100 px-6 py-3.5">
+                <div className="flex justify-end border-t border-slate-100 px-5 py-3">
                   <button
                     type="button"
                     disabled={!pricingSource}
-                    onClick={() => setShowAddPricing(false)}
+                    onClick={() => {
+                      setShowAddPricing(false)
+                      if (pricingSource === 'rate-cards') {
+                        setRateCardPreselect('')
+                        setRateCardStep('pick')
+                      }
+                      if (pricingSource === 'templates') setTemplatePicking(true)
+                      if (pricingSource === 'scratch') {
+                        setCustomRegions([])
+                        setCustomRegionOverrides({})
+                        setUnmappedDefaultRate('')
+                        setRegionFlowStep('map')
+                      }
+                      if (pricingSource === 'standard-regions') {
+                        setCustomRegions(buildStandardRegionsFromSheet(freshRegionId))
+                        setCustomRegionOverrides({})
+                        setUnmappedDefaultRate('')
+                        setRegionFlowStep('map')
+                      }
+                    }}
                     className="rounded-xl bg-brand-orange px-5 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Done
+                    Continue
                   </button>
                 </div>
               </div>
@@ -2132,6 +2205,105 @@ export default function NewClient() {
           {step === 3 ? 'Confirm & Create Client' : isLastStep ? 'Submit for activation' : 'Next'}
         </button>
       </div>
+
+      <ClientTemplateFlow
+        open={templatePicking}
+        onClose={() => setTemplatePicking(false)}
+        onBack={() => {
+          setTemplatePicking(false)
+          setShowAddPricing(true)
+        }}
+        onPick={(templateId) => {
+          const cloned = cloneRegionTemplate(templateId)
+          if (!cloned) return
+          setCustomRegions(cloned.regions)
+          setCustomRegionOverrides(cloned.overrides)
+          setUnmappedDefaultRate(cloned.defaultRate)
+          setTemplatePicking(false)
+          setRegionFlowStep('rates')
+        }}
+      />
+
+      <ClientRateCardFlow
+        preselectCode={rateCardPreselect}
+        step={rateCardStep}
+        setStep={(v) => {
+          setRateCardStep(v)
+          if (!v) setEditingPricingId(null)
+        }}
+        initial={savedPricings.find((r) => r.id === editingPricingId) ?? null}
+        onBackToSources={() => setShowAddPricing(true)}
+        onSave={({ card, discount, discountRaw, edits, edited }) => {
+          const editedKeys = Object.keys(edits)
+          const row = {
+            kind: 'rate-card',
+            source: 'rate-card',
+            name: card.name,
+            code: card.code,
+            cardCode: card.code,
+            discount,
+            discountRaw,
+            edits,
+            edited,
+            editedKeys,
+            regionNames: REGION_NAMES,
+            grid: computeRateCardGrid(card, discount, edits),
+          }
+          setSavedPricings((rows) =>
+            editingPricingId ? rows.map((r) => (r.id === editingPricingId ? { ...r, ...row, source: r.source ?? row.source, version: r.version + 1 } : r)) : [...rows, { ...row, id: Date.now(), version: 1, fresh: true }],
+          )
+          setEditingPricingId(null)
+        }}
+      />
+
+      <ClientRegionFlow
+        step={regionFlowStep}
+        setStep={(v) => {
+          setRegionFlowStep(v)
+          if (!v) setEditingPricingId(null)
+        }}
+        name={`Custom · ${savedPricings.length + 1}`}
+        regions={customRegions}
+        setRegions={setCustomRegions}
+        overrides={customRegionOverrides}
+        setOverrides={setCustomRegionOverrides}
+        defaultRate={unmappedDefaultRate}
+        setDefaultRate={setUnmappedDefaultRate}
+        onUseRateCard={() => {
+          setEditingPricingId(null)
+          setRegionFlowStep('')
+          setRateCardPreselect('LTS001')
+          setRateCardStep('pick')
+        }}
+        onSavePricing={() => {
+          const names = customRegions.map((r) => r.name)
+          const dflt = Number(unmappedDefaultRate) > 0 ? Number(unmappedDefaultRate) : null
+          const grid = customRegions.map((o) =>
+            customRegions.map((d) => {
+              const v = customRegionOverrides[`${o.id}|${d.id}`]
+              return v !== undefined && v !== '' ? Number(v) : dflt
+            }),
+          )
+          const row = {
+            kind: 'regions',
+            source: pricingSource === 'scratch' ? 'scratch' : pricingSource === 'templates' ? 'template' : 'standard-regions',
+            name: 'General',
+            code: '',
+            discount: 0,
+            edited: 0,
+            editedKeys: [],
+            regionNames: names,
+            grid,
+            regions: JSON.parse(JSON.stringify(customRegions)),
+            overrides: { ...customRegionOverrides },
+            defaultRate: unmappedDefaultRate,
+          }
+          setSavedPricings((rows) =>
+            editingPricingId ? rows.map((r) => (r.id === editingPricingId ? { ...r, ...row, version: r.version + 1 } : r)) : [...rows, { ...row, id: Date.now(), version: 1, fresh: true }],
+          )
+          setEditingPricingId(null)
+        }}
+      />
 
       {showRegionMappingModal && <RegionPincodeMappingModal onClose={() => setShowRegionMappingModal(false)} />}
 

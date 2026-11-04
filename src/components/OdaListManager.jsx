@@ -249,17 +249,9 @@ export default function OdaListManager({ bare = false, title = 'Client ODA List'
   const inputCls = 'rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs tabular-nums text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40'
 
   return (
-    <div className={bare ? '' : 'rounded-xl border border-slate-200 p-4'}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">
-          {entries.length === 0 ? (
-            'No ODA pincodes added yet.'
-          ) : (
-            <>
-              <span className="text-base font-semibold tabular-nums text-slate-900">{fmt(entries.length)}</span> ODA pincodes
-            </>
-          )}
-        </p>
+    <div className={bare ? 'relative' : 'rounded-xl border border-slate-200 p-4'}>
+      <div className={bare && entries.length > 0 ? 'absolute -top-[42px] right-0' : 'flex items-center justify-between gap-3'}>
+        {!(bare && entries.length > 0) && <p className="text-sm text-slate-500">{entries.length === 0 ? 'No ODA pincodes added yet.' : ''}</p>}
         <button
           type="button"
           onClick={openModal}
