@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useRef, useState } from 'react'
 import { card, pill, thCls, tdCls, rowCls } from '../../components/ui.js'
 import { DOCKETS_SEED, DOCKET_STATUS_LABEL, DOCKET_STATUS_BADGE, MODE_LABEL } from '../../data/dockets.js'
@@ -158,7 +159,8 @@ export default function PackageSeries() {
   const [focus, setFocus] = useState(false)
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-lg font-semibold tracking-tight text-slate-900">Package Series</h1>
+      <BackButton />
+      <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Package Series</h1>
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Enter package number</h2>
         <DigitBoxes value={digits} onChange={setDigits} onFocusChange={setFocus} />

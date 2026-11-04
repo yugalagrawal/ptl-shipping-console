@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { card, thCls, tdCls, rowCls, pill, btnPrimary, btnSecondary } from '../../components/ui.js'
@@ -40,8 +41,9 @@ export default function TruckAssignment() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Truck Assignment</h1>
-        <p className="mt-1 text-slate-500">Auto-match available trucks to pending manifests by volumetric utilization and route.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Auto-match available trucks to pending manifests by volumetric utilization and route.</p>
       </div>
 
       {lastTrip && (

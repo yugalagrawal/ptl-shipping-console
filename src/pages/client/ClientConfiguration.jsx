@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useSearchParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
@@ -564,7 +565,9 @@ export default function ClientConfiguration() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Configuration</h1>
+        <p className="mt-0.5 text-xs text-slate-500">Operational configuration for each client: booking, handling and pickup behavior.</p>
       </div>
 
       {selectedClient ? (

@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { card, btnPrimary, btnSecondary, pill } from '../../components/ui.js'
@@ -54,8 +55,9 @@ export default function Tracking() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Trip Tracking</h1>
-        <p className="mt-1 text-slate-500">Every trip on the road right now — status, ETA and exceptions.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Every trip on the road right now — status, ETA and exceptions.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 import SimpleFlow from './SimpleFlow.jsx'
@@ -249,8 +250,9 @@ export default function CostingConcept() {
   return (
     <div className="max-w-5xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Concept 1</h1>
-        <p className="mt-1 text-sm text-slate-500">How FLOW arrives at cost and profit for every docket — simple enough to run, real enough to decide on.</p>
+        <BackButton />
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Concept 1</h1>
+        <p className="mt-0.5 text-xs text-slate-500">How FLOW arrives at cost and profit for every docket — simple enough to run, real enough to decide on.</p>
       </div>
       <div className="flex gap-2">
         {TABS.map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={tab === k ? pillActive : pillInactive}>{l}</button>)}

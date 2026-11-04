@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
@@ -31,11 +32,12 @@ export default function ClientProspects() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <BackButton />
           <div className="flex items-center gap-2">
             <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Prospects</h1>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Sample UI · concept only</span>
           </div>
-          <p className="mt-1 text-slate-500">Where sales executives register leads and track them through to conversion.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Where sales executives register leads and track them through to conversion.</p>
         </div>
         <button type="button" disabled className={`${pill} cursor-not-allowed bg-slate-100 text-slate-400`}>
           <Icon name="plus" className="mr-1 inline h-3.5 w-3.5 -translate-y-px" />

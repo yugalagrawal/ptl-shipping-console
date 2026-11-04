@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { Fragment, useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 
@@ -369,10 +370,11 @@ export default function HubCostMethod() {
   const tabs = [['s', 'Structure'], ['t', 'Example'], ['r', 'Rules']]
   return (
     <div className="max-w-5xl space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Level 2 Cost</h1>
+      <BackButton />
+      <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Level 2 Cost</h1>
       <div className={`p-4 ${card}`}>
         <p className="text-sm font-semibold text-slate-900">Level 2 cost = warehouse cost</p>
-        <p className="mt-1 text-xs text-slate-500">All direct cost of operating the hubs a docket passes through: facility, hub payroll, labour and handling. Transport cost is excluded and sits in Level 1.</p>
+        <p className="mt-0.5 text-xs text-slate-500">All direct cost of operating the hubs a docket passes through: facility, hub payroll, labour and handling. Transport cost is excluded and sits in Level 1.</p>
         <div className="mx-auto mt-4 flex max-w-md flex-col gap-2">
           <div className="rounded-xl border px-3 py-2 border-slate-300 bg-slate-100 text-slate-900">
             <p className="text-sm font-semibold">Level 1 margin</p>

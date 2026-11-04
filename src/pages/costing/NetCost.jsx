@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { card } from '../../components/ui.js'
 
 // Level 3 Cost — fully loaded cost of a docket: Level 1 (transport) + Level 2 (hub) + everything else that could not be attributed in Level 1 or Level 2.
@@ -27,11 +28,12 @@ export default function NetCost() {
   const td = 'py-2 pr-3 text-right tabular-nums text-slate-600'
   return (
     <div className="max-w-5xl space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Level 3 Cost</h1>
+      <BackButton />
+      <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Level 3 Cost</h1>
 
       <div className={`p-4 ${card}`}>
         <p className="text-sm font-semibold text-slate-900">Level 3 cost = non-warehouse cost that cannot be attributed in Level 1 or Level 2</p>
-        <p className="mt-1 text-xs text-slate-500">Level 1 covers transportation and Level 2 covers everything a warehouse costs, including payroll of people who work for the hub only. Level 3 picks up only the non-warehouse cost, such as managers, corporate overheads, R&D, sales and marketing and claims, and allocates it across dockets. Total cost of a docket = Level 1 + Level 2 + Level 3.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Level 1 covers transportation and Level 2 covers everything a warehouse costs, including payroll of people who work for the hub only. Level 3 picks up only the non-warehouse cost, such as managers, corporate overheads, R&D, sales and marketing and claims, and allocates it across dockets. Total cost of a docket = Level 1 + Level 2 + Level 3.</p>
         <div className="mx-auto mt-4 flex max-w-md flex-col gap-2">
           {LADDER.map(([t, d, tone]) => Array.isArray(t) ? (
             <div key="rev" className="flex gap-2">

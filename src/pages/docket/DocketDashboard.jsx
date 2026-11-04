@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
@@ -337,7 +338,10 @@ export default function DocketDashboard() {
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Docket Dashboard</h1>
+        <div>
+          <BackButton />
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Docket Dashboard</h1>
+        </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => exportRows(rows)} className={btnSecondary}>
             <Icon name="download" className="h-4 w-4" />

@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, thCls, tdCls, rowCls, pill } from '../../components/ui.js'
 import {
@@ -32,8 +33,9 @@ export default function FleetRoster() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Fleet & Vendor Roster</h1>
-        <p className="mt-1 text-slate-500">Owned assets, vendor-supplied vehicles, drivers and compliance — in one place.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Owned assets, vendor-supplied vehicles, drivers and compliance — in one place.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

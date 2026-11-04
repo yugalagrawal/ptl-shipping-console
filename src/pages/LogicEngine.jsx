@@ -1,3 +1,4 @@
+import BackButton from '../components/BackButton.jsx'
 import Icon from '../components/Icon.jsx'
 import { card } from '../components/ui.js'
 import { MODULES } from '../data/modules.js'
@@ -8,8 +9,9 @@ export default function LogicEngine() {
   return (
     <div className="mx-auto max-w-4xl space-y-7">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Logic Engine</h1>
-        <p className="mt-1 text-slate-500">
+        <p className="mt-0.5 text-xs text-slate-500">
           The rules that steer every other module — not a page you visit to move an LR, a page you visit to change
           how every LR moves.
         </p>

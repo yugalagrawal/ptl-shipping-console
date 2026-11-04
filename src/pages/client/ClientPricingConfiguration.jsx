@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import ClientTemplatesTab from '../../components/ClientTemplatesTab.jsx'
@@ -746,7 +747,9 @@ export default function ClientPricingConfiguration() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Client Pricing</h1>
+        <p className="mt-0.5 text-xs text-slate-500">Manage rate cards, additional charges and region templates, and see the pricing attached to each client.</p>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-1 text-sm sm:w-fit">

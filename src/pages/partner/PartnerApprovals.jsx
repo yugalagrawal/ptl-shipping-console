@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
@@ -149,8 +150,9 @@ export default function PartnerApprovals() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Partner Approvals</h1>
-        <p className="mt-1 text-slate-500">Supply Admin reviews a partner's onboarding details before it goes active.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Supply Admin reviews a partner's onboarding details before it goes active.</p>
       </div>
 
       <div className="flex gap-2 rounded-xl bg-slate-100 p-1 text-sm sm:w-fit">

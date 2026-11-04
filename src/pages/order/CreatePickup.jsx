@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { card } from '../../components/ui.js'
@@ -1183,6 +1184,7 @@ export default function CreatePickup() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Create Pickup Request</h1>
         </div>
         <button

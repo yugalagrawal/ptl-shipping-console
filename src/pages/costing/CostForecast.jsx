@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 import {
@@ -54,8 +55,9 @@ export default function CostForecast() {
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Forecast &amp; What-if</h1>
-          <p className="mt-1 text-slate-500">Six-month cost outlook from the trend and seasonality in the last 12 months — then pull a lever to see what it does.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Six-month cost outlook from the trend and seasonality in the last 12 months — then pull a lever to see what it does.</p>
         </div>
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">Sample data</span>
       </div>

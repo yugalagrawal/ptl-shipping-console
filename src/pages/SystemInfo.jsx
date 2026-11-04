@@ -1,3 +1,4 @@
+import BackButton from '../components/BackButton.jsx'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon.jsx'
 import { card } from '../components/ui.js'
@@ -74,11 +75,12 @@ export default function SystemInfo() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <div>
+        <BackButton />
         <div className="flex items-center gap-3">
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">System Info</h1>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">Read-only</span>
         </div>
-        <p className="mt-1 text-slate-500">How FLOW's modules connect and hand off to one another — a reference, not a working screen.</p>
+        <p className="mt-0.5 text-xs text-slate-500">How FLOW's modules connect and hand off to one another — a reference, not a working screen.</p>
       </div>
 
       <div className={`space-y-2 p-6 ${card}`}>

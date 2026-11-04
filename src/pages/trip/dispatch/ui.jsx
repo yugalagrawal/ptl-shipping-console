@@ -1,3 +1,4 @@
+import BackButton from '../../../components/BackButton.jsx'
 import { Link } from 'react-router-dom'
 import { T } from '../ops/core.js'
 import { card } from '../../../components/ui.js'
@@ -22,8 +23,9 @@ export function PageHead({ title, sub, right }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-slate-900">{title} <NewTag /></h1>
-        {sub && <p className="mt-1 max-w-3xl text-xs text-slate-500">{sub}</p>}
+        <BackButton />
+        <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-tight text-slate-900">{title} <NewTag /></h1>
+        {sub && <p className="mt-0.5 text-xs max-w-3xl text-slate-500">{sub}</p>}
       </div>
       {right}
     </div>

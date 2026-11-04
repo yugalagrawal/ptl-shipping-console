@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -1859,7 +1860,8 @@ export default function CreateDocket() {
       ) : (
         <>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900">Create Docket</h1>
+            <BackButton />
+            <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Create Docket</h1>
           </div>
 
           <PickupSearch onSelect={handleSelect} />

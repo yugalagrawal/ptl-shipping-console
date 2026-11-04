@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../../components/Icon.jsx'
@@ -476,6 +477,7 @@ export default function MappingLadder() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Logistics Ladder</h1>
           <p className="mt-1 text-sm text-slate-500 whitespace-nowrap">Search any State, City, Region or Hub and see its full mapping.{!canManage && ' Read-only.'}</p>
         </div>

@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useEffect, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
@@ -87,8 +88,9 @@ export default function MyPartners() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">My Partners</h1>
-        <p className="mt-1 text-slate-500">Roster of onboarded Agents, Co-loaders, Franchise and 3rd Party partners.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Roster of onboarded Agents, Co-loaders, Franchise and 3rd Party partners.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

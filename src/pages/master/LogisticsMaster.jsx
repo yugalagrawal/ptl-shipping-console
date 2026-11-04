@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { cloneElement, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
@@ -574,7 +575,10 @@ export default function LogisticsMaster() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Location Master</h1>
+        <div>
+          <BackButton />
+          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Location Master</h1>
+        </div>
         <div className="flex flex-col items-end gap-1">
           <div className="flex gap-2">
             <Stat label="Region" value={stats.regions} />

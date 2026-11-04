@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, thCls, tdCls, rowCls, pill, btnPrimary, btnSecondary } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
@@ -32,8 +33,9 @@ export default function Invoicing() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Invoicing</h1>
-        <p className="mt-1 text-slate-500">Generate client invoices off booked orders, then dispatch them.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Generate client invoices off booked orders, then dispatch them.</p>
       </div>
 
       <div className={`overflow-hidden ${card}`}>

@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useState } from 'react'
 import { card } from '../../components/ui.js'
 
@@ -74,6 +75,7 @@ export default function RouteCostSimulator() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Route & Cost Simulator</h1>
           <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">

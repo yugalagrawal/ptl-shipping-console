@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import Avatar from '../../components/Avatar.jsx'
 import Icon from '../../components/Icon.jsx'
@@ -111,8 +112,9 @@ export default function PartnerEmailLogs() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Partner Email Logs</h1>
-        <p className="mt-1 text-sm text-slate-500">Search a partner to see their full email conversation, sorted by date.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Search a partner to see their full email conversation, sorted by date.</p>
       </div>
 
       {selectedPartner ? (

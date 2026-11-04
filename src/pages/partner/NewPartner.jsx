@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { BOX_MASTER } from '../../data/boxMaster.js'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -1130,8 +1131,9 @@ export default function NewPartner() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Create Partner</h1>
-        <p className="mt-1 text-slate-500">Onboard a new partner — fields below are placeholders and will be refined.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Onboard a new partner — fields below are placeholders and will be refined.</p>
       </div>
 
       {correctionRow?.correctionComment && (

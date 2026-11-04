@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card } from '../../components/ui.js'
 import {
@@ -101,8 +102,9 @@ export default function FreightCalculator() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Freight Calculator</h1>
-        <p className="mt-1 text-slate-500">Estimate freight for any lane, tier and weight — no order or client required.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Estimate freight for any lane, tier and weight — no order or client required.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start">

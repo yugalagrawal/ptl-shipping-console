@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { card, pill, thCls, tdCls, rowCls, btnPrimary, btnSecondary } from '../../components/ui.js'
@@ -898,8 +899,9 @@ export default function PRS() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">PRS (Pickup Run Sheet)</h1>
-          <p className="mt-1 text-slate-500">Batch ungrouped pickups into a run sheet, assign a vehicle, and hand it off for dispatch.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Batch ungrouped pickups into a run sheet, assign a vehicle, and hand it off for dispatch.</p>
         </div>
         <button type="button" onClick={() => setShowCreateModal(true)} className={btnPrimary}>
           <Icon name="plus" className="h-4 w-4" />

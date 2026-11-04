@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
@@ -50,8 +51,9 @@ export default function RoutingSimulator() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Routing Simulator</h1>
-        <p className="mt-1 text-slate-500">Aggregate orders sitting at the origin hub into manifests, by lane.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Aggregate orders sitting at the origin hub into manifests, by lane.</p>
       </div>
 
       {justBuilt && (

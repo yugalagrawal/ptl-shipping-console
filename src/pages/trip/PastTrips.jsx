@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, thCls, tdCls, rowCls, pill } from '../../components/ui.js'
 import { TRIP_STATUS, initTripsSeed } from '../../data/trips.js'
@@ -16,8 +17,9 @@ export default function PastTrips() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Past Trips</h1>
-        <p className="mt-1 text-slate-500">Completed manifests — the source of truth for freight settlement.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Completed manifests — the source of truth for freight settlement.</p>
       </div>
 
       <input

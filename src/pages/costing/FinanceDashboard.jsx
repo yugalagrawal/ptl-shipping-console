@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 import { MONTHS, REGIONS, HUBS, LANES, CLIENTS, MODES, RECORDS, agg, pct, fmtMoney } from '../../data/financeDashboard.js'
@@ -228,8 +229,9 @@ export default function FinanceDashboard() {
   return (
     <div className="max-w-6xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Finance Dashboard</h1>
-        <p className="mt-1 text-xs text-slate-500">Gross revenue to Level 3 margin, across the network. Sample numbers. Every filter changes every chart on the page.</p>
+        <BackButton />
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Finance Dashboard</h1>
+        <p className="mt-0.5 text-xs text-slate-500">Gross revenue to Level 3 margin, across the network. Sample numbers. Every filter changes every chart on the page.</p>
       </div>
 
       <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 p-3 ${card}`}>

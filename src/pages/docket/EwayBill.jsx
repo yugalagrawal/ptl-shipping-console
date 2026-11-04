@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -590,6 +591,7 @@ export default function EwayBill() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">E-way Bill Console</h1>
       </div>
 

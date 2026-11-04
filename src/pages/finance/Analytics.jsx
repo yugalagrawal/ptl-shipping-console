@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card } from '../../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../../data/clients.js'
@@ -75,8 +76,9 @@ export default function FinanceAnalytics() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Finance Analytics</h1>
-        <p className="mt-1 text-slate-500">Revenue, margin and DSO trends across every booked order and invoice.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Revenue, margin and DSO trends across every booked order and invoice.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

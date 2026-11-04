@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import Icon from '../../components/Icon.jsx'
 import { card } from '../../components/ui.js'
 
@@ -5,8 +6,9 @@ export default function PartnerConfiguration() {
   return (
     <div className="mx-auto max-w-4xl space-y-7">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Partner Configuration</h1>
-        <p className="mt-1 text-slate-500">Standard terms and configuration for every partner.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Standard terms and configuration for every partner.</p>
       </div>
 
       <div className={`p-6 ${card}`}>

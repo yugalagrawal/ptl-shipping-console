@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
@@ -276,7 +277,8 @@ export default function DocketSeries() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="space-y-3">
-        <h1 className="text-lg font-semibold tracking-tight text-slate-900">Docket Series</h1>
+        <BackButton />
+        <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Docket Series</h1>
         <SearchBox value={query} onChange={setQuery} />
         {q && <DocketResults query={query} />}
       </div>

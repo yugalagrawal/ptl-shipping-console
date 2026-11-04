@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { Fragment, useState } from 'react'
 import CostingExperiment from './CostingExperiment.jsx'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
@@ -646,10 +647,11 @@ export default function CostingMethod3() {
   const [tab, setTab] = useState('t1')
   return (
     <div className="max-w-5xl space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Level 1 Cost</h1>
+      <BackButton />
+      <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Level 1 Cost</h1>
       <div className={`p-4 ${card}`}>
         <p className="text-sm font-semibold text-slate-900">Level 1 cost = direct transportation cost (PRS + DRS + Manifest)</p>
-        <p className="mt-1 text-xs text-slate-500">All direct cost of truck movement: pickup runs (PRS), delivery runs (DRS) and hub-to-hub manifests. Hub and facility cost is excluded and sits in Level 2.</p>
+        <p className="mt-0.5 text-xs text-slate-500">All direct cost of truck movement: pickup runs (PRS), delivery runs (DRS) and hub-to-hub manifests. Hub and facility cost is excluded and sits in Level 2.</p>
         <div className="mx-auto mt-4 flex max-w-md flex-col gap-2">
           <div className="flex gap-2">
             <div className="flex-1 rounded-xl border px-3 py-2 border-slate-900 bg-slate-900 text-white">

@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Avatar from '../../components/Avatar.jsx'
@@ -66,8 +67,9 @@ export default function PartnerOnboarding() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Partner Onboarding</h1>
-          <p className="mt-1 text-slate-500">Onboard Agents, Co-loaders, Franchise and 3rd Party partners before they go live.</p>
+          <p className="mt-0.5 text-xs text-slate-500">Onboard Agents, Co-loaders, Franchise and 3rd Party partners before they go live.</p>
         </div>
         <Link
           to="/partner-module/onboarding/new"

@@ -1,3 +1,4 @@
+import BackButton from '../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, thCls, tdCls, rowCls, pill, btnPrimary } from '../components/ui.js'
 import { ACTIVE_CLIENTS_SEED } from '../data/clients.js'
@@ -43,8 +44,9 @@ export default function WarehouseHubOps() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Ops</h1>
-        <p className="mt-1 text-slate-500">Barcode/QR scan events and what's currently on the floor at each hub.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Barcode/QR scan events and what's currently on the floor at each hub.</p>
       </div>
 
       <div className={`space-y-4 p-6 ${card}`}>

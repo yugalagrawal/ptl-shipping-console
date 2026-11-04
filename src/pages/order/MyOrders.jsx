@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../../components/Icon.jsx'
@@ -154,7 +155,10 @@ export default function MyOrders() {
     <div className="mx-auto max-w-[1500px] space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Pickup Dashboard</h1>
+          <div>
+            <BackButton />
+            <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Pickup Dashboard</h1>
+          </div>
           <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-[13px] font-medium">
             {[['charts', 'Charts'], ['performance', 'Performance']].map(([k, l]) => (
               <button key={k} type="button" onClick={() => setView((v) => (v === k ? null : k))}

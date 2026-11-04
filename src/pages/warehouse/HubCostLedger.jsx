@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, pill, pillActive, pillInactive } from '../../components/ui.js'
 import { FACILITIES, VARIABLE_CATEGORIES, getSheet, hasSheet, addFixedRow, addVariableRow, removeRow, updateRow, copyFixedFrom, prevMonth, daysInMonth, num, getSortHours, setSortHours } from '../../data/hubCosts.js'
@@ -200,8 +201,9 @@ export default function HubCostLedger() {
   return (
     <div className="max-w-6xl space-y-5">
       <div>
+        <BackButton />
         <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Warehouse Cost Ledger</h1>
-        <p className="mt-1 text-sm text-slate-500">Log what each hub or mini warehouse costs. Level 2 Cost reads from here: fixed bills are spread over the calendar days of the month, and variable costs are added on the day they happen.</p>
+        <p className="mt-0.5 text-xs text-slate-500">Log what each hub or mini warehouse costs. Level 2 Cost reads from here: fixed bills are spread over the calendar days of the month, and variable costs are added on the day they happen.</p>
       </div>
       {fac ? <Ledger fac={fac} onBack={() => setFac(null)} /> : <Picker onPick={setFac} />}
     </div>

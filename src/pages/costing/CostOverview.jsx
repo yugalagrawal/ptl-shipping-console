@@ -1,3 +1,4 @@
+import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card, pillActive, pillInactive } from '../../components/ui.js'
 import Icon from '../../components/Icon.jsx'
@@ -182,8 +183,9 @@ export default function CostOverview() {
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <BackButton />
           <h1 className="text-[26px] font-semibold tracking-tight text-slate-900">Cost Overview</h1>
-          <p className="mt-1 text-slate-500">What it costs to run the network, where it is incurred, and where it is heading.</p>
+          <p className="mt-0.5 text-xs text-slate-500">What it costs to run the network, where it is incurred, and where it is heading.</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">Sample data</span>
