@@ -4,7 +4,7 @@ import Icon from '../../components/Icon.jsx'
 import ClientTemplatesTab from '../../components/ClientTemplatesTab.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { card, thCls, tdCls, rowCls } from '../../components/ui.js'
-import { RegionMappingModal } from '../../components/ClientRegionFlow.jsx'
+import { RegionMappingModal, Shell } from '../../components/ClientRegionFlow.jsx'
 import { buildStandardRegionsFromSheet } from '../../data/geoMaster.js'
 import OdaListManager from '../../components/OdaListManager.jsx'
 import {
@@ -364,6 +364,149 @@ function Modal({ title, subtitle, size = 'max-w-4xl', headerAction, onClose, chi
 // rate card, tier discounts and charge types (currently all hardcoded in
 // data/pricing.js). For now it just surfaces the standard matrix read-only,
 // same values every client tier discounts off of.
+
+// Version history: version rail on the left, the chosen version's full grid on
+// the right with changed cells shown as previous -> new. Each version's grid is
+// rebuilt by undoing later versions' changes from the current matrix.
+function RateCardHistoryModal({ name, history, currentMatrix, onClose }) {
+  const versions = useMemo(() => {
+    let grid = currentMatrix.map((row) => [...row])
+    const out = []
+    for (let k = history.length - 1; k >= 0; k--) {
+      const v = history[k]
+      out.unshift({ ...v, n: k + 1, grid: grid.map((row) => [...row]) })
+      for (const c of v.changes ?? []) grid[ZONES.indexOf(c.origin)][ZONES.indexOf(c.dest)] = c.from
+    }
+    return out
+  }, [history, currentMatrix])
+  const newestFirst = [...versions].reverse()
+  const [selId, setSelId] = useState(newestFirst[0]?.id)
+  const [hover, setHover] = useState(null)
+  const sel = versions.find((v) => v.id === selId) ?? newestFirst[0]
+  if (!sel) return null
+  const changeAt = (o, d) => sel.changes?.find((c) => c.origin === ZONES[o] && c.dest === ZONES[d])
+  const range = (v) => `${formatDate(v.effectiveFrom)} – ${v.effectiveTo ? formatDate(v.effectiveTo) : 'Present'}`
+  return (
+    <Shell wide="max-w-6xl" title={`Rate card history · ${name}`} onClose={onClose}>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-64 shrink-0 space-y-2 overflow-y-auto border-r border-slate-100 bg-slate-50/50 p-3">
+          {newestFirst.map((v) => {
+            const on = v.id === sel.id
+            const active = v.effectiveTo === null
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setSelId(v.id)}
+                className={`w-full rounded-xl border p-3 text-left transition-colors ${on ? 'border-brand-orange/50 bg-white shadow-soft ring-1 ring-brand-orange/30' : 'border-transparent hover:bg-white'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-900">Version {v.n}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{active ? 'Active' : 'Archived'}</span>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{range(v)}</div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  {v.updatedBy} · {v.changes === null ? 'Initial' : `${v.changes.length} change${v.changes.length === 1 ? '' : 's'}`}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h4 className="text-base font-semibold text-slate-900">
+                Version {sel.n} {sel.effectiveTo === null && <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 align-middle text-[11px] font-medium text-emerald-700">Active</span>}
+              </h4>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {range(sel)} · Updated by {sel.updatedBy}
+              </p>
+            </div>
+            <p className="text-xs text-slate-400">INR per kg · origin (row) to destination (column)</p>
+          </div>
+
+          <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+            {sel.changes === null ? (
+              <span className="text-slate-500">Initial rate card — no earlier version to compare against.</span>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-slate-700">
+                    {sel.changes.length} price{sel.changes.length === 1 ? '' : 's'} changed vs Version {sel.n - 1}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <span className="h-2.5 w-2.5 rounded-sm border border-brand-orange bg-brand-orange/10" />
+                    Changed (was → now)
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {sel.changes.map((c, i) => (
+                    <span key={i} className="rounded-md bg-white px-2 py-1 text-[11px] text-slate-600 ring-1 ring-slate-200">
+                      {c.origin} → {c.dest}: <span className="tabular-nums text-slate-400 line-through">₹{c.from}</span> <span className="font-semibold tabular-nums text-brand-orange-dark">₹{c.to}</span>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+            <table className="w-full table-fixed border-collapse text-xs" onMouseLeave={() => setHover(null)}>
+              <colgroup>
+                <col style={{ width: 92 }} />
+                {ZONES.map((z) => (
+                  <col key={z} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wide text-slate-400">From ↓ To →</th>
+                  {ZONES.map((z, d) => (
+                    <th key={z} className={`px-0.5 py-2 text-center text-[10px] font-semibold leading-tight ${hover?.[1] === d ? 'text-brand-orange-dark' : 'text-slate-500'}`}>
+                      {z.replace(/ (\d)$/, '\n$1').split('\n').map((t, k) => (
+                        <span key={k} className="block">
+                          {t}
+                        </span>
+                      ))}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ZONES.map((origin, o) => (
+                  <tr key={origin} className="border-t border-slate-100">
+                    <th className={`whitespace-nowrap px-3 py-1.5 text-left text-xs font-semibold ${hover?.[0] === o ? 'bg-brand-orange/10 text-brand-orange-dark' : 'bg-slate-50 text-slate-700'}`}>{origin}</th>
+                    {ZONES.map((dest, d) => {
+                      const ch = changeAt(o, d)
+                      return (
+                        <td key={dest} onMouseEnter={() => setHover([o, d])} className={`px-1 py-1.5 text-center tabular-nums ${ch ? 'bg-brand-orange/10 font-semibold text-brand-orange-dark ring-1 ring-inset ring-brand-orange' : hover && (hover[0] === o || hover[1] === d) ? 'bg-slate-50 text-slate-800' : 'text-slate-700'}`}>
+                          {ch ? (
+                            <span className="leading-tight">
+                              <span className="block text-[9px] font-normal text-slate-400 line-through">{ch.from}</span>
+                              {ch.to}
+                            </span>
+                          ) : (
+                            sel.grid[o][d]
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div className="flex justify-end border-t border-slate-100 px-6 py-3">
+        <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+          Close
+        </button>
+      </div>
+    </Shell>
+  )
+}
+
 export default function ClientPricingConfiguration() {
   const { user } = useAuth()
   // Multiple standard rate cards (General + vertical-specific samples) —
@@ -504,6 +647,7 @@ export default function ClientPricingConfiguration() {
   }
   const [tab, setTab] = useState('rate-card')
   const [hoverCell, setHoverCell] = useState(null)
+  const [rcHover, setRcHover] = useState(null)
   const standardRegions = useMemo(() => buildStandardRegionsFromSheet(freshRegionId), [])
   const [showRegionMappingModal, setShowRegionMappingModal] = useState(false)
   const [showUpdateRateCardModal, setShowUpdateRateCardModal] = useState(false)
@@ -1145,107 +1289,136 @@ export default function ClientPricingConfiguration() {
         </Modal>
       )}
 
-      {showUpdateRateCardModal && draftMatrix && (
-        <Modal title={`Update ${selectedRateCard.name} Rate Card`} onClose={closeUpdateRateCardModal}>
-          <div className="space-y-3 p-4">
-            <p className="text-xs text-slate-400">
-              INR per kg, chargeable weight — origin (row) → destination (column). Edit any cell, then save to publish a new version.
-            </p>
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="text-xs">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 bg-slate-50 px-3 py-2 text-left font-medium text-slate-400"></th>
+      {showUpdateRateCardModal && draftMatrix && (() => {
+        const changedKey = (i, j) => {
+          const to = Number(draftMatrix[i][j])
+          return draftMatrix[i][j] !== '' && !Number.isNaN(to) && to !== Number(currentMatrix[i][j])
+        }
+        const move = (i, j, e) => {
+          const el = e.target
+          let to = null
+          if (e.key === 'ArrowDown' || e.key === 'Enter') to = [i + 1, j]
+          else if (e.key === 'ArrowUp') to = [i - 1, j]
+          else if (e.key === 'ArrowRight' && el.selectionStart === el.value.length) to = [i, j + 1]
+          else if (e.key === 'ArrowLeft' && el.selectionStart === 0) to = [i, j - 1]
+          const next = to && document.getElementById(`urc-${to[0]}-${to[1]}`)
+          if (next) {
+            e.preventDefault()
+            next.focus()
+          }
+        }
+        const lane = rcHover
+          ? { from: ZONES[rcHover[0]], to: ZONES[rcHover[1]], now: draftMatrix[rcHover[0]][rcHover[1]], was: currentMatrix[rcHover[0]][rcHover[1]], edited: changedKey(rcHover[0], rcHover[1]) }
+          : null
+        return (
+          <Shell wide="max-w-5xl" title={`Update rate card · ${selectedRateCard.name}`} onClose={closeUpdateRateCardModal}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-brand-orange bg-brand-orange/10" />
+                  Changed by you
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-slate-300 bg-slate-50" />
+                  Within the same region
+                </span>
+              </div>
+              <div className="mt-3 flex min-h-[28px] items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-1.5 text-xs">
+                {lane ? (
+                  <span className="text-slate-700">
+                    <span className="font-semibold">{lane.from}</span> → <span className="font-semibold">{lane.to}</span> · ₹{lane.now === '' ? '—' : lane.now}/kg
+                    {lane.edited && <span className="ml-2 text-brand-orange-dark">changed · was ₹{lane.was}</span>}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">Click a price to change it. Arrow keys move between cells. Rows are origin, columns are destination · ₹/kg.</span>
+                )}
+                {draftChanges.length > 0 && (
+                  <span className="shrink-0 text-slate-500">
+                    {draftChanges.length} changed ·{' '}
+                    <button type="button" onClick={() => setDraftMatrix(currentMatrix.map((row) => [...row]))} className="font-semibold text-brand-orange-dark hover:underline">
+                      Reset
+                    </button>
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full table-fixed border-collapse text-xs" onMouseLeave={() => setRcHover(null)}>
+                  <colgroup>
+                    <col style={{ width: 92 }} />
                     {ZONES.map((z) => (
-                      <th key={z} className="whitespace-nowrap px-1 py-2 text-center font-semibold text-slate-500">
-                        {z}
-                      </th>
+                      <col key={z} />
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ZONES.map((origin, i) => (
-                    <tr key={origin} className="border-t border-slate-100">
-                      <th className="sticky left-0 whitespace-nowrap bg-slate-50 px-3 py-1 text-left font-semibold text-slate-600">{origin}</th>
-                      {ZONES.map((dest, j) => (
-                        <td key={dest} className="px-1 py-1 text-center">
-                          <input
-                            type="number"
-                            value={draftMatrix[i][j]}
-                            onChange={(e) => updateDraftCell(i, j, e.target.value)}
-                            className="w-14 rounded-md border border-slate-200 bg-white px-1 py-1 text-center text-xs tabular-nums text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                          />
-                        </td>
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-3 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-400">From ↓ To →</th>
+                      {ZONES.map((z, ci) => (
+                        <th key={z} title={z} className={`px-0.5 py-1.5 text-center text-[10px] font-semibold leading-tight ${rcHover?.[1] === ci ? 'text-brand-orange-dark' : 'text-slate-500'}`}>
+                          {z.replace(/ (\d)$/, '\n$1').split('\n').map((t, k) => (
+                            <span key={k} className="block">
+                              {t}
+                            </span>
+                          ))}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {ZONES.map((origin, i) => (
+                      <tr key={origin} className="border-t border-slate-100">
+                        <th className={`whitespace-nowrap px-3 py-0 text-left text-xs font-semibold ${rcHover?.[0] === i ? 'bg-brand-orange/10 text-brand-orange-dark' : 'bg-slate-50 text-slate-700'}`}>{origin}</th>
+                        {ZONES.map((dest, j) => {
+                          const edited = changedKey(i, j)
+                          return (
+                            <td key={dest} className="p-[2px]" onMouseEnter={() => setRcHover([i, j])}>
+                              <input
+                                id={`urc-${i}-${j}`}
+                                type="text"
+                                inputMode="decimal"
+                                value={draftMatrix[i][j]}
+                                onFocus={(e) => {
+                                  e.target.select()
+                                  setRcHover([i, j])
+                                }}
+                                onChange={(e) => /^\d*\.?\d{0,2}$/.test(e.target.value) && updateDraftCell(i, j, e.target.value)}
+                                onKeyDown={(e) => move(i, j, e)}
+                                className={`h-8 w-full rounded-md text-center text-xs tabular-nums transition-shadow focus:outline focus:outline-2 focus:outline-brand-orange ${
+                                  edited ? 'border border-brand-orange bg-brand-orange/10 font-semibold text-brand-orange-dark' : i === j ? 'border border-slate-300 bg-slate-50 font-semibold text-slate-900' : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                }`}
+                              />
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+            <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-3">
               <p className="text-xs text-slate-500">
-                {draftChanges.length === 0
-                  ? 'No changes yet.'
-                  : `${draftChanges.length} cell${draftChanges.length === 1 ? '' : 's'} changed from the current rate card.`}
+                {draftChanges.length === 0 ? 'No changes yet.' : `${draftChanges.length} price${draftChanges.length === 1 ? '' : 's'} changed. Saving publishes a new version.`}
               </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={closeUpdateRateCardModal}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                >
+              <div className="flex gap-2">
+                <button type="button" onClick={closeUpdateRateCardModal} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveRateCard}
                   disabled={draftChanges.length === 0}
-                  className="rounded-lg bg-brand-orange px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="rounded-xl bg-brand-orange px-5 py-2 text-sm font-medium text-white shadow-soft hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Save &amp; publish new version
+                  Save new version
                 </button>
               </div>
             </div>
-          </div>
-        </Modal>
-      )}
+          </Shell>
+        )
+      })()}
 
       {showRateCardHistoryModal && (
-        <Modal title="Previous rate cards" onClose={() => setShowRateCardHistoryModal(false)}>
-          <div className="divide-y divide-slate-100">
-            {[...rateCardHistory].reverse().map((v) => (
-              <div key={v.id} className="space-y-2 px-5 py-3.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800">
-                      {formatDate(v.effectiveFrom)} – {v.effectiveTo ? formatDate(v.effectiveTo) : 'Present'}
-                    </span>
-                    {v.effectiveTo === null && (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Current</span>
-                    )}
-                  </div>
-                  <span className="text-xs text-slate-400">Updated by {v.updatedBy}</span>
-                </div>
-                {v.changes === null ? (
-                  <p className="text-xs text-slate-400">Initial rate card — no prior version to compare against.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {v.changes.map((c, i) => (
-                      <li key={i} className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <span className="font-medium text-slate-600">
-                          {c.origin} → {c.dest}:
-                        </span>
-                        <span className="tabular-nums text-slate-400 line-through">₹{c.from}</span>
-                        <Icon name="arrow-left" className="h-3 w-3 rotate-180 text-slate-300" />
-                        <span className="tabular-nums font-semibold text-slate-800">₹{c.to}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </div>
-        </Modal>
+        <RateCardHistoryModal name={selectedRateCard.name} history={rateCardHistory} currentMatrix={currentMatrix} onClose={() => setShowRateCardHistoryModal(false)} />
       )}
         </>
       )}
