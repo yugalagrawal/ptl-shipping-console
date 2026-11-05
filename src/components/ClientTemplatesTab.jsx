@@ -24,6 +24,7 @@ export default function ClientTemplatesTab() {
   const [editing, setEditing] = useState(null) // { id|null, name, regions }
   const [attempted, setAttempted] = useState(false)
   const [confirmId, setConfirmId] = useState(null)
+  const [q, setQ] = useState('')
 
   // Template names: letters, numbers and _ only. Spaces become _.
   const cleanName = (v) => v.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '').replace(/_{2,}/g, '_')
@@ -79,49 +80,38 @@ export default function ClientTemplatesTab() {
             Create new template
           </button>
         </div>
-        <div className={`overflow-hidden ${card}`}>
-          <div className="grid grid-cols-[1fr_110px_110px_150px] gap-3 border-b border-slate-100 px-5 py-2.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-            <span>Template</span>
-            <span>Regions</span>
-            <span>Cities</span>
-            <span className="text-right">Actions</span>
+        {REGION_TEMPLATES.length === 0 ? (
+          <div className={`flex flex-col items-center gap-2 px-4 py-12 text-center ${card}`}>
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Icon name="route" className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-medium text-slate-700">No templates yet</p>
+            <p className="text-xs text-slate-500">Create one, then start from scratch or from the standard regions.</p>
           </div>
-          {REGION_TEMPLATES.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                <Icon name="route" className="h-5 w-5" />
-              </span>
-              <p className="text-sm font-medium text-slate-700">No templates yet</p>
-              <p className="text-xs text-slate-500">Type a name above, then start from scratch or from the standard regions.</p>
+        ) : (
+          <>
+            <div className="relative mb-3 max-w-sm">
+              <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates…" className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40" />
             </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {REGION_TEMPLATES.map((t) => (
-                <div key={t.id} onClick={() => confirmId !== t.id && edit(t)} className="grid cursor-pointer grid-cols-[1fr_110px_110px_150px] items-center gap-3 px-5 py-3 hover:bg-slate-50/70">
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-orange/10 text-xs font-semibold text-brand-orange-dark">{initials(t.name)}</span>
-                    <span className="truncate text-sm font-medium text-slate-800">{t.name}</span>
-                  </span>
-                  <span className="text-sm text-slate-600">{t.regions.length} regions</span>
-                  <span className="text-sm text-slate-600">{t.regions.reduce((n, r) => n + r.cities.length, 0)} cities</span>
-                  <span className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {REGION_TEMPLATES.filter((t) => t.name.toLowerCase().includes(q.trim().toLowerCase())).map((t) => (
+                <div key={t.id} onClick={() => confirmId !== t.id && edit(t)} className={`cursor-pointer p-4 transition-colors hover:ring-brand-orange/40 ${card}`}>
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange/10 text-xs font-semibold text-brand-orange-dark">{initials(t.name)}</span>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-slate-800">{t.name}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        {t.regions.length} regions · {t.regions.reduce((n, r) => n + r.cities.length, 0)} cities
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-slate-100 pt-2.5" onClick={(e) => e.stopPropagation()}>
                     {confirmId === t.id ? (
                       <span className="flex items-center gap-2 text-xs font-medium">
                         <span className="text-slate-500">Delete?</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            deleteRegionTemplate(t.id)
-                            setConfirmId(null)
-                            refresh()
-                          }}
-                          className="text-rose-600 hover:underline"
-                        >
-                          Yes
-                        </button>
-                        <button type="button" onClick={() => setConfirmId(null)} className="text-slate-500 hover:underline">
-                          No
-                        </button>
+                        <button type="button" onClick={() => { deleteRegionTemplate(t.id); setConfirmId(null); refresh() }} className="text-rose-600 hover:underline">Yes</button>
+                        <button type="button" onClick={() => setConfirmId(null)} className="text-slate-500 hover:underline">No</button>
                       </span>
                     ) : (
                       <>
@@ -134,12 +124,12 @@ export default function ClientTemplatesTab() {
                         </button>
                       </>
                     )}
-                  </span>
+                  </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </section>
 
       {dialog && dialog.step === 'name' && (
