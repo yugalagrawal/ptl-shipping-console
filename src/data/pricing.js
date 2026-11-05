@@ -28,7 +28,7 @@ export const ZONES = [
   'East 1',
   'East 2',
   'North East 1',
-  'North East',
+  'North East 2',
 ]
 
 // rows/cols both in ZONES order. INR per kg, chargeable weight.
@@ -69,7 +69,7 @@ export const ZONE_CLASSIFICATIONS = {
   'East 1': 'HWH, BHB, Ranchi, Patna, Jamshedpur, Aurangabad & Dhanbad',
   'East 2': 'Rest of West Bengal, Bihar, Odisha & Jharkhand',
   'North East 1': 'Arunachal Pradesh, Meghalaya, Mizoram, Tripura, Manipur, Sikkim & Nagaland',
-  'North East': 'Guwahati',
+  'North East 2': 'Guwahati',
 }
 
 // DUMMY — stands in for a real pincode -> zone master lookup (the actual
@@ -90,7 +90,7 @@ export const ZONE_PINCODE_PREFIXES = {
   'East 1': ['711', '751', '834', '800', '831'],
   'East 2': ['700', '810', '760', '827'],
   'North East 1': ['791', '793', '796', '799', '795'],
-  'North East': ['781'],
+  'North East 2': ['781'],
 }
 
 function seededFraction(seed) {

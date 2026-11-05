@@ -133,7 +133,7 @@ export const ZONE_COVERAGE = {
     cities: [],
     notes: [],
   },
-  'North East': {
+  'North East 2': {
     states: [],
     cities: [{ name: 'Guwahati', state: 'Assam' }],
     notes: ["Rest of Assam isn't mapped to any zone yet — flagged for the business team to confirm, not assumed here."],
