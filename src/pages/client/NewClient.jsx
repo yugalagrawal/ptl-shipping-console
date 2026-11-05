@@ -20,7 +20,6 @@ import { computeRateCardGrid } from '../../data/standardRateCards.js'
 import { buildStandardRegionsFromSheet, CITIES as GEO_CITIES, REGIONS as GEO_REGIONS } from '../../data/geoMaster.js'
 import indiaShape from '../../data/indiaStatePaths.json'
 import {
-  TIER_DISCOUNTS,
   ZONES,
   ADDITIONAL_CHARGES_MASTER,
   RULES_CATALOG,
@@ -899,6 +898,11 @@ export default function NewClient() {
   const [volumeUnit, setVolumeUnit] = useState(VOLUME_UNITS[0])
   const [editingTonnage, setEditingTonnage] = useState(false)
   const [showAddPricing, setShowAddPricing] = useState(false)
+  // Pricing names: the first pricing is "<Client> Default Pricing"; every other
+  // one is named by the user when it's added, unique within this client.
+  const [showNamePricing, setShowNamePricing] = useState(false)
+  const [pricingNameDraft, setPricingNameDraft] = useState('')
+  const [pendingPricingName, setPendingPricingName] = useState('')
   const [editingCharge, setEditingCharge] = useState(null)
   const [pricingSource, setPricingSource] = useState('')
   const [copyRatesEnabled, setCopyRatesEnabled] = useState(false)
@@ -936,16 +940,7 @@ export default function NewClient() {
   // suggested 5/10/15, but ops can type any number.
   const [pricingType, setPricingType] = useState('')
   const [regionMappingType, setRegionMappingType] = useState('Standard')
-  const [discountPercent, setDiscountPercent] = useState(String(TIER_DISCOUNTS[tier] ?? 0))
-  const [discountTouched, setDiscountTouched] = useState(false)
-
-  // Re-syncs the suggested % whenever the volume-driven tier changes, unless
-  // ops already typed their own value — same "don't clobber a manual edit"
-  // pattern as pincode auto-fill elsewhere in this form.
-  useEffect(() => {
-    if (!discountTouched) setDiscountPercent(String(TIER_DISCOUNTS[tier] ?? 0))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tier])
+  const [discountPercent, setDiscountPercent] = useState('0')
 
   const effectiveDiscount = pricingType === 'Custom' ? Number(discountPercent) || 0 : 0
   // Single matrix shown at a time — Standard's list rate, or the entered
@@ -969,6 +964,14 @@ export default function NewClient() {
   const [rateCardPreselect, setRateCardPreselect] = useState('')
   const [editingPricingId, setEditingPricingId] = useState(null)
   const [savedPricings, setSavedPricings] = useState([])
+  const clientDisplayName = (tradeName || legalName).trim() || 'Client'
+  const defaultPricingName = `${clientDisplayName} Default Pricing`
+  const pricingTitle = (p) => (p.isDefault ? defaultPricingName : p.pricingName)
+  const takenPricingNames = savedPricings.map((p) => pricingTitle(p).trim().toLowerCase())
+  const pricingNameDraftTrim = pricingNameDraft.trim()
+  const pricingNameError = !pricingNameDraftTrim ? '' : takenPricingNames.includes(pricingNameDraftTrim.toLowerCase()) ? 'This client already has a pricing with this name.' : ''
+  // Name fields for a brand-new saved pricing (edits keep the existing ones).
+  const newPricingNameFields = () => (savedPricings.length === 0 || !pendingPricingName ? { isDefault: savedPricings.length === 0, pricingName: '' } : { isDefault: false, pricingName: pendingPricingName })
   const [expandedRegionCities, setExpandedRegionCities] = useState(null)
   const [regionCitySearch, setRegionCitySearch] = useState('')
 
@@ -1896,7 +1899,13 @@ export default function NewClient() {
                   type="button"
                   onClick={() => {
                     setPricingSource('')
-                    setShowAddPricing(true)
+                    if (savedPricings.length === 0) {
+                      setPendingPricingName('')
+                      setShowAddPricing(true)
+                    } else {
+                      setPricingNameDraft('')
+                      setShowNamePricing(true)
+                    }
                   }}
                   className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-sm font-medium transition-colors ${
                     savedPricings.length > 0 ? 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-600' : 'border-slate-200 bg-white text-brand-orange-dark hover:bg-orange-50'
@@ -1947,6 +1956,7 @@ export default function NewClient() {
                     key={`${p.id}-${p.version}`}
                     p={p}
                     index={i + 1}
+                    title={pricingTitle(p)}
                     defaultOpen={!!p.fresh}
                     onEdit={() => {
                       if (p.kind !== 'rate-card' && !p.regions) return
@@ -1977,6 +1987,7 @@ export default function NewClient() {
             {!noOda && (
               <div className="mt-4">
                 <OdaListManager
+                  bulkCsv
                   bare
                   title="Client ODA List"
                   entries={odaEntries}
@@ -2073,6 +2084,62 @@ export default function NewClient() {
             )}
           </div>
           </div>
+
+          {showNamePricing && (
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShowNamePricing(false)}>
+              <div className="w-full max-w-sm rounded-2xl bg-white shadow-soft" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-3.5">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">Name this pricing</h3>
+                  </div>
+                  <button type="button" onClick={() => setShowNamePricing(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close">
+                    ×
+                  </button>
+                </div>
+                <div className="px-5 py-4">
+                  <label className="block">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-600">
+                      Pricing name <span className="text-brand-orange-dark">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      autoFocus
+                      maxLength={60}
+                      value={pricingNameDraft}
+                      onChange={(e) => setPricingNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && pricingNameDraftTrim && !pricingNameError) {
+                          setPendingPricingName(pricingNameDraftTrim)
+                          setShowNamePricing(false)
+                          setShowAddPricing(true)
+                        }
+                      }}
+                      placeholder="e.g. Pharma lanes"
+                      className={`w-full rounded-xl border bg-slate-50/60 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline focus:outline-2 ${pricingNameError ? 'border-rose-300 focus:outline-rose-300' : 'border-slate-200 focus:outline-brand-orange/40'}`}
+                    />
+                    {pricingNameError && <p className="mt-1 text-xs font-medium text-rose-500">{pricingNameError}</p>}
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">
+                  <button type="button" onClick={() => setShowNamePricing(false)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!pricingNameDraftTrim || !!pricingNameError}
+                    onClick={() => {
+                      setPendingPricingName(pricingNameDraftTrim)
+                      setShowNamePricing(false)
+                      setShowAddPricing(true)
+                    }}
+                    className="rounded-xl bg-brand-orange px-5 py-2 text-sm font-medium text-white shadow-soft hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {showAddPricing && (
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShowAddPricing(false)}>
@@ -2225,6 +2292,7 @@ export default function NewClient() {
       />
 
       <ClientRateCardFlow
+        tier={tier}
         preselectCode={rateCardPreselect}
         step={rateCardStep}
         setStep={(v) => {
@@ -2250,7 +2318,7 @@ export default function NewClient() {
             grid: computeRateCardGrid(card, discount, edits),
           }
           setSavedPricings((rows) =>
-            editingPricingId ? rows.map((r) => (r.id === editingPricingId ? { ...r, ...row, source: r.source ?? row.source, version: r.version + 1 } : r)) : [...rows, { ...row, id: Date.now(), version: 1, fresh: true }],
+            editingPricingId ? rows.map((r) => (r.id === editingPricingId ? { ...r, ...row, source: r.source ?? row.source, version: r.version + 1 } : r)) : [...rows, { ...row, ...newPricingNameFields(), id: Date.now(), version: 1, fresh: true }],
           )
           setEditingPricingId(null)
         }}
@@ -2299,7 +2367,7 @@ export default function NewClient() {
             defaultRate: unmappedDefaultRate,
           }
           setSavedPricings((rows) =>
-            editingPricingId ? rows.map((r) => (r.id === editingPricingId ? { ...r, ...row, version: r.version + 1 } : r)) : [...rows, { ...row, id: Date.now(), version: 1, fresh: true }],
+            editingPricingId ? rows.map((r) => (r.id === editingPricingId ? { ...r, ...row, version: r.version + 1 } : r)) : [...rows, { ...row, ...newPricingNameFields(), id: Date.now(), version: 1, fresh: true }],
           )
           setEditingPricingId(null)
         }}

@@ -129,6 +129,65 @@ function countBy(rows, key) {
   return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => (a.name === '' ? 1 : b.name === '' ? -1 : a.name.localeCompare(b.name)))
 }
 
+// ---- CSV upload (Default ODA list) — columns: State, City, Pincode, ODA Type ----
+const CSV_COLS = ['State', 'City', 'Pincode', 'ODA Type']
+function parseCsv(text) {
+  const rows = []
+  let row = []
+  let cell = ''
+  let q = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (q) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++ }
+      else if (ch === '"') q = false
+      else cell += ch
+    } else if (ch === '"') q = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++
+      row.push(cell); cell = ''
+      if (row.some((c) => c.trim() !== '')) rows.push(row)
+      row = []
+    } else cell += ch
+  }
+  row.push(cell)
+  if (row.some((c) => c.trim() !== '')) rows.push(row)
+  return rows
+}
+function readOdaCsv(text) {
+  const rows = parseCsv(text.replace(/^\uFEFF/, ''))
+  if (rows.length === 0) return { error: 'The file is empty.' }
+  const head = rows[0].map((h) => h.trim().toLowerCase().replace(/[^a-z]/g, ''))
+  const idx = { state: head.indexOf('state'), city: head.indexOf('city'), pincode: head.indexOf('pincode'), oda: head.findIndex((h) => h === 'odatype' || h === 'oda') }
+  if (Object.values(idx).some((v) => v < 0)) return { error: 'Columns not found. The first row must be: State, City, Pincode, ODA Type.' }
+  const out = []
+  const seen = new Set()
+  const skipped = []
+  rows.slice(1).forEach((r, n) => {
+    const line = n + 2
+    const pincode = (r[idx.pincode] ?? '').trim()
+    const state = (r[idx.state] ?? '').trim()
+    const oda = Number(String(r[idx.oda] ?? '').replace(/[^0-9]/g, ''))
+    if (!/^\d{6}$/.test(pincode)) return skipped.push(`Row ${line}: pincode must be 6 digits`)
+    if (!state) return skipped.push(`Row ${line}: state is missing`)
+    if (![1, 2, 3].includes(oda)) return skipped.push(`Row ${line}: ODA type must be 1, 2 or 3`)
+    if (seen.has(pincode)) return skipped.push(`Row ${line}: ${pincode} is repeated`)
+    seen.add(pincode)
+    out.push({ id: odaRowSeq++, pincode, state, district: (r[idx.city] ?? '').trim(), city: '', oda })
+  })
+  if (out.length === 0) return { error: 'No valid rows found in the file.', skipped }
+  return { rows: out, skipped }
+}
+const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+function downloadCsv(name, lines) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 // ODA (Out of Delivery Area) list widget. Every pincode sits in one of three
 // ODA categories (1/2/3), each with its own default rate
 // (`rate` = { 1: {perKg, perAwb}, 2: ..., 3: ... }). The modal has a pincode
@@ -137,7 +196,7 @@ function countBy(rows, key) {
 // Action). Used per-client in the New Client wizard and as the shared
 // "Default ODA List" in Client Pricing Configuration > Additional Charges;
 // it only reads/writes through the callbacks.
-export default function OdaListManager({ bare = false, summary = false, title = 'Client ODA List', entries, onEntriesChange, rate, onRateChange }) {
+export default function OdaListManager({ bare = false, summary = false, bulkCsv = false, onHistory, onCommit, title = 'Client ODA List', entries, onEntriesChange, rate, onRateChange }) {
   const [open, setOpen] = useState(false)
   const [sheetCat, setSheetCat] = useState(null) // null = overview, else 1|2|3
   const [editingRates, setEditingRates] = useState(false)
@@ -147,6 +206,11 @@ export default function OdaListManager({ bare = false, summary = false, title = 
   const [lookup, setLookup] = useState(null) // null | 'loading' | 'not-found' | { state, district, city }
   const [manual, setManual] = useState({ state: '', district: '', city: '' })
   const [notice, setNotice] = useState('')
+  function closeModal() {
+    setOpen(false)
+    onCommit?.('Manual edits')
+  }
+  const [upload, setUpload] = useState(null) // { name, rows, skipped } | { name, error, skipped }
 
   // Sheet view
   const [sheetSearch, setSheetSearch] = useState('')
@@ -257,17 +321,16 @@ export default function OdaListManager({ bare = false, summary = false, title = 
           </p>
         )}
         <div className="flex items-center gap-2">
+          {summary && onHistory && (
+            <button type="button" onClick={onHistory} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              <Icon name="history" className="h-3.5 w-3.5" />
+              History
+            </button>
+          )}
           {summary && entries.length > 0 && (
             <button
               type="button"
-              onClick={() => {
-                const csv = ['Pincode,State,District,ODA', ...entries.map((r) => [r.pincode, r.state, r.district ?? r.city ?? '', r.oda].map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
-                const a = document.createElement('a')
-                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-                a.download = 'oda-pincodes.csv'
-                a.click()
-                URL.revokeObjectURL(a.href)
-              }}
+              onClick={() => downloadCsv('oda-pincodes.csv', [CSV_COLS.join(','), ...entries.map((r) => [r.state, r.district || r.city, r.pincode, r.oda ?? 1].map(csvCell).join(','))])}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
               <Icon name="download" className="h-3.5 w-3.5" />
@@ -317,14 +380,14 @@ export default function OdaListManager({ bare = false, summary = false, title = 
               ) : (
                 <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
               )}
-              <button type="button" onClick={() => setOpen(false)} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+              <button type="button" onClick={closeModal} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                 <Icon name="close" className="h-4 w-4" />
               </button>
             </div>
 
             {!sheetCat ? (
               <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-                {/* search / add */}
+                {!summary && (
                 <div>
                   <div className="relative">
                     <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -337,7 +400,6 @@ export default function OdaListManager({ bare = false, summary = false, title = 
                       className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm tabular-nums text-slate-800 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
                     />
                   </div>
-
                   {pin.length === 6 && lookup === 'loading' && <p className="mt-2 text-xs text-slate-400">Looking up…</p>}
 
                   {pin.length === 6 && lookup && lookup !== 'loading' && (
@@ -405,6 +467,7 @@ export default function OdaListManager({ bare = false, summary = false, title = 
                   )}
                   {notice && <p className="mt-2 text-xs text-emerald-600">✓ {notice}</p>}
                 </div>
+                )}
 
                 {/* category cards */}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -447,6 +510,75 @@ export default function OdaListManager({ bare = false, summary = false, title = 
                     {editingRates ? 'Done' : 'Edit rates'}
                   </button>
                 </div>
+                {(summary || bulkCsv) && (
+                  <div className="rounded-xl border border-dashed border-slate-200 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-700">Bulk change via CSV <span className="font-normal text-slate-400">· the upload replaces the whole list</span></p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          Columns: <span className="font-mono text-slate-600">State, City, Pincode, ODA Type (1/2/3)</span>
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <button type="button" onClick={() => downloadCsv('oda-template.csv', [CSV_COLS.join(','), 'Haryana,Sirsa,125055,1'])} className="text-xs font-medium text-slate-500 hover:text-brand-orange-dark hover:underline">
+                          Template
+                        </button>
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-orange/40 hover:text-brand-orange-dark">
+                          <Icon name="upload" className="h-3.5 w-3.5" />
+                          Upload CSV
+                          <input
+                            type="file"
+                            accept=".csv,text/csv"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0]
+                              e.target.value = ''
+                              if (!f) return
+                              const reader = new FileReader()
+                              reader.onload = () => setUpload({ name: f.name, ...readOdaCsv(String(reader.result)) })
+                              reader.readAsText(f)
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    {upload && (
+                      <div className={`mt-3 rounded-lg px-3 py-2.5 text-xs ${upload.error ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-700'}`}>
+                        {upload.error ? (
+                          <p>
+                            <span className="font-medium">{upload.name}:</span> {upload.error}
+                          </p>
+                        ) : (
+                          <p>
+                            <span className="font-medium">{upload.name}</span> · {fmt(upload.rows.length)} valid pincodes
+                            {upload.skipped.length > 0 && ` · ${fmt(upload.skipped.length)} skipped`}. This will replace the current {fmt(entries.length)}.
+                          </p>
+                        )}
+                        {upload.skipped?.length > 0 && <p className="mt-1 text-slate-500">{upload.skipped.slice(0, 3).join(' · ')}{upload.skipped.length > 3 ? ` · +${upload.skipped.length - 3} more` : ''}</p>}
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button type="button" onClick={() => setUpload(null)} className="rounded-lg px-2.5 py-1 font-medium text-slate-500 hover:bg-white">
+                            {upload.error ? 'Dismiss' : 'Cancel'}
+                          </button>
+                          {!upload.error && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEntries(upload.rows)
+                                onCommit?.(`CSV upload · ${upload.name}`, upload.rows)
+                                setNotice(`List updated — ${fmt(upload.rows.length)} pincodes`)
+                                setUpload(null)
+                              }}
+                              className="rounded-lg bg-brand-orange px-3 py-1 font-medium text-white hover:bg-brand-orange-dark"
+                            >
+                              Replace list
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {!upload && notice && <p className="mt-2 text-xs font-medium text-emerald-600">{notice}</p>}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">
@@ -555,7 +687,7 @@ export default function OdaListManager({ bare = false, summary = false, title = 
             <div className="flex items-center justify-end border-t border-slate-100 px-5 py-3">
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closeModal}
                 className="rounded-xl bg-brand-orange px-4 py-2 text-xs font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark"
               >
                 Done

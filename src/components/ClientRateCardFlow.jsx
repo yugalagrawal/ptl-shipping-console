@@ -4,6 +4,7 @@ import { Shell, RegionMappingModal } from './ClientRegionFlow.jsx'
 import { RATE_CARDS } from '../data/standardRateCards.js'
 import { REGIONS, buildStandardRegionsFromSheet } from '../data/geoMaster.js'
 import { freshRegionId } from '../data/regionMapping.js'
+import { TIER_DISCOUNTS } from '../data/pricing.js'
 
 // "Pick from Standard Rate Cards" flow:
 //   Choose a rate card  ->  Set rates (flat discount + per-cell edits)
@@ -79,7 +80,7 @@ function PickCard({ onBack, onClose, onContinue, preselectCode }) {
   )
 }
 
-function SetRates({ card, discount, setDiscount, edits, setEdits, onBack, onClose, onSave, onViewMapping }) {
+function SetRates({ tier, card, discount, setDiscount, edits, setEdits, onBack, onClose, onSave, onViewMapping }) {
   const [hover, setHover] = useState(null) // [o, c]
   const d = Math.min(100, Math.max(0, Number(discount) || 0))
   const base = (o, c) => round2(card.grid[o][c] * (1 - d / 100))
@@ -131,11 +132,16 @@ function SetRates({ card, discount, setDiscount, edits, setEdits, onBack, onClos
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
             </span>
-            {[5, 10, 15].map((v) => (
-              <button key={v} type="button" onClick={() => setDiscount(Number(discount) === v ? '' : String(v))} className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${Number(discount) === v ? 'border-brand-orange bg-brand-orange/5 text-brand-orange-dark' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                {v}%
-              </button>
-            ))}
+            {tier && (
+              <span className="text-xs text-slate-400">
+                Suggested for {tier}: {TIER_DISCOUNTS[tier] ?? 0}%
+                {(TIER_DISCOUNTS[tier] ?? 0) > 0 && Number(discount) !== TIER_DISCOUNTS[tier] && (
+                  <button type="button" onClick={() => setDiscount(String(TIER_DISCOUNTS[tier]))} className="ml-1.5 font-medium text-brand-orange-dark hover:underline">
+                    Apply
+                  </button>
+                )}
+              </span>
+            )}
           </div>
           <button type="button" onClick={onViewMapping} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
             <Icon name="search" className="h-3.5 w-3.5" />
@@ -245,7 +251,7 @@ function SetRates({ card, discount, setDiscount, edits, setEdits, onBack, onClos
 }
 
 // step: '' | 'pick' | 'rates' | 'map'
-export default function ClientRateCardFlow({ step, setStep, onBackToSources, onSave, initial, preselectCode }) {
+export default function ClientRateCardFlow({ tier, step, setStep, onBackToSources, onSave, initial, preselectCode }) {
   const [card, setCard] = useState(null)
   const [discount, setDiscount] = useState('')
   const [edits, setEdits] = useState({}) // 'o|d' -> value
@@ -283,6 +289,7 @@ export default function ClientRateCardFlow({ step, setStep, onBackToSources, onS
     return <RegionMappingModal name={card?.name ?? 'General'} regions={regions} setRegions={() => {}} readOnly onCancel={() => setStep('rates')} onSave={() => setStep('rates')} />
   return (
     <SetRates
+      tier={tier}
       card={card}
       discount={discount}
       setDiscount={setDiscount}

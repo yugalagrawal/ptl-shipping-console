@@ -179,7 +179,8 @@ export function computeEffectiveMatrix(tier) {
 // follows whatever % is actually entered, not a fixed tier->matrix mapping.
 export function computeMatrixAtDiscount(discountPercent) {
   const discount = Number(discountPercent) || 0
-  return STANDARD_MATRIX.map((row) => row.map((v) => round1(v * (1 - discount / 100))))
+  // 2 decimals (same as the rate-card flow); no discount = the exact standard rate.
+  return STANDARD_MATRIX.map((row) => row.map((v) => (discount === 0 ? v : Math.round(v * (1 - discount / 100) * 100) / 100)))
 }
 
 // Standard rate card revision history — mock version log for the "View
@@ -300,7 +301,6 @@ export const RULES_CATALOG = [
   { type: 'max_of', label: 'Higher of (2+ rules)', formula: 'MAX(rule 1, rule 2, …)', description: 'Resolves two or more sub-rules and charges whichever amount is higher.' },
   { type: 'min_of', label: 'Lower of (2+ rules)', formula: 'MIN(rule 1, rule 2, …)', description: 'Resolves two or more sub-rules and charges whichever amount is lower.' },
   { type: 'range_by_weight', label: 'Range based on chargeable weight', formula: 'Different sub-rule per weight band', description: 'Applies a different rule depending on which chargeable-weight band the AWB falls into.' },
-  { type: 'actuals', label: 'Billed at actuals', formula: 'Billed at cost incurred', description: 'Not pre-computable at booking time — the real cost is added later, at POD/invoicing.' },
 ]
 
 // {type: label} view of RULES_CATALOG above — kept as its own export since

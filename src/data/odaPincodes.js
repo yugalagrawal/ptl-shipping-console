@@ -37,6 +37,33 @@ let defaultOdaEntries = ODA_PINCODES_SEED.map(({ state, district, city, pincode 
 let defaultOdaRate = cloneOdaRates(DEFAULT_ODA_RATES)
 let defaultOdaOverrides = {}
 
+// Version history of the Default ODA List (like rate card history): v1 is the
+// initial import; every later version is a snapshot taken when the list is
+// replaced by a CSV upload or edited and the dialog is closed. Each keeps the
+// full list + rates so any version can be viewed or downloaded, plus a diff
+// against the version before it.
+let defaultOdaVersions = [
+  { id: 'v1', effectiveFrom: '2026-10-13', effectiveTo: null, updatedBy: 'Initial import (Geography sheet)', source: 'Initial', rows: defaultOdaEntries, rate: cloneOdaRates(DEFAULT_ODA_RATES), diff: null },
+]
+export function getDefaultOdaVersions() {
+  return defaultOdaVersions
+}
+export function pushDefaultOdaVersion(v) {
+  const today = v.effectiveFrom
+  defaultOdaVersions = [...defaultOdaVersions.map((x) => (x.effectiveTo === null ? { ...x, effectiveTo: today } : x)), { ...v, id: `v${defaultOdaVersions.length + 1}`, effectiveTo: null }]
+  return defaultOdaVersions
+}
+// Compare two lists (+ rates): added / removed pincodes and ODA-type moves.
+export function diffOdaLists(prev, next, prevRate, nextRate) {
+  const pm = new Map(prev.map((r) => [r.pincode, r]))
+  const nm = new Map(next.map((r) => [r.pincode, r]))
+  const added = next.filter((r) => !pm.has(r.pincode))
+  const removed = prev.filter((r) => !nm.has(r.pincode))
+  const moved = next.filter((r) => pm.has(r.pincode) && (pm.get(r.pincode).oda ?? 1) !== (r.oda ?? 1)).map((r) => ({ ...r, from: pm.get(r.pincode).oda ?? 1 }))
+  const rates = ODA_CATEGORIES.filter((c) => prevRate[c].perAwb !== nextRate[c].perAwb || prevRate[c].perKg !== nextRate[c].perKg).map((c) => ({ cat: c, from: prevRate[c], to: nextRate[c] }))
+  return { added, removed, moved, rates, changed: added.length + removed.length + moved.length + rates.length }
+}
+
 export function cloneOdaRates(rates) {
   return Object.fromEntries(ODA_CATEGORIES.map((c) => [c, { ...rates[c] }]))
 }

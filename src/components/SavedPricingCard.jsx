@@ -8,7 +8,7 @@ import Icon from './Icon.jsx'
 const SOURCE_LABEL = { 'rate-card': 'From Standard Rate Card', 'standard-regions': 'From Standard Regions', scratch: 'From Scratch', template: 'From Templates' }
 const fmt = (n) => (n === null || n === undefined ? '—' : Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100))
 
-export default function SavedPricingCard({ p, index, defaultOpen = false, onEdit, onRemove }) {
+export default function SavedPricingCard({ p, index, title, defaultOpen = false, onEdit, onRemove }) {
   const [open, setOpen] = useState(defaultOpen)
   const [confirming, setConfirming] = useState(false)
   const flat = p.grid.flat().filter((v) => v !== null)
@@ -24,7 +24,7 @@ export default function SavedPricingCard({ p, index, defaultOpen = false, onEdit
         </button>
         <button type="button" onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 text-left">
           <span className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-xs text-slate-500">
-            <span className="text-sm font-semibold text-slate-900">Pricing {index}</span>
+            <span className="text-sm font-semibold text-slate-900">{title ?? `Pricing ${index}`}</span>
             <span>
               <span className="font-semibold text-slate-700">{p.regionNames.length}</span> regions
             </span>

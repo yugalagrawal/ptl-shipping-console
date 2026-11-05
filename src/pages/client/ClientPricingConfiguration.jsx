@@ -1,12 +1,13 @@
 import BackButton from '../../components/BackButton.jsx'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import ClientTemplatesTab from '../../components/ClientTemplatesTab.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { card, thCls, tdCls, rowCls } from '../../components/ui.js'
 import ClientRegionFlow, { RegionMappingModal, Shell } from '../../components/ClientRegionFlow.jsx'
 import ClientTemplateFlow from '../../components/ClientTemplateFlow.jsx'
-import { buildStandardRegionsFromSheet } from '../../data/geoMaster.js'
+import { buildStandardRegionsFromSheet, REGIONS } from '../../data/geoMaster.js'
+import { RATE_CARDS, computeRateCardGrid } from '../../data/standardRateCards.js'
 import PricingSourceArt from '../../components/PricingSourceArt.jsx'
 import OdaListManager from '../../components/OdaListManager.jsx'
 import {
@@ -22,7 +23,7 @@ import {
   isChargeRuleValid,
   matrixArrayToObject,
 } from '../../data/pricing.js'
-import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED } from '../../data/clients.js'
+import { ACTIVE_CLIENTS_SEED, PENDING_CLIENTS_SEED, EXTRA_PRICINGS_BY_CLIENT } from '../../data/clients.js'
 import { RATE_CARDS_SEED, INDUSTRY_CODES, slugFromCode } from '../../data/rateCards.js'
 import {
   STATE_CITY_DIRECTORY,
@@ -41,6 +42,10 @@ import {
   setDefaultOdaEntries,
   setDefaultOdaRate,
   setDefaultOdaOverrides,
+  cloneOdaRates,
+  getDefaultOdaVersions,
+  pushDefaultOdaVersion,
+  diffOdaLists,
 } from '../../data/odaPincodes.js'
 
 function todayISO() {
@@ -62,111 +67,43 @@ const TIER_VOLUME_BANDS = {
   Platinum: '10k+ tonne',
 }
 
-function NumberField({ value, onChange, placeholder, suffix }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-      />
-      {suffix && <span className="text-xs text-slate-400">{suffix}</span>}
-    </span>
-  )
-}
-
-const SIMPLE_UNIT = { flat_per_awb: '₹ / AWB', per_kg: '₹ / kg', percent_of_freight: '%', percent_of_cod: '%' }
-
-// Sub-rule row used inside a max_of/min_of list — type restricted to
-// SIMPLE_RULE_TYPES so a rule can't be built into an unrenderable/meaningless
-// nested shape.
-function SimpleRuleRow({ rule, onChange, onRemove, removable }) {
-  return (
-    <div className="flex items-center gap-2">
-      <select
-        value={rule.type}
-        onChange={(e) => onChange({ type: e.target.value, value: rule.value ?? '' })}
-        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700"
-      >
-        {Object.entries(SIMPLE_RULE_TYPES).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
+// Value inputs for one rule — shared by the main editor and each weight band.
+const FIELD_CLS = 'w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40'
+const VALUE_LABEL = { flat_per_awb: 'Amount (₹)', per_kg: 'Rate (₹ per kg)', percent_of_freight: 'Percentage (% of Basic Freight)', percent_of_cod: 'Percentage (% of COD amount)' }
+function RuleValueFields({ rule, onChange }) {
+  if (rule.type === 'nil') return null
+  if (rule.type === 'max_of' || rule.type === 'min_of')
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          ['Per kg (₹)', 0],
+          ['Per AWB (₹)', 1],
+        ].map(([label, idx]) => (
+          <label key={label} className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-500">{label}</span>
+            <input type="number" value={rule.options[idx].value} placeholder="0" onChange={(e) => onChange({ ...rule, options: rule.options.map((o, k) => (k === idx ? { ...o, value: e.target.value } : o)) })} className={FIELD_CLS} />
+          </label>
         ))}
-      </select>
-      <NumberField value={rule.value} onChange={(v) => onChange({ ...rule, value: v })} placeholder="Value" suffix={SIMPLE_UNIT[rule.type]} />
-      {removable && (
-        <button type="button" onClick={onRemove} className="text-xs font-medium text-rose-600 hover:underline">
-          Remove
-        </button>
-      )}
-    </div>
-  )
-}
-
-function MultiRuleBuilder({ rule, onChange }) {
-  function updateOption(i, next) {
-    onChange({ ...rule, options: rule.options.map((o, idx) => (idx === i ? next : o)) })
-  }
-  function addOption() {
-    onChange({ ...rule, options: [...rule.options, { type: 'flat_per_awb', value: '' }] })
-  }
-  function removeOption(i) {
-    onChange({ ...rule, options: rule.options.filter((_, idx) => idx !== i) })
-  }
+      </div>
+    )
   return (
-    <div className="space-y-2">
-      {rule.options.map((opt, i) => (
-        <SimpleRuleRow key={i} rule={opt} onChange={(next) => updateOption(i, next)} onRemove={() => removeOption(i)} removable={rule.options.length > 2} />
-      ))}
-      <button type="button" onClick={addOption} className="inline-flex items-center gap-1 text-xs font-medium text-brand-orange-dark hover:underline">
-        <Icon name="plus" className="h-3 w-3" />
-        Add condition
-      </button>
-      <p className="text-[11px] text-slate-400">Whichever of these resolves {rule.type === 'min_of' ? 'lower' : 'higher'} is charged.</p>
-    </div>
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-medium text-slate-500">{VALUE_LABEL[rule.type]}</span>
+      <input type="number" value={rule.value} placeholder="0" onChange={(e) => onChange({ ...rule, value: e.target.value })} className={`${FIELD_CLS} sm:w-48`} />
+    </label>
   )
 }
 
-// One row inside a weight band's own rule when it's set to Higher/Lower of —
-// deliberately fixed to per-kg + flat-per-AWB (the one real example,
-// Handling, needs no more).
-const BAND_RULE_TYPES = { nil: 'NIL (no charge)', ...SIMPLE_RULE_TYPES, max_of: 'Higher of per-kg / per-AWB', min_of: 'Lower of per-kg / per-AWB' }
-
-function BandRuleFields({ rule, onChange }) {
-  const options = rule.options ?? [{ type: 'per_kg', value: '' }, { type: 'flat_per_awb', value: '' }]
-  return (
-    <div className="flex flex-1 flex-wrap items-center gap-2">
-      <select
-        value={rule.type}
-        onChange={(e) => {
-          const t = e.target.value
-          if (t === 'nil') onChange({ type: 'nil' })
-          else if (t === 'max_of' || t === 'min_of') onChange({ type: t, options: [{ type: 'per_kg', value: '' }, { type: 'flat_per_awb', value: '' }] })
-          else onChange({ type: t, value: '' })
-        }}
-        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700"
-      >
-        {Object.entries(BAND_RULE_TYPES).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-      {rule.type === 'max_of' || rule.type === 'min_of' ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <NumberField value={options[0].value} onChange={(v) => onChange({ ...rule, options: [{ ...options[0], value: v }, options[1]] })} placeholder="Per kg" suffix="₹/kg" />
-          <span className="text-xs text-slate-400">or</span>
-          <NumberField value={options[1].value} onChange={(v) => onChange({ ...rule, options: [options[0], { ...options[1], value: v }] })} placeholder="Per AWB" suffix="₹/AWB" />
-        </div>
-      ) : rule.type !== 'nil' ? (
-        <NumberField value={rule.value} onChange={(v) => onChange({ ...rule, value: v })} placeholder="Value" suffix={SIMPLE_UNIT[rule.type]} />
-      ) : null}
-    </div>
-  )
-}
+const BAND_RULE_OPTIONS = [
+  ['nil', 'No charge'],
+  ['flat_per_awb', 'Flat amount per AWB'],
+  ['per_kg', 'Rate per kg'],
+  ['percent_of_freight', '% of Basic Freight'],
+  ['percent_of_cod', '% of COD amount'],
+  ['max_of', 'Higher of per kg / per AWB'],
+  ['min_of', 'Lower of per kg / per AWB'],
+]
+const bandRuleFor = (t) => (t === 'nil' ? { type: 'nil' } : t === 'max_of' || t === 'min_of' ? { type: t, options: [{ type: 'per_kg', value: '' }, { type: 'flat_per_awb', value: '' }] } : { type: t, value: '' })
 
 function RangeByWeightBuilder({ rule, onChange }) {
   function updateBand(i, next) {
@@ -181,24 +118,35 @@ function RangeByWeightBuilder({ rule, onChange }) {
     onChange({ ...rule, bands: rule.bands.filter((_, idx) => idx !== i) })
   }
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {rule.bands.map((band, i) => {
         const isLast = i === rule.bands.length - 1
         return (
-          <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/60 p-2">
-            {isLast ? (
-              <span className="w-32 shrink-0 text-xs text-slate-500">Above {rule.bands[i - 1]?.uptoKg || '—'} kg</span>
-            ) : (
-              <span className="flex shrink-0 items-center gap-1 text-xs text-slate-500">
-                Up to <NumberField value={band.uptoKg} onChange={(v) => updateBand(i, { ...band, uptoKg: v })} placeholder="kg" suffix="kg" />
-              </span>
-            )}
-            <BandRuleFields rule={band.rule} onChange={(next) => updateBand(i, { ...band, rule: next })} />
-            {rule.bands.length > 2 && !isLast && (
-              <button type="button" onClick={() => removeBand(i)} className="text-xs font-medium text-rose-600 hover:underline">
-                Remove
-              </button>
-            )}
+          <div key={i} className="space-y-3 rounded-xl border border-slate-200/80 bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              {isLast ? (
+                <span className="text-sm font-semibold text-slate-800">Above {rule.bands[i - 1]?.uptoKg || '—'} kg</span>
+              ) : (
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  Up to
+                  <input type="number" value={band.uptoKg} placeholder="kg" onChange={(e) => updateBand(i, { ...band, uptoKg: e.target.value })} className="w-20 rounded-lg border border-slate-200 bg-slate-50/60 px-2.5 py-1.5 text-sm font-normal focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40" />
+                  kg
+                </span>
+              )}
+              {rule.bands.length > 2 && !isLast && (
+                <button type="button" onClick={() => removeBand(i)} className="text-xs font-medium text-slate-400 hover:text-rose-600">
+                  Remove
+                </button>
+              )}
+            </div>
+            <select value={band.rule.type} onChange={(e) => updateBand(i, { ...band, rule: bandRuleFor(e.target.value) })} className={FIELD_CLS}>
+              {BAND_RULE_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <RuleValueFields rule={band.rule} onChange={(next) => updateBand(i, { ...band, rule: next })} />
           </div>
         )
       })}
@@ -234,22 +182,7 @@ function ChargeRuleEditor({ rule, onChange }) {
 
       <p className="pt-1 text-sm font-medium text-slate-700">Default rule &amp; price</p>
 
-      {['flat_per_awb', 'per_kg', 'percent_of_freight', 'percent_of_cod'].includes(rule.type) && (
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-slate-500">{{ flat_per_awb: 'Amount (₹)', per_kg: 'Rate (₹ per kg)', percent_of_freight: 'Percentage (% of Basic Freight)', percent_of_cod: 'Percentage (% of COD amount)' }[rule.type]}</span>
-          <input
-            type="number"
-            value={rule.value}
-            onChange={(e) => onChange({ ...rule, value: e.target.value })}
-            placeholder="0"
-            className="w-48 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
-          />
-        </label>
-      )}
-
-      {(rule.type === 'max_of' || rule.type === 'min_of') && <MultiRuleBuilder rule={rule} onChange={onChange} />}
-      {rule.type === 'range_by_weight' && <RangeByWeightBuilder rule={rule} onChange={onChange} />}
-      {rule.type === 'actuals' && <p className="text-xs text-slate-400">Billed at cost incurred — no value needed, added at POD/invoicing.</p>}
+      {rule.type === 'range_by_weight' ? <RangeByWeightBuilder rule={rule} onChange={onChange} /> : <RuleValueFields rule={rule} onChange={onChange} />}
 
       {isChargeRuleValid(rule) && (
         <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
@@ -259,6 +192,27 @@ function ChargeRuleEditor({ rule, onChange }) {
       )}
     </div>
   )
+}
+
+const RULE_TAG = { flat_per_awb: 'Flat per AWB', per_kg: 'Rate per kg', percent_of_freight: '% of freight', percent_of_cod: '% of COD', max_of: 'Higher of', min_of: 'Lower of', range_by_weight: 'By weight', actuals: 'At actuals', nil: 'No charge' }
+// Short value for the Additional Charges table (₹50, 5%, ₹3/kg · ₹750/AWB…);
+// weight bands collapse to "N bands" and expand in place.
+function ruleValue(rule) {
+  if (!rule) return '—'
+  switch (rule.type) {
+    case 'flat_per_awb': return `₹${rule.value}`
+    case 'per_kg': return `₹${rule.value}/kg`
+    case 'percent_of_freight':
+    case 'percent_of_cod': return `${rule.value}%`
+    case 'max_of':
+    case 'min_of': return rule.options.map(ruleValue).join(' · ').replace(/(₹[\d.]+)(?=( ·|$))/g, '$1/AWB').replace('/kg/AWB', '/kg')
+    case 'range_by_weight': return rule.bands.map((b, i) => `${bandLabel(rule, i)}: ${b.rule.type === 'nil' ? 'NIL' : ['max_of', 'min_of'].includes(b.rule.type) ? `${b.rule.type === 'max_of' ? 'higher' : 'lower'} of ${ruleValue(b.rule)}` : ruleValue(b.rule)}`).join(' · ')
+    case 'actuals': return 'At cost'
+    default: return 'NIL'
+  }
+}
+function bandLabel(rule, i) {
+  return i === rule.bands.length - 1 ? `Above ${rule.bands[i - 1].uptoKg} kg` : `Up to ${rule.bands[i].uptoKg} kg`
 }
 
 function HeaderButton({ icon, label, onClick, variant = 'default' }) {
@@ -375,6 +329,174 @@ function Modal({ title, subtitle, size = 'max-w-4xl', headerAction, onClose, chi
 // rate card, tier discounts and charge types (currently all hardcoded in
 // data/pricing.js). For now it just surfaces the standard matrix read-only,
 // same values every client tier discounts off of.
+
+// Every pricing attached to a client: the one on their record (standard rates
+// or their own custom regions) plus any extra rate-card pricings.
+function pricingsFor(client) {
+  const pp = client.pricingProfile
+  const custom = pp?.pricingType === 'Custom' && pp.regionMappingType === 'Custom' && pp.customRegions?.length > 0
+  const base = custom
+    ? {
+        id: 'base',
+        label: `Custom regions · ${pp.customRegions.length} regions`,
+        regions: pp.customRegions,
+        zones: pp.customRegions.map((r) => r.name),
+        grid: pp.customRegions.map((o) => pp.customRegions.map((d) => pp.customRegionOverrides?.[`${o.id}|${d.id}`] ?? (pp.unmappedDefaultRate !== '' ? pp.unmappedDefaultRate : '—'))),
+      }
+    : { id: 'base', label: 'Standard rates', regions: null, zones: ALL_ZONES, grid: ALL_ZONES.map((o) => ALL_ZONES.map((d) => client.matrix?.[o]?.[d])) }
+  const extras = (EXTRA_PRICINGS_BY_CLIENT[client.name] ?? []).map((x, i) => {
+    const card = RATE_CARDS.find((c) => c.code === x.cardCode)
+    return { id: `extra-${i}`, label: `${card.name}${x.discount ? ` · ${x.discount}% off` : ''}`, regions: null, zones: REGIONS.map((r) => r.name), grid: computeRateCardGrid(card, x.discount, {}) }
+  })
+  return [base, ...extras]
+}
+
+// Read-only rate card for one pricing of a client.
+function ClientRatesModal({ client, pricing, onClose }) {
+  return (
+    <Shell wide="max-w-5xl" title={`Rate card · ${client.name}`} onClose={onClose}>
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[client.tier] ?? ''}`}>{client.tier}</span>
+          <span className="font-medium text-slate-700">{pricing.label}</span>
+          <span>· INR per kg, origin (row) to destination (column)</span>
+        </div>
+        <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wide text-slate-400">From ↓ To →</th>
+                {pricing.zones.map((n) => (
+                  <th key={n} className="whitespace-nowrap px-2 py-2 text-center text-[10px] font-semibold text-slate-500">{n}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pricing.zones.map((o, i) => (
+                <tr key={o} className="border-t border-slate-100">
+                  <th className="whitespace-nowrap bg-slate-50 px-3 py-1.5 text-left font-semibold text-slate-700">{o}</th>
+                  {pricing.zones.map((d, j) => (
+                    <td key={d} className="px-2 py-1.5 text-center tabular-nums text-slate-700">{pricing.grid[i][j]}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Shell>
+  )
+}
+
+// Default ODA List version history — same layout as Rate Card History: version
+// rail + info card on the left, the chosen version's summary and its changes
+// vs the previous version on the right.
+function OdaHistoryModal({ versions, onClose }) {
+  const newestFirst = [...versions].reverse()
+  const [selId, setSelId] = useState(newestFirst[0].id)
+  const sel = versions.find((v) => v.id === selId) ?? newestFirst[0]
+  const n = versions.indexOf(sel) + 1
+  const counts = [1, 2, 3].map((c) => sel.rows.filter((r) => (r.oda ?? 1) === c).length)
+  const range = `${formatDate(sel.effectiveFrom)} – ${sel.effectiveTo ? formatDate(sel.effectiveTo) : 'Present'}`
+  const d = sel.diff
+  const lines = d
+    ? [
+        ...d.added.map((r) => ({ r, tag: 'Added', text: `ODA ${r.oda}`, tone: 'text-emerald-700 bg-emerald-50' })),
+        ...d.removed.map((r) => ({ r, tag: 'Removed', text: `was ODA ${r.oda}`, tone: 'text-rose-700 bg-rose-50' })),
+        ...d.moved.map((r) => ({ r, tag: 'Moved', text: `ODA ${r.from} → ODA ${r.oda}`, tone: 'text-amber-700 bg-amber-50' })),
+      ]
+    : []
+  function downloadVersion() {
+    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const csv = ['State,City,Pincode,ODA Type', ...sel.rows.map((r) => [r.state, r.district || r.city, r.pincode, r.oda ?? 1].map(q).join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `oda-list-v${n}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+  return (
+    <Shell wide="max-w-5xl" title="Default ODA List history" onClose={onClose}>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-60 shrink-0 space-y-3 overflow-y-auto border-r border-slate-100 bg-slate-50/50 p-4">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <span>Version</span>
+              <span>Status</span>
+            </div>
+            {newestFirst.map((v) => {
+              const active = v.effectiveTo === null
+              return (
+                <button key={v.id} type="button" onClick={() => setSelId(v.id)} className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors ${v.id === sel.id ? 'bg-brand-orange/10 font-semibold text-slate-900' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  {v.id}
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{active ? 'Active' : 'Archived'}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+            <div>
+              <div className="text-slate-400">Updated by</div>
+              <div className="mt-0.5 break-words font-medium text-slate-800">{sel.updatedBy}</div>
+            </div>
+            <div>
+              <div className="text-slate-400">Source</div>
+              <div className="mt-0.5 break-words font-medium text-slate-800">{sel.source}</div>
+            </div>
+            <div>
+              <div className="text-slate-400">{sel.effectiveTo === null ? 'Active' : 'Was active'}</div>
+              <div className="mt-0.5 font-medium text-slate-800">{range}</div>
+            </div>
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-xs text-slate-500">
+              Version {n}{sel.effectiveTo === null ? ' (active)' : ''} — <span className="font-medium text-slate-800">{sel.rows.length.toLocaleString('en-IN')} pincodes</span> · ODA 1 {counts[0].toLocaleString('en-IN')} · ODA 2 {counts[1].toLocaleString('en-IN')} · ODA 3 {counts[2].toLocaleString('en-IN')}
+            </p>
+            <button type="button" onClick={downloadVersion} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              <Icon name="download" className="h-3.5 w-3.5" />
+              Download this version
+            </button>
+          </div>
+          <p className="mt-2 text-xs font-medium text-slate-800">
+            {!d ? 'Initial version' : `${d.added.length} added · ${d.removed.length} removed · ${d.moved.length} moved${d.rates.length ? ` · ${d.rates.length} rate change${d.rates.length > 1 ? 's' : ''}` : ''} vs v${n - 1}`}
+          </p>
+          {d?.rates.length > 0 && (
+            <div className="mt-2 space-y-1 text-xs text-slate-600">
+              {d.rates.map((x) => (
+                <div key={x.cat}>
+                  ODA {x.cat} rate: ₹{x.from.perAwb}/AWB or ₹{x.from.perKg}/kg → <span className="font-medium text-slate-800">₹{x.to.perAwb}/AWB or ₹{x.to.perKg}/kg</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {lines.length > 0 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+              <div className="grid grid-cols-[6rem_1fr_1fr_9rem] bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                <span>Pincode</span>
+                <span>State</span>
+                <span>City</span>
+                <span>Change</span>
+              </div>
+              <div className="max-h-[320px] divide-y divide-slate-100 overflow-y-auto text-xs">
+                {lines.slice(0, 200).map(({ r, tag, text, tone }) => (
+                  <div key={`${tag}-${r.pincode}`} className="grid grid-cols-[6rem_1fr_1fr_9rem] items-center px-3 py-1.5 text-slate-700">
+                    <span className="tabular-nums">{r.pincode}</span>
+                    <span>{r.state}</span>
+                    <span>{r.district || r.city}</span>
+                    <span className={`w-fit rounded-md px-1.5 py-0.5 text-[11px] font-medium ${tone}`}>{tag} · {text}</span>
+                  </div>
+                ))}
+              </div>
+              {lines.length > 200 && <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-400">Showing the first 200 of {lines.length.toLocaleString('en-IN')} changes.</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </Shell>
+  )
+}
 
 // Version history: version rail on the left, the chosen version's full grid on
 // the right with changed cells shown as previous -> new. Each version's grid is
@@ -708,7 +830,8 @@ export default function ClientPricingConfiguration() {
   const [newChargeName, setNewChargeName] = useState('')
   const [newChargeRule, setNewChargeRule] = useState(() => emptyChargeRule('flat_per_awb'))
   const [clientPricingSearch, setClientPricingSearch] = useState('')
-  const [selectedPricingClientId, setSelectedPricingClientId] = useState(null)
+  const [clientPricingPopup, setClientPricingPopup] = useState(null) // { client, pricing, kind: 'mapping' | 'rates' }
+  const [expandedPricingClient, setExpandedPricingClient] = useState(null)
   const [editingChargeIndex, setEditingChargeIndex] = useState(null)
   const [editChargeName, setEditChargeName] = useState('')
   const [editChargeRule, setEditChargeRule] = useState(null)
@@ -777,6 +900,18 @@ export default function ClientPricingConfiguration() {
   const [defaultOdaEntries, setDefaultOdaEntriesState] = useState(() => getDefaultOdaEntries())
   const [defaultOdaRate, setDefaultOdaRateState] = useState(() => getDefaultOdaRate())
   const [defaultOdaOverrides, setDefaultOdaOverridesState] = useState(() => getDefaultOdaOverrides())
+
+  const [odaVersions, setOdaVersions] = useState(() => getDefaultOdaVersions())
+  const [showOdaHistory, setShowOdaHistory] = useState(false)
+  // Snapshot a new ODA version when the list or its rates differ from the
+  // active one (called after a CSV upload, and when the dialog is closed).
+  function commitOdaVersion(source, rowsOverride) {
+    const rows = rowsOverride ?? defaultOdaEntries
+    const latest = odaVersions[odaVersions.length - 1]
+    const diff = diffOdaLists(latest.rows, rows, latest.rate, defaultOdaRate)
+    if (!diff.changed) return
+    setOdaVersions(pushDefaultOdaVersion({ effectiveFrom: todayISO(), updatedBy: user?.name ?? 'Unknown', source, rows, rate: cloneOdaRates(defaultOdaRate), diff }))
+  }
 
   function updateDefaultOdaEntries(updater) {
     setDefaultOdaEntriesState((current) => {
@@ -854,14 +989,9 @@ export default function ClientPricingConfiguration() {
       ...PENDING_CLIENTS_SEED.map((c) => ({ ...c, status: 'pending' })),
     ]
     const q = clientPricingSearch.trim().toLowerCase()
-    if (!q) return []
+    if (!q) return roster
     return roster.filter((c) => c.name.toLowerCase().includes(q))
   }, [clientPricingSearch])
-
-  const selectedPricingClient = useMemo(
-    () => [...ACTIVE_CLIENTS_SEED, ...PENDING_CLIENTS_SEED].find((c) => c.id === selectedPricingClientId) ?? null,
-    [selectedPricingClientId],
-  )
 
   function openNewChargeModal() {
     setNewChargeName('')
@@ -1508,198 +1638,107 @@ export default function ClientPricingConfiguration() {
 
       {tab === 'client-pricing' && (
         <div className="space-y-6">
-        <div className={`p-5 ${card}`}>
-          <h2 className="text-sm font-semibold text-slate-900">Tier discounts</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Tier is set by monthly volume. The discount is taken off the standard rate card.</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`px-5 py-4 ${card}`}>
+          <h2 className="text-sm font-semibold text-slate-900">Tier Discounts</h2>
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {Object.entries(TIER_DISCOUNTS).map(([tier, discount]) => (
-              <div key={tier} className="rounded-xl border border-slate-200/80 p-3.5">
+              <div key={tier} className="rounded-xl border border-slate-200/80 px-3 py-2.5">
                 <div className="flex items-center justify-between">
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${TIER_BADGE[tier]}`}>{tier}</span>
-                  <span className="text-lg font-semibold tabular-nums text-slate-900">{discount}%</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${TIER_BADGE[tier]}`}>{tier}</span>
+                  <span className="text-base font-semibold tabular-nums text-slate-900">{discount}%</span>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">{TIER_VOLUME_BANDS[tier]} / month</p>
+                <p className="mt-1 text-[11px] text-slate-500">{TIER_VOLUME_BANDS[tier]} / month</p>
               </div>
             ))}
           </div>
         </div>
 
           <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10 text-brand-orange-dark">
-                <Icon name="search" className="h-4.5 w-4.5" />
-              </span>
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Search Clients</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Look up a client to check the region mapping and pricing attached to them.</p>
-              </div>
-            </div>
-
-            {selectedPricingClient ? (
-              <div className="space-y-4">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPricingClientId(null)}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
-                >
-                  <Icon name="arrow-left" className="h-4 w-4" />
-                  Back to search
-                </button>
-
-                <div className={`flex flex-wrap items-center justify-between gap-3 p-5 ${card}`}>
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-orange/10 text-sm font-semibold text-brand-orange-dark">{selectedPricingClient.name.slice(0, 2).toUpperCase()}</span>
-                    <div>
-                    <div className="text-base font-semibold text-slate-900">{selectedPricingClient.name}</div>
-                    <div className="text-xs text-slate-400">{selectedPricingClient.city}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 text-xs">
-                    <div>
-                      <span className="text-slate-400">Pricing type </span>
-                      <span className="font-medium text-slate-700">{selectedPricingClient.pricingProfile?.pricingType ?? 'Standard'}</span>
-                    </div>
-                    {selectedPricingClient.pricingProfile?.pricingType === 'Custom' && (
-                      <div>
-                        <span className="text-slate-400">Region Definition </span>
-                        <span className="font-medium text-slate-700">{selectedPricingClient.pricingProfile.regionMappingType}</span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-slate-400">Tier </span>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[selectedPricingClient.tier]}`}>{selectedPricingClient.tier}</span>
-                    </div>
+              <section className={`overflow-hidden ${card}`}>
+                <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-4">
+                  <h2 className="text-sm font-semibold text-slate-900">Check a Client&apos;s Region Mapping &amp; Rate Card</h2>
+                  <div className="relative mt-3">
+                    <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={clientPricingSearch}
+                      onChange={(e) => setClientPricingSearch(e.target.value)}
+                      placeholder="Type a client name…"
+                      className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
+                    />
                   </div>
                 </div>
-
-                {selectedPricingClient.pricingProfile?.pricingType === 'Custom' &&
-                selectedPricingClient.pricingProfile.regionMappingType === 'Custom' &&
-                selectedPricingClient.pricingProfile.customRegions.length > 0 ? (
-                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      {selectedPricingClient.pricingProfile.customRegions.length} client regions
-                    </div>
-                    <div className="overflow-x-auto border-t border-slate-100">
-                      <table className="text-xs">
-                        <thead>
-                          <tr>
-                            <th className="sticky left-0 bg-slate-50 px-3 py-2 text-left font-medium text-slate-400"></th>
-                            {selectedPricingClient.pricingProfile.customRegions.map((r) => (
-                              <th key={r.id} className="whitespace-nowrap px-2 py-2 text-center font-semibold text-slate-500">
-                                {r.name}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedPricingClient.pricingProfile.customRegions.map((origin) => (
-                            <tr key={origin.id} className="border-t border-slate-100">
-                              <th className="sticky left-0 whitespace-nowrap bg-slate-50 px-3 py-1.5 text-left font-semibold text-slate-600">{origin.name}</th>
-                              {selectedPricingClient.pricingProfile.customRegions.map((dest) => {
-                                const key = `${origin.id}|${dest.id}`
-                                const override = selectedPricingClient.pricingProfile.customRegionOverrides[key]
-                                const fallback = selectedPricingClient.pricingProfile.unmappedDefaultRate
-                                return (
-                                  <td key={dest.id} className="px-2 py-1.5 text-center tabular-nums">
-                                    {override !== undefined ? (
-                                      <span className="font-medium text-brand-orange-dark">{override}</span>
-                                    ) : (
-                                      <span className="text-slate-400">{fallback !== '' ? fallback : '—'}</span>
-                                    )}
-                                  </td>
-                                )
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Rate card on file</div>
-                    <div className="overflow-x-auto border-t border-slate-100">
-                      <table className="text-xs">
-                        <thead>
-                          <tr>
-                            <th className="sticky left-0 bg-slate-50 px-3 py-2 text-left font-medium text-slate-400"></th>
-                            {ALL_ZONES.map((z) => (
-                              <th key={z} className="whitespace-nowrap px-2 py-2 text-center font-semibold text-slate-500">
-                                {z}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ALL_ZONES.map((origin) => (
-                            <tr key={origin} className="border-t border-slate-100">
-                              <th className="sticky left-0 whitespace-nowrap bg-slate-50 px-3 py-1.5 text-left font-semibold text-slate-600">{origin}</th>
-                              {ALL_ZONES.map((dest) => (
-                                <td key={dest} className="px-2 py-1.5 text-center tabular-nums text-slate-700">
-                                  {selectedPricingClient.matrix?.[origin]?.[dest]}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="relative max-w-sm">
-                  <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={clientPricingSearch}
-                    onChange={(e) => setClientPricingSearch(e.target.value)}
-                    placeholder="Search by client name…"
-                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40"
-                  />
-                </div>
-                {clientPricingSearch.trim() === '' ? (
-                  <div className={`flex flex-col items-center gap-2 p-10 text-center ${card}`}>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                      <Icon name="search" className="h-5 w-5" />
-                    </span>
-                    <p className="text-sm font-medium text-slate-700">Search for a client</p>
-                    <p className="text-xs text-slate-500">Check the region mapping and pricing attached to them.</p>
-                  </div>
-                ) : pricingClientResults.length === 0 ? (
-                  <div className={`flex flex-col items-center gap-2 p-10 text-center ${card}`}>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                      <Icon name="search" className="h-5 w-5" />
-                    </span>
-                    <p className="text-sm font-medium text-slate-700">No clients match "{clientPricingSearch}"</p>
-                  </div>
-                ) : (
-                  <div className={`divide-y divide-slate-100 overflow-hidden ${card}`}>
-                    {pricingClientResults.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setSelectedPricingClientId(c.id)}
-                        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors hover:bg-slate-50/70"
-                      >
-                        <div>
-                          <div className="text-sm font-medium text-slate-800">{c.name}</div>
-                          <div className="text-xs text-slate-400">
-                            {c.city} · {c.pricingProfile?.pricingType ?? 'Standard'}
-                            {c.pricingProfile?.pricingType === 'Custom' ? ` (${c.pricingProfile.regionMappingType})` : ''}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                        <th className="px-5 py-3">Client name</th>
+                        <th className="px-3 py-3">Tier</th>
+                        <th className="px-5 py-3">Pricing details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pricingClientResults.slice(0, 100).map((c) => {
+                        const ps = pricingsFor(c)
+                        const open = expandedPricingClient === c.id
+                        const btn = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-brand-orange/40 hover:text-brand-orange-dark'
+                        const pair = (p) => (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={() => setClientPricingPopup({ client: c, pricing: p, kind: 'mapping' })} className={btn}>
+                              <Icon name="route" className="h-3.5 w-3.5" />
+                              Region Mapping
+                            </button>
+                            <button type="button" onClick={() => setClientPricingPopup({ client: c, pricing: p, kind: 'rates' })} className={btn}>
+                              <Icon name="grid" className="h-3.5 w-3.5" />
+                              Rate Card
+                            </button>
                           </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {c.status === 'pending' && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">Pending</span>}
-                          <Icon name="chevron" className="h-4 w-4 -rotate-90 text-slate-300" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+                        )
+                        return (
+                          <Fragment key={c.id}>
+                            <tr className={`${open ? '' : 'border-b border-slate-50'} last:border-0`}>
+                              <td className="px-5 py-3 font-medium text-slate-800">{c.name}</td>
+                              <td className="px-3 py-3">
+                                {c.tier ? <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TIER_BADGE[c.tier]}`}>{c.tier}</span> : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="px-5 py-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {pair(ps[0])}
+                                  {ps.length > 1 && (
+                                    <button type="button" onClick={() => setExpandedPricingClient(open ? null : c.id)} className="rounded-full bg-brand-orange/10 px-2.5 py-1 text-xs font-semibold text-brand-orange-dark hover:bg-brand-orange/20" title={open ? 'Hide other pricings' : 'Show all pricings'}>
+                                      {open ? 'Hide' : `+${ps.length - 1}`}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {open && (
+                              <tr className="border-b border-slate-50 bg-slate-50/60">
+                                <td colSpan={3} className="px-5 py-3">
+                                  <div className="space-y-2">
+                                    {ps.map((p) => (
+                                      <div key={p.id} className="grid grid-cols-[14rem_1fr] items-center gap-3">
+                                        <span className="truncate text-xs font-medium text-slate-600">{p.label}</span>
+                                        {pair(p)}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })}
+                      {pricingClientResults.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="px-5 py-8 text-center text-xs text-slate-400">No clients match “{clientPricingSearch.trim()}”.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {pricingClientResults.length > 100 && <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-400">Showing the first 100 of {pricingClientResults.length} — search to narrow.</p>}
+              </section>
           </div>
         </div>
       )}
@@ -1707,7 +1746,7 @@ export default function ClientPricingConfiguration() {
       {tab === 'additional-charges' && (
         <div className={`overflow-hidden ${card}`}>
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-            <p className="text-sm text-slate-500">One default rule and price per charge type.</p>
+            <h2 className="text-sm font-semibold text-slate-900">Default Additional Charges</h2>
             <div className="flex items-center gap-2">
               <HeaderButton icon="grid" label="Rules List" onClick={() => setShowRulesListModal(true)} />
               <HeaderButton icon="plus" label="Create new charge type" onClick={openNewChargeModal} variant="primary" />
@@ -1717,36 +1756,44 @@ export default function ClientPricingConfiguration() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  <th className="w-20 px-5 py-3">Sl no</th>
+                  <th className="w-20 whitespace-nowrap px-5 py-3">Sl no</th>
                   <th className="px-3 py-3">Charge</th>
-                  <th className="px-3 py-3">Default rule &amp; price</th>
-                  <th className="w-24 px-5 py-3 text-right">Actions</th>
+                  <th className="w-36 px-3 py-3">Rule type</th>
+                  <th className="px-3 py-3">Value</th>
+                  <th className="w-20 px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {additionalCharges.map((c, i) => (
-                  <tr key={c.name} className="border-b border-slate-50 last:border-0">
-                    <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-3.5 font-medium text-slate-800">{c.name}</td>
-                    <td className="px-3 py-3.5 text-slate-600">{c.defaultValue}</td>
-                    <td className="px-5 py-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openEditCharge(i)}
-                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-orange-dark"
-                        aria-label={`Switch default rule — ${c.name}`}
-                      >
-                        <Icon name="edit" className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {additionalCharges.map((c, i) => {
+                  return (
+                    <tr key={c.name} onClick={() => openEditCharge(i)} className="cursor-pointer border-b border-slate-50 transition-colors hover:bg-slate-50/70">
+                        <td className="px-5 py-3 text-slate-400">{i + 1}</td>
+                        <td className="px-3 py-3 font-medium text-slate-800">{c.name}</td>
+                        <td className="px-3 py-3">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{RULE_TAG[c.rule?.type] ?? 'Custom'}</span>
+                        </td>
+                        <td className="px-3 py-3 font-medium tabular-nums text-slate-900">
+                          {ruleValue(c.rule)}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openEditCharge(i)
+                            }}
+                            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-orange-dark"
+                            aria-label={`Switch default rule — ${c.name}`}
+                          >
+                            <Icon name="edit" className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
-          <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-400">
-            Every charge type has one default rule and price — edit a row to switch which rule it uses. Client-specific amounts are set during onboarding.
-          </p>
 
         </div>
       )}
@@ -1754,11 +1801,13 @@ export default function ClientPricingConfiguration() {
       {tab === 'additional-charges' && (
         <div className={`overflow-hidden ${card}`}>
           <div className="border-b border-slate-100 px-5 py-3.5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Default ODA list</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Default ODA List</h2>
           </div>
           <div className="p-5">
             <OdaListManager
               summary
+              onHistory={() => setShowOdaHistory(true)}
+              onCommit={commitOdaVersion}
               title="Default ODA List"
               entries={defaultOdaEntries}
               onEntriesChange={updateDefaultOdaEntries}
@@ -1767,12 +1816,24 @@ export default function ClientPricingConfiguration() {
               overrides={defaultOdaOverrides}
               onOverridesChange={updateDefaultOdaOverrides}
             />
-            <p className="mt-3 text-[11px] text-slate-400">
-              Every new client's own ODA list starts as a copy of this list — edits here don't change pincodes a client has already onboarded with.
-            </p>
           </div>
         </div>
       )}
+
+      {clientPricingPopup?.kind === 'mapping' && (
+        <RegionMappingModal
+          name={`${clientPricingPopup.client.name} · ${clientPricingPopup.pricing.label}`}
+          regions={clientPricingPopup.pricing.regions ?? standardRegions}
+          setRegions={() => {}}
+          readOnly
+          onCancel={() => setClientPricingPopup(null)}
+          onSave={() => setClientPricingPopup(null)}
+        />
+      )}
+
+      {clientPricingPopup?.kind === 'rates' && <ClientRatesModal client={clientPricingPopup.client} pricing={clientPricingPopup.pricing} onClose={() => setClientPricingPopup(null)} />}
+
+      {showOdaHistory && <OdaHistoryModal versions={odaVersions} onClose={() => setShowOdaHistory(false)} />}
 
       {showRulesListModal && (
         <Modal title="Rules List" size="max-w-[52rem]" onClose={() => setShowRulesListModal(false)}>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../context/AuthContext.jsx'
 import Icon from './Icon.jsx'
 import { RegionMappingModal, Shell } from './ClientRegionFlow.jsx'
 import PricingSourceArt from './PricingSourceArt.jsx'
@@ -9,15 +10,11 @@ import { buildStandardRegionsFromSheet } from '../data/geoMaster.js'
 // "Saved Templates" when adding pricing to a client. Rate cards use the
 // Location Master regions (read-only); templates are editable.
 const card = 'rounded-2xl bg-white shadow-soft ring-1 ring-slate-200/70'
-const initials = (name) =>
-  name
-    .split(/[\s_-]+/)
-    .filter((w) => /^[A-Za-z]/.test(w))
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
+const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—')
+const coverage = (t) => ({ cities: t.regions.reduce((n, r) => n + r.cities.length, 0), states: new Set(t.regions.flatMap((r) => r.cities.map((c) => c.state))).size })
 
 export default function ClientTemplatesTab() {
+  const { user } = useAuth()
   const [, setTick] = useState(0)
   const refresh = () => setTick((t) => t + 1)
   const [dialog, setDialog] = useState(null) // { step: 'name' | 'method', name, method }
@@ -60,10 +57,11 @@ export default function ClientTemplatesTab() {
   function save() {
     setAttempted(true)
     if (regions.length === 0 || blankName || dup.length || emptyNames.length) return
-    if (editing.id) updateRegionTemplate(editing.id, { regions, overrides: {}, defaultRate: '' })
+    const stamp = { updatedAt: new Date().toISOString().slice(0, 10), updatedBy: user?.name ?? 'Unknown' }
+    if (editing.id) updateRegionTemplate(editing.id, { regions, overrides: {}, defaultRate: '', ...stamp })
     else {
       const t = addRegionTemplate(editing.name)
-      updateRegionTemplate(t.id, { regions, overrides: {}, defaultRate: '' })
+      updateRegionTemplate(t.id, { regions, overrides: {}, defaultRate: '', ...stamp })
     }
     setEditing(null)
     setAttempted(false)
@@ -72,16 +70,19 @@ export default function ClientTemplatesTab() {
 
   return (
     <div className="space-y-6">
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Region mapping templates</h3>
+      <section className={`overflow-hidden ${card}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+          <div className="relative w-full max-w-xs">
+            <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates…" className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40" />
+          </div>
           <button type="button" onClick={() => setDialog({ step: 'name', name: '', method: '' })} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-orange px-3.5 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-brand-orange-dark">
             <Icon name="plus" className="h-3.5 w-3.5" />
             Create new template
           </button>
         </div>
         {REGION_TEMPLATES.length === 0 ? (
-          <div className={`flex flex-col items-center gap-2 px-4 py-12 text-center ${card}`}>
+          <div className="flex flex-col items-center gap-2 px-4 py-14 text-center">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
               <Icon name="route" className="h-5 w-5" />
             </span>
@@ -89,46 +90,69 @@ export default function ClientTemplatesTab() {
             <p className="text-xs text-slate-500">Create one, then start from scratch or from the standard regions.</p>
           </div>
         ) : (
-          <>
-            <div className="relative mb-3 max-w-sm">
-              <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates…" className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline focus:outline-2 focus:outline-brand-orange/40" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {REGION_TEMPLATES.filter((t) => t.name.toLowerCase().includes(q.trim().toLowerCase())).map((t) => (
-                <div key={t.id} onClick={() => confirmId !== t.id && edit(t)} className={`cursor-pointer p-4 transition-colors hover:ring-brand-orange/40 ${card}`}>
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange/10 text-xs font-semibold text-brand-orange-dark">{initials(t.name)}</span>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-800">{t.name}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">
-                        {t.regions.length} regions · {t.regions.reduce((n, r) => n + r.cities.length, 0)} cities
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-slate-100 pt-2.5" onClick={(e) => e.stopPropagation()}>
-                    {confirmId === t.id ? (
-                      <span className="flex items-center gap-2 text-xs font-medium">
-                        <span className="text-slate-500">Delete?</span>
-                        <button type="button" onClick={() => { deleteRegionTemplate(t.id); setConfirmId(null); refresh() }} className="text-rose-600 hover:underline">Yes</button>
-                        <button type="button" onClick={() => setConfirmId(null)} className="text-slate-500 hover:underline">No</button>
-                      </span>
-                    ) : (
-                      <>
-                        <button type="button" onClick={() => edit(t)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700">
-                          <Icon name="edit" className="h-3.5 w-3.5" />
-                          Edit
-                        </button>
-                        <button type="button" onClick={() => setConfirmId(t.id)} title="Delete" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
-                          <Icon name="trash" className="h-4 w-4" />
-                        </button>
-                      </>
+          (() => {
+            const list = REGION_TEMPLATES.filter((t) => t.name.toLowerCase().includes(q.trim().toLowerCase()))
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      <th className="px-5 py-3">Template</th>
+                      <th className="px-3 py-3">Coverage</th>
+                      <th className="px-3 py-3">Last updated by</th>
+                      <th className="w-28 px-5 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((t) => {
+                      const cov = coverage(t)
+                      return (
+                        <tr key={t.id} onClick={() => confirmId !== t.id && edit(t)} className="cursor-pointer border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50/70">
+                          <td className="px-5 py-3.5 font-medium text-slate-800">{t.name}</td>
+                          <td className="whitespace-nowrap px-3 py-3.5 text-slate-600">
+                            {t.regions.length} {t.regions.length === 1 ? 'region' : 'regions'} · {cov.states} {cov.states === 1 ? 'state' : 'states'} · {cov.cities} {cov.cities === 1 ? 'city' : 'cities'}
+                          </td>
+                          <td className="px-3 py-3.5">
+                            {t.updatedAt ? (
+                              <>
+                                <div className="text-sm text-slate-700">{t.updatedBy}</div>
+                                <div className="text-[10px] text-slate-400">{fmtDate(t.updatedAt)}</div>
+                              </>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            {confirmId === t.id ? (
+                              <span className="inline-flex items-center gap-2 text-xs font-medium">
+                                <span className="text-slate-500">Delete?</span>
+                                <button type="button" onClick={() => { deleteRegionTemplate(t.id); setConfirmId(null); refresh() }} className="text-rose-600 hover:underline">Yes</button>
+                                <button type="button" onClick={() => setConfirmId(null)} className="text-slate-500 hover:underline">No</button>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5">
+                                <button type="button" onClick={() => edit(t)} title="Edit" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-brand-orange-dark">
+                                  <Icon name="edit" className="h-4 w-4" />
+                                </button>
+                                <button type="button" onClick={() => setConfirmId(t.id)} title="Delete" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                                  <Icon name="trash" className="h-4 w-4" />
+                                </button>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {list.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-5 py-8 text-center text-xs text-slate-400">No template matches “{q.trim()}”.</td>
+                      </tr>
                     )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()
         )}
       </section>
 

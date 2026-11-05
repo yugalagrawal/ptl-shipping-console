@@ -2,7 +2,7 @@ import BackButton from '../../components/BackButton.jsx'
 import { useMemo, useState } from 'react'
 import { card } from '../../components/ui.js'
 import {
-  TIER_DISCOUNTS, TIER_BADGE, computeEffectiveMatrix, matrixArrayToObject,
+  TIER_DISCOUNTS, TIER_BADGE, computeMatrixAtDiscount, matrixArrayToObject,
   cloneStandardCharges, zoneFromPincode, computeOrderPricing,
 } from '../../data/pricing.js'
 import { PAYMENT_MODES } from '../../data/orders.js'
@@ -62,6 +62,7 @@ export default function FreightCalculator() {
   const [originPincode, setOriginPincode] = useState('')
   const [destPincode, setDestPincode] = useState('')
   const [tier, setTier] = useState('Silver')
+  const [discount, setDiscount] = useState('') // never applied from the tier on its own — the tier only suggests it
   const [actualWeightKg, setActualWeightKg] = useState('')
   const [dims, setDims] = useState({ l: '', w: '', h: '', count: '1' })
   const [paymentType, setPaymentType] = useState('Prepaid')
@@ -83,8 +84,8 @@ export default function FreightCalculator() {
   // real activated client — so computeOrderPricing needs no special-casing
   // for "no real client yet."
   const syntheticClient = useMemo(
-    () => ({ tier, matrix: matrixArrayToObject(computeEffectiveMatrix(tier)), charges: cloneStandardCharges() }),
-    [tier]
+    () => ({ tier, matrix: matrixArrayToObject(computeMatrixAtDiscount(Math.min(100, Math.max(0, Number(discount) || 0)))), charges: cloneStandardCharges() }),
+    [tier, discount]
   )
 
   const preview = useMemo(() => {
@@ -130,6 +131,17 @@ export default function FreightCalculator() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <SelectField label="Client Tier" value={tier} onChange={setTier} options={TIERS} />
+            <div>
+              <Field label="Discount (%)" type="number" min="0" max="100" value={discount} placeholder="0" onChange={(e) => setDiscount(clampNonNegative(e.target.value))} />
+              <p className="mt-1 text-xs text-slate-400">
+                Suggested for {tier}: {TIER_DISCOUNTS[tier]}%
+                {TIER_DISCOUNTS[tier] > 0 && Number(discount) !== TIER_DISCOUNTS[tier] && (
+                  <button type="button" onClick={() => setDiscount(String(TIER_DISCOUNTS[tier]))} className="ml-1.5 font-medium text-brand-orange-dark hover:underline">
+                    Apply
+                  </button>
+                )}
+              </p>
+            </div>
             <SelectField label="Payment Type" value={paymentType} onChange={setPaymentType} options={PAYMENT_MODES} />
             {paymentType === 'COD' && (
               <Field label="COD Amount (₹)" type="number" min="0" value={codAmount} onChange={(e) => setCodAmount(clampNonNegative(e.target.value))} />

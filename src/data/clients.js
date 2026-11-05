@@ -1,4 +1,4 @@
-import { computeEffectiveMatrix, matrixArrayToObject, cloneStandardCharges } from './pricing.js'
+import { computeMatrixAtDiscount, matrixArrayToObject, cloneStandardCharges } from './pricing.js'
 import { reopenActivationForCorrection } from './activations.js'
 
 // Two-stage Client Approvals: Sales Admin reviews everything except Billing &
@@ -37,7 +37,7 @@ export const APPROVAL_STAGE_BADGE = {
 function seedClientPricing({ tier }) {
   return {
     tier,
-    matrix: matrixArrayToObject(computeEffectiveMatrix(tier)),
+    matrix: matrixArrayToObject(computeMatrixAtDiscount(0)), // standard rates — the tier never discounts on its own
     charges: cloneStandardCharges(),
   }
 }
@@ -525,4 +525,14 @@ export function clientCodeFor(clientId, groupNameOf = () => '') {
   const saved = c.details?.company?.customerCode
   if (saved) return saved
   return `${two(groupNameOf(c.groupId) || c.name)}-${two(c.name)}-${PAYMENT_CODE[c.paymentType] ?? 'XX'}-001`
+}
+
+// Demo: a few clients carry more than one pricing (onboarding's "Add another
+// pricing"). Each is a standard rate card plus the flat discount negotiated.
+export const EXTRA_PRICINGS_BY_CLIENT = {
+  Lenskart: [
+    { cardCode: 'ENT001', discount: 5 },
+    { cardCode: 'EXP001', discount: 0 },
+  ],
+  Nykaa: [{ cardCode: 'ECO001', discount: 10 }],
 }
