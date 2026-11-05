@@ -218,7 +218,7 @@ function ChargeRuleEditor({ rule, onChange }) {
   return (
     <div className="space-y-3">
       <label className="block">
-        <span className="mb-1.5 block text-sm font-medium text-slate-700">Rule type</span>
+        <span className="mb-1.5 block text-sm font-medium text-slate-700">Default rule type</span>
         <select
           value={rule.type}
           onChange={(e) => onChange(emptyChargeRule(e.target.value))}
@@ -232,10 +232,18 @@ function ChargeRuleEditor({ rule, onChange }) {
         </select>
       </label>
 
+      <p className="pt-1 text-sm font-medium text-slate-700">Default rule &amp; price</p>
+
       {['flat_per_awb', 'per_kg', 'percent_of_freight', 'percent_of_cod'].includes(rule.type) && (
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-slate-700">Value</span>
-          <NumberField value={rule.value} onChange={(v) => onChange({ ...rule, value: v })} placeholder="0" suffix={SIMPLE_UNIT[rule.type]} />
+          <span className="mb-1.5 block text-xs font-medium text-slate-500">{{ flat_per_awb: 'Amount (₹)', per_kg: 'Rate (₹ per kg)', percent_of_freight: 'Percentage (% of Basic Freight)', percent_of_cod: 'Percentage (% of COD amount)' }[rule.type]}</span>
+          <input
+            type="number"
+            value={rule.value}
+            onChange={(e) => onChange({ ...rule, value: e.target.value })}
+            placeholder="0"
+            className="w-48 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-800 focus:bg-white focus:outline focus:outline-2 focus:outline-brand-orange/40"
+          />
         </label>
       )}
 
@@ -1698,55 +1706,59 @@ export default function ClientPricingConfiguration() {
 
       {tab === 'additional-charges' && (
         <div className={`overflow-hidden ${card}`}>
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-            <div><h2 className="text-base font-semibold text-slate-900">Additional charges</h2><p className="mt-0.5 text-xs text-slate-500">One default rule and price per charge type.</p></div>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
+            <p className="text-sm text-slate-500">One default rule and price per charge type.</p>
             <div className="flex items-center gap-2">
               <HeaderButton icon="grid" label="Rules List" onClick={() => setShowRulesListModal(true)} />
               <HeaderButton icon="plus" label="Create new charge type" onClick={openNewChargeModal} variant="primary" />
             </div>
           </div>
-          <div className="space-y-5 p-5">
-            {[
-              { title: 'Handling & service', match: /docket|exception|appointment|handling/i },
-              { title: 'Risk & surcharges', match: /fov|fsc|ess|surcharge/i },
-            ].map((g, gi, all) => {
-              const rows = additionalCharges
-                .map((c, i) => ({ c, i }))
-                .filter(({ c }) => (g.match.test(c.name) && !all.slice(0, gi).some((x) => x.match.test(c.name))) || (gi === all.length - 1 && !all.some((x) => x.match.test(c.name))))
-              if (rows.length === 0) return null
-              return (
-                <section key={g.title}>
-                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{g.title}</h3>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {rows.map(({ c, i }) => (
-                      <div key={c.name} className="group flex items-start justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 transition-colors hover:border-brand-orange/40">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-slate-800">{c.name}</div>
-                          <p className="mt-1 text-xs leading-relaxed text-slate-500">{c.defaultValue}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => openEditCharge(i)}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-brand-orange-dark"
-                          aria-label={`Switch default rule — ${c.name}`}
-                        >
-                          <Icon name="edit" className="h-3.5 w-3.5" />
-                          Edit
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="w-20 px-5 py-3">Sl no</th>
+                  <th className="px-3 py-3">Charge</th>
+                  <th className="px-3 py-3">Default rule &amp; price</th>
+                  <th className="w-24 px-5 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {additionalCharges.map((c, i) => (
+                  <tr key={c.name} className="border-b border-slate-50 last:border-0">
+                    <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
+                    <td className="px-3 py-3.5 font-medium text-slate-800">{c.name}</td>
+                    <td className="px-3 py-3.5 text-slate-600">{c.defaultValue}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openEditCharge(i)}
+                        className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-brand-orange-dark"
+                        aria-label={`Switch default rule — ${c.name}`}
+                      >
+                        <Icon name="edit" className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-400">
+          <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-400">
             Every charge type has one default rule and price — edit a row to switch which rule it uses. Client-specific amounts are set during onboarding.
           </p>
 
-          <div className="border-t border-slate-100 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Default ODA List</p>
+        </div>
+      )}
+
+      {tab === 'additional-charges' && (
+        <div className={`overflow-hidden ${card}`}>
+          <div className="border-b border-slate-100 px-5 py-3.5">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Default ODA list</h2>
+          </div>
+          <div className="p-5">
             <OdaListManager
+              summary
               title="Default ODA List"
               entries={defaultOdaEntries}
               onEntriesChange={updateDefaultOdaEntries}
@@ -1755,7 +1767,7 @@ export default function ClientPricingConfiguration() {
               overrides={defaultOdaOverrides}
               onOverridesChange={updateDefaultOdaOverrides}
             />
-            <p className="mt-2 text-[11px] text-slate-400">
+            <p className="mt-3 text-[11px] text-slate-400">
               Every new client's own ODA list starts as a copy of this list — edits here don't change pincodes a client has already onboarded with.
             </p>
           </div>
@@ -1763,26 +1775,30 @@ export default function ClientPricingConfiguration() {
       )}
 
       {showRulesListModal && (
-        <Modal title="Rules List" onClose={() => setShowRulesListModal(false)}>
+        <Modal title="Rules List" size="max-w-[52rem]" onClose={() => setShowRulesListModal(false)}>
+          <div className="grid grid-cols-[1fr_17rem] gap-x-6 border-b border-slate-100 bg-slate-50/70 px-5 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <span>Rule</span>
+            <span>Formula</span>
+          </div>
           <div className="divide-y divide-slate-100">
             {RULES_CATALOG.map((r) => (
-              <div key={r.type} className="flex flex-wrap items-start justify-between gap-2 p-4">
-                <div>
-                  <div className="text-sm font-semibold text-slate-800">{r.label}</div>
-                  <p className="mt-1 text-xs text-slate-500">{r.description}</p>
+              <div key={r.type} className="grid grid-cols-[1fr_17rem] items-center gap-x-6 px-5 py-2">
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold text-slate-800">{r.label}</div>
+                  <p className="text-[11px] leading-snug text-slate-500">{r.description}</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-mono text-slate-500">{r.formula}</span>
+                <span className="justify-self-start rounded-md border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-600">{r.formula}</span>
               </div>
             ))}
           </div>
-          <p className="border-t border-slate-100 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+          <p className="border-t border-slate-100 bg-amber-50 px-5 py-2 text-[11px] text-amber-700">
             This list is fixed — new rules can't be created here. To create a new rule, contact Tech Admin.
           </p>
         </Modal>
       )}
 
       {showNewChargeModal && (
-        <Modal title="Create new charge type" onClose={() => setShowNewChargeModal(false)}>
+        <Modal title="Create new charge type" size="max-w-md" onClose={() => setShowNewChargeModal(false)}>
           <div className="space-y-4 p-5">
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-slate-700">Charge name</span>
@@ -1807,7 +1823,7 @@ export default function ClientPricingConfiguration() {
                 onClick={handleCreateCharge}
                 className="rounded-lg bg-brand-orange px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-orange-dark disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Create
+                Create charge type
               </button>
             </div>
           </div>
@@ -1815,7 +1831,7 @@ export default function ClientPricingConfiguration() {
       )}
 
       {editingChargeIndex !== null && editChargeRule && (
-        <Modal title={`Switch Default Rule — ${additionalCharges[editingChargeIndex].name}`} onClose={closeEditCharge}>
+        <Modal title={`Switch Default Rule — ${additionalCharges[editingChargeIndex].name}`} size="max-w-md" onClose={closeEditCharge}>
           <div className="space-y-4 p-5">
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium text-slate-700">Charge name</span>

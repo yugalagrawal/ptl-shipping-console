@@ -137,7 +137,7 @@ function countBy(rows, key) {
 // Action). Used per-client in the New Client wizard and as the shared
 // "Default ODA List" in Client Pricing Configuration > Additional Charges;
 // it only reads/writes through the callbacks.
-export default function OdaListManager({ bare = false, title = 'Client ODA List', entries, onEntriesChange, rate, onRateChange }) {
+export default function OdaListManager({ bare = false, summary = false, title = 'Client ODA List', entries, onEntriesChange, rate, onRateChange }) {
   const [open, setOpen] = useState(false)
   const [sheetCat, setSheetCat] = useState(null) // null = overview, else 1|2|3
   const [editingRates, setEditingRates] = useState(false)
@@ -251,15 +251,38 @@ export default function OdaListManager({ bare = false, title = 'Client ODA List'
   return (
     <div className={bare ? 'relative' : 'rounded-xl border border-slate-200 p-4'}>
       <div className={bare && entries.length > 0 ? 'absolute -top-[42px] right-0' : 'flex items-center justify-between gap-3'}>
-        {!(bare && entries.length > 0) && <p className="text-sm text-slate-500">{entries.length === 0 ? 'No ODA pincodes added yet.' : ''}</p>}
-        <button
-          type="button"
-          onClick={openModal}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <Icon name={entries.length > 0 ? 'edit' : 'plus'} className="h-3.5 w-3.5" />
-          {entries.length > 0 ? 'View / Edit' : 'Add pincodes'}
-        </button>
+        {!(bare && entries.length > 0) && (
+          <p className="text-sm text-slate-500">
+            {entries.length === 0 ? 'No ODA pincodes added yet.' : summary ? <><span className="text-lg font-semibold tabular-nums text-slate-900">{fmt(entries.length)}</span> ODA pincodes</> : ''}
+          </p>
+        )}
+        <div className="flex items-center gap-2">
+          {summary && entries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const csv = ['Pincode,State,District,ODA', ...entries.map((r) => [r.pincode, r.state, r.district ?? r.city ?? '', r.oda].map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n')
+                const a = document.createElement('a')
+                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+                a.download = 'oda-pincodes.csv'
+                a.click()
+                URL.revokeObjectURL(a.href)
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <Icon name="download" className="h-3.5 w-3.5" />
+              Download
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={openModal}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Icon name={entries.length > 0 ? 'edit' : 'plus'} className="h-3.5 w-3.5" />
+            {entries.length > 0 ? 'View / Edit' : 'Add pincodes'}
+          </button>
+        </div>
       </div>
       {entries.length > 0 && (
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
